@@ -271,9 +271,9 @@ connection.onTypeDefinition((params: TypeDefinitionParams): Location | Location[
   const fullWord = line.substring(wordStart, wordEnd);
   console.log(`[TypeDefinition] Extracted word from position ${wordStart}-${wordEnd}: "${fullWord}"`);
   
-  // Verify it's PascalCase (starts with uppercase, followed by alphanumeric/underscore)
-  if (!/^[A-Z][A-Za-z0-9_]*$/.test(fullWord)) {
-    console.log(`[TypeDefinition] Word "${fullWord}" doesn't match PascalCase pattern (must start with uppercase) - returning null`);
+  // Verify it's a valid type identifier (starts with letter or underscore, followed by alphanumeric/underscore)
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(fullWord)) {
+    console.log(`[TypeDefinition] Word "${fullWord}" doesn't match type identifier pattern - returning null`);
     return null;
   }
   
@@ -349,17 +349,17 @@ connection.languages.semanticTokens.on((params: SemanticTokensParams) => {
     "string", "void", "date", "datetime", "json", "jsonarray"
   ]);
 
-  // Regex to match PascalCase identifiers (user-defined types start with uppercase)
-  const pascalCaseRegex = /\b([A-Z][A-Za-z0-9_]*)\b/g;
+  // Regex to match user-defined type identifiers (PascalCase or snake_case)
+  const typeIdentifierRegex = /\b([A-Za-z_][A-Za-z0-9_]*)\b/g;
 
   for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
     const line = lines[lineIndex];
     let match: RegExpExecArray | null;
 
     // Reset regex lastIndex for each line
-    pascalCaseRegex.lastIndex = 0;
+    typeIdentifierRegex.lastIndex = 0;
 
-    while ((match = pascalCaseRegex.exec(line)) !== null) {
+    while ((match = typeIdentifierRegex.exec(line)) !== null) {
       const identifier = match[1];
       const startChar = match.index;
       const length = identifier.length;

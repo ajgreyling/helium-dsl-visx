@@ -141,7 +141,7 @@ export class WorkspaceIndex {
         };
 
         // Match persistent object definitions
-        const persistentMatch = line.match(/persistent\s+object\s+([A-Z][A-Za-z0-9_]*)/);
+        const persistentMatch = line.match(/persistent\s+object\s+([A-Za-z_][A-Za-z0-9_]*)/);
         if (persistentMatch) {
           const objectName = persistentMatch[1];
           const roleInfo = findRoleAnnotation(idx);
@@ -160,7 +160,7 @@ export class WorkspaceIndex {
         }
 
         // Match non-persistent object definitions (only if not already matched)
-        const objectMatch = line.match(/object\s+([A-Z][A-Za-z0-9_]*)/);
+        const objectMatch = line.match(/object\s+([A-Za-z_][A-Za-z0-9_]*)/);
         if (objectMatch && !this.objectDefinitions.has(objectMatch[1])) {
           const objectName = objectMatch[1];
           const roleInfo = findRoleAnnotation(idx);

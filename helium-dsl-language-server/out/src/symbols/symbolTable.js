@@ -11,7 +11,7 @@ function buildSymbolTable(text) {
             symbols.push({ name: unitMatch[1], kind: "unit", location: { line: idx, character: unitMatch.index ?? 0 } });
         }
         // Match object definitions (persistent or non-persistent)
-        const persistentObjectMatch = line.match(/(?:@\w+\s+)*persistent\s+object\s+([A-Z][A-Za-z0-9_]*)/);
+        const persistentObjectMatch = line.match(/(?:@\w+\s+)*persistent\s+object\s+([A-Za-z_][A-Za-z0-9_]*)/);
         if (persistentObjectMatch) {
             symbols.push({
                 name: persistentObjectMatch[1],
@@ -20,7 +20,7 @@ function buildSymbolTable(text) {
             });
         }
         // Match non-persistent object definitions (only if not already matched as persistent)
-        const objectMatch = line.match(/(?:@\w+\s+)*object\s+([A-Z][A-Za-z0-9_]*)/);
+        const objectMatch = line.match(/(?:@\w+\s+)*object\s+([A-Za-z_][A-Za-z0-9_]*)/);
         if (objectMatch && !persistentObjectMatch) {
             symbols.push({
                 name: objectMatch[1],
