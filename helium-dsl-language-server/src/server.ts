@@ -8,6 +8,7 @@ import {
   CompletionItemKind,
   SemanticTokensBuilder,
   SemanticTokensLegend,
+  SemanticTokensParams,
   Hover,
   Location,
   DefinitionParams,
@@ -23,9 +24,15 @@ import { provideCompletions } from "./completion/completionProvider";
 import { runLints } from "./linter/engine";
 import { WorkspaceIndex } from "./symbols/workspaceIndex";
 
+// Log immediately when server module loads
+console.error("[Server] ===== Language Server Module Loading =====");
+console.error("[Server] Server process started");
+
 const connection = createConnection();
 const documents = new TextDocuments<TextDocument>(TextDocument);
 const workspaceIndex = new WorkspaceIndex();
+
+console.error("[Server] Connection and documents initialized");
 
 const semanticLegend: SemanticTokensLegend = {
   tokenTypes: ["type", "function", "variable"],
@@ -33,35 +40,35 @@ const semanticLegend: SemanticTokensLegend = {
 };
 
 connection.onInitialize((params: InitializeParams): InitializeResult => {
-  console.log("[Server] Initializing language server...");
-  console.log(`[Server] Workspace folders:`, params.workspaceFolders);
+  console.error("[Server] ===== onInitialize Called =====");
+  console.error("[Server] Initializing language server...");
+  console.error(`[Server] Workspace folders:`, JSON.stringify(params.workspaceFolders, null, 2));
+  console.error(`[Server] Root URI: ${params.rootUri || 'null'}`);
+  console.error(`[Server] Root path: ${params.rootPath || 'null'}`);
+  
   // Initialize workspace index with workspace folders
+  console.error("[Server] Initializing workspace index...");
   workspaceIndex.initialize(params.workspaceFolders || null);
+  console.error("[Server] Workspace index initialized");
 
   // After initializing the index, send a notification with all discovered user-defined types
   try {
     const debug = workspaceIndex.getDebugInfo();
     const types = debug.objects || [];
-    console.log(`[Server] Sending ${types.length} discovered user-defined types to client`);
+    console.error(`[Server] ===== Sending User Types Notification =====`);
+    console.error(`[Server] Found ${types.length} user-defined types`);
+    console.error(`[Server] Types: ${JSON.stringify(types, null, 2)}`);
+    console.error(`[Server] Workspace roots: ${JSON.stringify(debug.workspaceRoots, null, 2)}`);
     connection.sendNotification("helium/userTypes", types);
+    console.error(`[Server] Notification sent successfully`);
   } catch (err) {
-    console.error("[Server] Error sending userTypes notification:", err);
+    console.error("[Server] ERROR sending userTypes notification:", err);
+    console.error("[Server] Error stack:", err instanceof Error ? err.stack : String(err));
   }
 
-  // Register a file watcher for .mez files under any `model` directory so the client
-  // notifies us when .mez files are created/changed/deleted.
-  try {
-    connection.client.register(DidChangeWatchedFilesNotification.type, {
-      watchers: [
-        { globPattern: "**/model/**/*.mez" },
-        { globPattern: "**/model/*.mez" },
-      ],
-    });
-  } catch (err) {
-    console.log("[Server] Warning: failed to register file watchers:", err);
-  }
+  // Note: File watcher registration moved to onInitialized callback
 
-  return {
+  const result: InitializeResult = {
     capabilities: {
       textDocumentSync: TextDocumentSyncKind.Incremental,
       completionProvider: { resolveProvider: false },
@@ -82,6 +89,31 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
       },
     },
   };
+  
+  // Register workspace folder change handler AFTER initialization
+  // This must be done after the initialize response is returned
+  // Use connection.onInitialized to ensure client is ready
+  connection.onInitialized(() => {
+    console.error("[Server] ===== onInitialized Called =====");
+    // Now it's safe to register workspace folder change handler
+    connection.workspace.onDidChangeWorkspaceFolders((_event) => {
+      console.error("[Server] Workspace folders changed, re-initializing index...");
+      // Re-initialize workspace index when folders change
+      connection.workspace.getWorkspaceFolders().then((folders) => {
+        workspaceIndex.initialize(folders);
+        try {
+          const types = workspaceIndex.getDebugInfo().objects || [];
+          console.error(`[Server] Workspace folders changed - sending ${types.length} user-defined types to client`);
+          connection.sendNotification("helium/userTypes", types);
+        } catch (err) {
+          console.error("[Server] Error sending userTypes after workspace folder change:", err);
+        }
+      });
+    });
+    console.error("[Server] Workspace folder change handler registered");
+  });
+  
+  return result;
 });
 
 documents.onDidChangeContent((change) => {
@@ -97,29 +129,28 @@ documents.onDidOpen((change) => {
 });
 
 // Listen for watched file changes (add/remove) and refresh index as needed
-connection.onDidChangeWatchedFiles((params) => {
-  try {
-    for (const ch of params.changes) {
-      const fsPath = URI.parse(ch.uri).fsPath;
-      // Only care about .mez files in model folders
-      if (fsPath.endsWith('.mez') && fsPath.split(path.sep).includes('model')) {
-        console.log(`[Server] Watched file change: ${ch.type} -> ${fsPath}`);
-        // For create/delete/change, update the file entry in the index
-        workspaceIndex.updateFile(ch.uri);
-      }
-    }
-    // After processing watched changes, send updated list of types
-    try {
-      const types = workspaceIndex.getDebugInfo().objects || [];
-      console.log(`[Server] Watched files processed - sending ${types.length} user-defined types to client`);
-      connection.sendNotification("helium/userTypes", types);
-    } catch (err) {
-      console.error("[Server] Error sending userTypes after watched files processed:", err);
-    }
-  } catch (err) {
-    console.error('[Server] Error handling watched file changes:', err);
-  }
-});
+// Note: File watcher registration is disabled because Cursor doesn't support client/registerCapability
+// The registration would cause a server crash. Instead, we rely on document open/change events
+// to update the workspace index when files are edited.
+// 
+// If file watching is needed in the future, we can implement it using a different approach
+// that doesn't require client/registerCapability, such as polling or using the client's
+// file system events directly.
+//
+// connection.onDidChangeWatchedFiles((params) => {
+//   try {
+//     for (const ch of params.changes) {
+//       const fsPath = URI.parse(ch.uri).fsPath;
+//       if (fsPath.endsWith('.mez') && fsPath.split(path.sep).includes('model')) {
+//         workspaceIndex.updateFile(ch.uri);
+//       }
+//     }
+//     const types = workspaceIndex.getDebugInfo().objects || [];
+//     connection.sendNotification("helium/userTypes", types);
+//   } catch (err) {
+//     console.error('[Server] Error handling watched file changes:', err);
+//   }
+// });
 
 async function validateDocument(document: TextDocument) {
   const text = document.getText();
@@ -287,27 +318,84 @@ connection.onReferences((_params): Location[] => {
   return [];
 });
 
-connection.languages.semanticTokens.on((_params) => {
+connection.languages.semanticTokens.on((params: SemanticTokensParams) => {
+  console.error(`[SemanticTokens] ===== Request Received =====`);
+  console.error(`[SemanticTokens] URI: ${params.textDocument.uri}`);
+  const doc = documents.get(params.textDocument.uri);
   const builder = new SemanticTokensBuilder();
-  // Placeholder: no semantic tokens yet.
-  return builder.build();
-});
+  
+  if (!doc) {
+    console.error(`[SemanticTokens] ERROR: Document not found for ${params.textDocument.uri}`);
+    return builder.build();
+  }
+  
+  const text = doc.getText();
+  const lines = text.split(/\r?\n/);
+  console.error(`[SemanticTokens] Processing document with ${lines.length} lines`);
+  
+  // Log workspace index state
+  const debugInfo = workspaceIndex.getDebugInfo();
+  console.error(`[SemanticTokens] Workspace index has ${debugInfo.objectCount} types`);
 
-// Handle workspace folder changes
-connection.workspace.onDidChangeWorkspaceFolders((_event) => {
-  // Re-initialize workspace index when folders change
-  connection.workspace.getWorkspaceFolders().then((folders) => {
-    workspaceIndex.initialize(folders);
-    try {
-      const types = workspaceIndex.getDebugInfo().objects || [];
-      console.log(`[Server] Workspace folders changed - sending ${types.length} user-defined types to client`);
-      connection.sendNotification("helium/userTypes", types);
-    } catch (err) {
-      console.error("[Server] Error sending userTypes after workspace folder change:", err);
+  // Keywords that should not be highlighted as types
+  const keywords = new Set([
+    "unit", "persistent", "object", "enum", "validator",
+    "if", "else", "for", "foreach", "return"
+  ]);
+
+  // System/primitive types that should not be highlighted as user-defined types
+  const systemTypes = new Set([
+    "int", "decimal", "bigint", "uuid", "blob", "bool",
+    "string", "void", "date", "datetime", "json", "jsonarray"
+  ]);
+
+  // Regex to match PascalCase identifiers (user-defined types start with uppercase)
+  const pascalCaseRegex = /\b([A-Z][A-Za-z0-9_]*)\b/g;
+
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+    const line = lines[lineIndex];
+    let match: RegExpExecArray | null;
+
+    // Reset regex lastIndex for each line
+    pascalCaseRegex.lastIndex = 0;
+
+    while ((match = pascalCaseRegex.exec(line)) !== null) {
+      const identifier = match[1];
+      const startChar = match.index;
+      const length = identifier.length;
+
+      // Skip if it's a keyword or system type
+      if (keywords.has(identifier.toLowerCase()) || systemTypes.has(identifier.toLowerCase())) {
+        continue;
+      }
+
+      // Skip if it's part of an object definition (already handled by TextMate grammar)
+      // Check if this identifier appears after "object" or "persistent object" keywords
+      const beforeMatch = line.substring(0, startChar);
+      if (/\b(persistent\s+)?object\s*$/.test(beforeMatch.trimEnd())) {
+        continue;
+      }
+
+      // Check if it's a user-defined type using workspace index
+      if (workspaceIndex.isUserDefinedType(identifier)) {
+        console.error(`[SemanticTokens] ✓ Found user-defined type "${identifier}" at line ${lineIndex + 1}, char ${startChar}`);
+        // Token type index 0 corresponds to "type" in our legend
+        builder.push(lineIndex, startChar, length, 0, 0);
+      }
     }
-  });
+  }
+
+  const result = builder.build();
+  const tokenCount = result.data.length / 5;
+  console.error(`[SemanticTokens] ===== Returning ${tokenCount} tokens =====`);
+  return result;
 });
 
+// Note: Workspace folder change handler is now registered in onInitialized callback
+// to ensure the client supports workspace folder change notifications
+
+console.error("[Server] Starting to listen for connections...");
 documents.listen(connection);
 connection.listen();
+console.error("[Server] ===== Server listening, ready to receive requests =====");
 
