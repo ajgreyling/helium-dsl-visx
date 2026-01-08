@@ -73,7 +73,10 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
   const result: InitializeResult = {
     capabilities: {
       textDocumentSync: TextDocumentSyncKind.Incremental,
-      completionProvider: { resolveProvider: false },
+      completionProvider: { 
+        resolveProvider: false,
+        triggerCharacters: ['.']
+      },
       hoverProvider: true,
       semanticTokensProvider: {
         legend: semanticLegend,
@@ -166,7 +169,7 @@ connection.onCompletion(async (params): Promise<CompletionItem[]> => {
   const doc = documents.get(params.textDocument.uri);
   if (!doc) return [];
   const table = buildSymbolTable(doc.getText());
-  return provideCompletions(params, table);
+  return provideCompletions(params, table, doc, workspaceIndex);
 });
 
 connection.onHover((_params): Hover | null => {

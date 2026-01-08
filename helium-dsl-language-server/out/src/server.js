@@ -83,7 +83,10 @@ connection.onInitialize((params) => {
     const result = {
         capabilities: {
             textDocumentSync: node_1.TextDocumentSyncKind.Incremental,
-            completionProvider: { resolveProvider: false },
+            completionProvider: {
+                resolveProvider: false,
+                triggerCharacters: ['.']
+            },
             hoverProvider: true,
             semanticTokensProvider: {
                 legend: semanticLegend,
@@ -171,7 +174,7 @@ connection.onCompletion(async (params) => {
     if (!doc)
         return [];
     const table = (0, symbolTable_1.buildSymbolTable)(doc.getText());
-    return (0, completionProvider_1.provideCompletions)(params, table);
+    return (0, completionProvider_1.provideCompletions)(params, table, doc, workspaceIndex);
 });
 connection.onHover((_params) => {
     return null; // Placeholder; will be expanded with type info

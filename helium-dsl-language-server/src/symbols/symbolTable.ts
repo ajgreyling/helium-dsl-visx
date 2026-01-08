@@ -3,6 +3,7 @@ export type SymbolKind = "unit" | "function" | "variable" | "object" | "enum" | 
 export interface SymbolEntry {
   name: string;
   kind: SymbolKind;
+  type?: string; // Type of the symbol (for variables)
   location?: {
     line: number;
     character: number;
@@ -96,16 +97,18 @@ export function buildSymbolTable(text: string): SymbolTable {
               const trimmedParam = param.trim();
               // Match: type variableName (variable names start with lowercase)
               // Pattern matches: <type> <name> or <type>[] <name>
-              // The variable name is the last identifier that starts with lowercase
-              const paramMatch = trimmedParam.match(/\b([a-z][A-Za-z0-9_]*)\s*$/);
-              if (paramMatch && paramMatch[1]) {
-                const paramName = paramMatch[1];
+              // Extract both type and variable name
+              const paramMatch = trimmedParam.match(/\b((?:int|bool|string|decimal|uuid|json|jsonarray|date|datetime|bigint|blob|[A-Za-z_][A-Za-z0-9_]*(?:\[\])?))\s+([a-z][A-Za-z0-9_]*)\s*$/);
+              if (paramMatch && paramMatch[2]) {
+                const paramName = paramMatch[2];
+                const paramType = paramMatch[1];
                 // Find the position of the parameter name in the original line
                 const paramNameIndex = line.indexOf(paramName, openParenIndex);
                 if (paramNameIndex !== -1) {
                   symbols.push({ 
                     name: paramName, 
-                    kind: "variable", 
+                    kind: "variable",
+                    type: paramType,
                     location: { line: idx, character: paramNameIndex } 
                   });
                 }
@@ -115,9 +118,16 @@ export function buildSymbolTable(text: string): SymbolTable {
         }
       }
     }
-    const varMatch = line.match(/\b(?:int|bool|string|decimal|uuid|json|jsonarray|date|datetime|bigint|blob|[A-Za-z_][A-Za-z0-9_]*)\s+([a-z][A-Za-z0-9_]*)\s*(=|;)/);
+    const varMatch = line.match(/\b((?:int|bool|string|decimal|uuid|json|jsonarray|date|datetime|bigint|blob|[A-Za-z_][A-Za-z0-9_]*(?:\[\])?))\s+([a-z][A-Za-z0-9_]*)\s*(=|;)/);
     if (varMatch) {
-      symbols.push({ name: varMatch[1], kind: "variable", location: { line: idx, character: varMatch.index ?? 0 } });
+      const varType = varMatch[1];
+      const varName = varMatch[2];
+      symbols.push({ 
+        name: varName, 
+        kind: "variable",
+        type: varType,
+        location: { line: idx, character: varMatch.index ?? 0 } 
+      });
     }
   });
 
