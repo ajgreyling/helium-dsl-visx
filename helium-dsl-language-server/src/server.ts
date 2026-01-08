@@ -190,36 +190,111 @@ connection.onDefinition((params: DefinitionParams): Location | Location[] | null
   const line = lines[position.line] || "";
   console.log(`[Definition] Line content: "${line}"`);
 
-  // Find the word at the cursor position (PascalCase for types)
+  // Find the word at the cursor position (any case - types or variables)
+  // Strategy: Find the complete word boundary around the cursor position
   const beforeCursor = line.substring(0, position.character);
   const afterCursor = line.substring(position.character);
+  console.log(`[Definition] Before cursor: "${beforeCursor}"`);
+  console.log(`[Definition] After cursor: "${afterCursor}"`);
   
-  // Match PascalCase identifier (user-defined types start with uppercase)
-  const beforeMatch = beforeCursor.match(/([A-Z][A-Za-z0-9_]*)$/);
-  const afterMatch = afterCursor.match(/^([A-Za-z0-9_]*)/);
+  // Try to match a complete identifier word at cursor position
+  // First, try to find the start of the word by looking backwards
+  let wordStart = position.character;
+  while (wordStart > 0 && /[A-Za-z0-9_]/.test(line[wordStart - 1])) {
+    wordStart--;
+  }
   
-  if (!beforeMatch) {
-    console.log(`[Definition] No PascalCase match before cursor`);
+  // Then find the end of the word by looking forwards
+  let wordEnd = position.character;
+  while (wordEnd < line.length && /[A-Za-z0-9_]/.test(line[wordEnd])) {
+    wordEnd++;
+  }
+  
+  const fullWord = line.substring(wordStart, wordEnd);
+  console.log(`[Definition] Extracted word from position ${wordStart}-${wordEnd}: "${fullWord}"`);
+  
+  // Verify it's a valid identifier (starts with letter or underscore, followed by alphanumeric/underscore)
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(fullWord)) {
+    console.log(`[Definition] Word "${fullWord}" doesn't match identifier pattern - returning null`);
     return null;
   }
   
-  const fullWord = beforeMatch[1] + (afterMatch ? afterMatch[1] : "");
-  console.log(`[Definition] Extracted word: "${fullWord}"`);
+  // Verify it's a complete word (has word boundaries on both sides)
+  const charBefore = wordStart > 0 ? line[wordStart - 1] : ' ';
+  const charAfter = wordEnd < line.length ? line[wordEnd] : ' ';
+  const isWordBoundaryBefore = !/[A-Za-z0-9_]/.test(charBefore);
+  const isWordBoundaryAfter = !/[A-Za-z0-9_]/.test(charAfter);
   
-  // Only match if it's a complete word (not part of a larger identifier)
-  if (!/^[A-Z][A-Za-z0-9_]*$/.test(fullWord)) {
-    console.log(`[Definition] Word "${fullWord}" doesn't match PascalCase pattern`);
+  console.log(`[Definition] Word boundaries: before="${charBefore}" (${isWordBoundaryBefore}), after="${charAfter}" (${isWordBoundaryAfter})`);
+  
+  if (!isWordBoundaryBefore || !isWordBoundaryAfter) {
+    console.log(`[Definition] Word "${fullWord}" is not a complete word (missing word boundaries) - returning null`);
     return null;
   }
+  
+  console.log(`[Definition] Valid identifier word extracted: "${fullWord}"`);
 
-  // Check if it's a user-defined type
-  if (workspaceIndex.isUserDefinedType(fullWord)) {
+  // First check if it's a user-defined type (preserve existing behavior)
+  console.log(`[Definition] Checking if "${fullWord}" is a user-defined type...`);
+  const isUserDefined = workspaceIndex.isUserDefinedType(fullWord);
+  console.log(`[Definition] isUserDefinedType("${fullWord}") = ${isUserDefined}`);
+  
+  if (isUserDefined) {
     const location = workspaceIndex.getObjectLocation(fullWord);
-    console.log(`[Definition] Found definition for "${fullWord}":`, location);
-    return location ? [location] : null;
+    console.log(`[Definition] SUCCESS: Found type definition for "${fullWord}"`);
+    console.log(`[Definition] Location:`, JSON.stringify(location, null, 2));
+    if (location) {
+      console.log(`[Definition] Returning location: ${location.uri} at line ${location.range.start.line + 1}`);
+      return [location];
+    } else {
+      console.log(`[Definition] WARNING: isUserDefinedType returned true but getObjectLocation returned null`);
+    }
   }
 
-  console.log(`[Definition] "${fullWord}" is not a user-defined type`);
+  // If not a type, check if it's a variable
+  console.log(`[Definition] "${fullWord}" is not a user-defined type, checking for variable...`);
+  const symbolTable = buildSymbolTable(text);
+  
+  // Find the most recent declaration of this variable before or at the cursor position
+  const relevantSymbols = symbolTable.symbols
+    .filter(
+      (s) =>
+        s.name === fullWord &&
+        s.kind === "variable" &&
+        s.location &&
+        (s.location.line < position.line ||
+          (s.location.line === position.line &&
+            s.location.character <= position.character))
+    )
+    .sort((a, b) => {
+      // Sort by line (most recent first), then by character
+      if (a.location!.line !== b.location!.line) {
+        return b.location!.line - a.location!.line;
+      }
+      return b.location!.character - a.location!.character;
+    });
+
+  if (relevantSymbols.length > 0) {
+    const variableSymbol = relevantSymbols[0];
+    const location: Location = {
+      uri: doc.uri,
+      range: {
+        start: {
+          line: variableSymbol.location!.line,
+          character: variableSymbol.location!.character,
+        },
+        end: {
+          line: variableSymbol.location!.line,
+          character: variableSymbol.location!.character + fullWord.length,
+        },
+      },
+    };
+    console.log(`[Definition] SUCCESS: Found variable definition for "${fullWord}"`);
+    console.log(`[Definition] Location:`, JSON.stringify(location, null, 2));
+    return [location];
+  }
+
+  console.log(`[Definition] "${fullWord}" is not a type or variable - returning null`);
   return null;
 });
 
