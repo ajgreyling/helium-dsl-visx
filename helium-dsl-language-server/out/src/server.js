@@ -273,6 +273,18 @@ connection.languages.semanticTokens.on((params) => {
     const text = doc.getText();
     const lines = text.split(/\r?\n/);
     console.error(`[SemanticTokens] Processing document with ${lines.length} lines`);
+    // Build symbol table to identify local variables and parameters
+    const symbolTable = (0, symbolTable_1.buildSymbolTable)(text);
+    // Create a map of variable names to their declaration lines for scoping checks
+    const variableDeclarations = new Map();
+    symbolTable.symbols.forEach(symbol => {
+        if (symbol.kind === "variable" && symbol.location) {
+            const existing = variableDeclarations.get(symbol.name) || [];
+            existing.push(symbol.location.line);
+            variableDeclarations.set(symbol.name, existing);
+        }
+    });
+    console.error(`[SemanticTokens] Found ${variableDeclarations.size} variable/parameter declarations`);
     // Log workspace index state
     const debugInfo = workspaceIndex.getDebugInfo();
     console.error(`[SemanticTokens] Workspace index has ${debugInfo.objectCount} types`);
@@ -305,6 +317,26 @@ connection.languages.semanticTokens.on((params) => {
             // Check if this identifier appears after "object" or "persistent object" keywords
             const beforeMatch = line.substring(0, startChar);
             if (/\b(persistent\s+)?object\s*$/.test(beforeMatch.trimEnd())) {
+                continue;
+            }
+            // Skip if this identifier appears in a variable declaration position (after a type name)
+            // Pattern: <type> <identifier> = or <type> <identifier>;
+            // This prevents highlighting variable names as types
+            const afterMatch = line.substring(startChar + length);
+            const beforeIdentifier = beforeMatch.trimEnd();
+            // Check if there's a type-like pattern before this identifier
+            if (/^(=|;|,|\))/.test(afterMatch) &&
+                /\b(?:int|void|bool|string|decimal|uuid|json|jsonarray|date|datetime|bigint|blob|[A-Za-z_][A-Za-z0-9_]*)\s+$/.test(beforeIdentifier)) {
+                // This looks like a variable declaration: <type> <identifier> = or <type> <identifier>;
+                // Skip highlighting the identifier as a type
+                continue;
+            }
+            // Check if this identifier is a local variable or parameter declared before this position
+            // This handles scoping: if a variable is declared anywhere before this line, don't highlight as type
+            const varDeclLines = variableDeclarations.get(identifier);
+            if (varDeclLines && varDeclLines.some(declLine => declLine <= lineIndex)) {
+                // This is a local variable or parameter, skip type highlighting
+                console.error(`[SemanticTokens] Skipping "${identifier}" at line ${lineIndex + 1} - it's a local variable/parameter`);
                 continue;
             }
             // Check if it's a user-defined type using workspace index

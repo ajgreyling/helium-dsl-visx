@@ -47,6 +47,73 @@ export function buildSymbolTable(text: string): SymbolTable {
     const funcMatch = line.match(/\b(?:int|void|bool|string|decimal|uuid|json|jsonarray|date|datetime|bigint|blob|[A-Za-z_][A-Za-z0-9_]*)\s+([a-z][A-Za-z0-9_]*)\s*\(/);
     if (funcMatch) {
       symbols.push({ name: funcMatch[1], kind: "function", location: { line: idx, character: funcMatch.index ?? 0 } });
+      
+      // Extract function parameters from the function signature
+      // Find the opening parenthesis and extract parameters until closing parenthesis
+      const openParenIndex = line.indexOf('(', funcMatch.index ?? 0);
+      if (openParenIndex !== -1) {
+        // Find the closing parenthesis (handle nested parentheses)
+        let parenDepth = 0;
+        let closeParenIndex = -1;
+        for (let i = openParenIndex; i < line.length; i++) {
+          if (line[i] === '(') parenDepth++;
+          if (line[i] === ')') {
+            parenDepth--;
+            if (parenDepth === 0) {
+              closeParenIndex = i;
+              break;
+            }
+          }
+        }
+        
+        if (closeParenIndex !== -1) {
+          // Extract parameter list
+          const paramList = line.substring(openParenIndex + 1, closeParenIndex).trim();
+          if (paramList.length > 0) {
+            // Split parameters by comma, but handle nested generics/arrays
+            const params: string[] = [];
+            let currentParam = '';
+            let depth = 0;
+            
+            for (let i = 0; i < paramList.length; i++) {
+              const char = paramList[i];
+              if (char === '<' || char === '[') depth++;
+              else if (char === '>' || char === ']') depth--;
+              else if (char === ',' && depth === 0) {
+                params.push(currentParam.trim());
+                currentParam = '';
+                continue;
+              }
+              currentParam += char;
+            }
+            if (currentParam.trim().length > 0) {
+              params.push(currentParam.trim());
+            }
+            
+            // Extract variable names from each parameter
+            // Pattern: type variableName or type[] variableName
+            params.forEach(param => {
+              const trimmedParam = param.trim();
+              // Match: type variableName (variable names start with lowercase)
+              // Pattern matches: <type> <name> or <type>[] <name>
+              // The variable name is the last identifier that starts with lowercase
+              const paramMatch = trimmedParam.match(/\b([a-z][A-Za-z0-9_]*)\s*$/);
+              if (paramMatch && paramMatch[1]) {
+                const paramName = paramMatch[1];
+                // Find the position of the parameter name in the original line
+                const paramNameIndex = line.indexOf(paramName, openParenIndex);
+                if (paramNameIndex !== -1) {
+                  symbols.push({ 
+                    name: paramName, 
+                    kind: "variable", 
+                    location: { line: idx, character: paramNameIndex } 
+                  });
+                }
+              }
+            });
+          }
+        }
+      }
     }
     const varMatch = line.match(/\b(?:int|bool|string|decimal|uuid|json|jsonarray|date|datetime|bigint|blob|[A-Za-z_][A-Za-z0-9_]*)\s+([a-z][A-Za-z0-9_]*)\s*(=|;)/);
     if (varMatch) {
