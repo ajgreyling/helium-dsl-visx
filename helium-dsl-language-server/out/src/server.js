@@ -1,7 +1,43 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
 const node_1 = require("vscode-languageserver/node");
 const vscode_languageserver_textdocument_1 = require("vscode-languageserver-textdocument");
+const vscode_uri_1 = require("vscode-uri");
+const path = __importStar(require("path"));
+const fs = __importStar(require("fs"));
 const diagnostics_1 = require("./diagnostics");
 const symbolTable_1 = require("./symbols/symbolTable");
 const completionProvider_1 = require("./completion/completionProvider");
@@ -258,8 +294,235 @@ connection.onTypeDefinition((params) => {
     console.log(`[TypeDefinition] "${fullWord}" is not a user-defined type - returning null`);
     return null;
 });
-connection.onReferences((_params) => {
-    return [];
+/**
+ * Extract the type name at the cursor position
+ */
+function extractTypeNameAtPosition(doc, position) {
+    const text = doc.getText();
+    const lines = text.split(/\r?\n/);
+    const line = lines[position.line] || "";
+    // Find the word boundaries around the cursor position
+    let wordStart = position.character;
+    while (wordStart > 0 && /[A-Za-z0-9_]/.test(line[wordStart - 1])) {
+        wordStart--;
+    }
+    let wordEnd = position.character;
+    while (wordEnd < line.length && /[A-Za-z0-9_]/.test(line[wordEnd])) {
+        wordEnd++;
+    }
+    const fullWord = line.substring(wordStart, wordEnd);
+    // Verify it's a valid type identifier
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(fullWord)) {
+        return null;
+    }
+    // Verify it's a complete word (has word boundaries on both sides)
+    const charBefore = wordStart > 0 ? line[wordStart - 1] : " ";
+    const charAfter = wordEnd < line.length ? line[wordEnd] : " ";
+    const isWordBoundaryBefore = !/[A-Za-z0-9_]/.test(charBefore);
+    const isWordBoundaryAfter = !/[A-Za-z0-9_]/.test(charAfter);
+    if (!isWordBoundaryBefore || !isWordBoundaryAfter) {
+        return null;
+    }
+    return fullWord;
+}
+/**
+ * Check if a match is in a comment
+ */
+function isInComment(line, matchIndex) {
+    // Simple heuristic: check if there's a // before the match on the same line
+    const beforeMatch = line.substring(0, matchIndex);
+    // Check for // comments (but not in strings)
+    const commentIndex = beforeMatch.indexOf("//");
+    if (commentIndex !== -1) {
+        // Check if it's not inside a string
+        const beforeComment = beforeMatch.substring(0, commentIndex);
+        const singleQuotes = (beforeComment.match(/'/g) || []).length;
+        const doubleQuotes = (beforeComment.match(/"/g) || []).length;
+        // If even number of quotes before comment, comment is valid
+        if (singleQuotes % 2 === 0 && doubleQuotes % 2 === 0) {
+            return true;
+        }
+    }
+    return false;
+}
+/**
+ * Check if a match is part of an object definition line
+ */
+function isObjectDefinition(line, matchIndex, typeName) {
+    const beforeMatch = line.substring(0, matchIndex).trimEnd();
+    // Check if this appears after "object" or "persistent object"
+    return /\b(persistent\s+)?object\s*$/.test(beforeMatch);
+}
+/**
+ * Check if a match is a variable declaration (not a type reference)
+ */
+function isVariableDeclaration(line, matchIndex, lineIndex, typeName, symbolTable) {
+    const afterMatch = line.substring(matchIndex + typeName.length);
+    const beforeMatch = line.substring(0, matchIndex).trimEnd();
+    // Check if there's a type-like pattern before this identifier
+    // Pattern: <type> <identifier> = or <type> <identifier>;
+    if (/^(=|;|,|\))/.test(afterMatch) &&
+        /\b(?:int|void|bool|string|decimal|uuid|json|jsonarray|date|datetime|bigint|blob|[A-Za-z_][A-Za-z0-9_]*)\s+$/.test(beforeMatch)) {
+        // This looks like a variable declaration: <type> <identifier> = or <type> <identifier>;
+        return true;
+    }
+    // Check if this identifier is a local variable or parameter
+    const varDeclLines = symbolTable.symbols
+        .filter((s) => s.kind === "variable" && s.name === typeName && s.location)
+        .map((s) => s.location.line);
+    // If there's a variable declaration before this line, it's likely a variable reference
+    if (varDeclLines.some((declLine) => declLine <= lineIndex)) {
+        return true;
+    }
+    return false;
+}
+/**
+ * Search a document for references to a type name
+ */
+function findReferencesInDocument(doc, typeName, excludeDefinition) {
+    const text = doc.getText();
+    const lines = text.split(/\r?\n/);
+    const uri = doc.uri;
+    const references = [];
+    const symbolTable = (0, symbolTable_1.buildSymbolTable)(text);
+    // Get the definition location to exclude it if needed
+    const definitionLocation = workspaceIndex.getObjectLocation(typeName);
+    const definitionUri = definitionLocation?.uri;
+    const definitionLine = definitionLocation?.range.start.line;
+    // Create regex with word boundaries to match the type name
+    const regex = new RegExp(`\\b${typeName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "g");
+    for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+        const line = lines[lineIndex];
+        let match;
+        // Reset regex lastIndex for each line
+        regex.lastIndex = 0;
+        while ((match = regex.exec(line)) !== null) {
+            const matchIndex = match.index;
+            // Skip if in comment
+            if (isInComment(line, matchIndex)) {
+                continue;
+            }
+            // Skip if it's part of an object definition line
+            if (isObjectDefinition(line, matchIndex, typeName)) {
+                // Include definition only if includeDeclaration is true
+                if (excludeDefinition && uri === definitionUri && lineIndex === definitionLine) {
+                    continue;
+                }
+                // Otherwise include it as a reference
+            }
+            // Skip if it's a variable declaration (not a type reference)
+            if (isVariableDeclaration(line, matchIndex, lineIndex, typeName, symbolTable)) {
+                continue;
+            }
+            // Skip the definition if excludeDefinition is true
+            if (excludeDefinition && uri === definitionUri && lineIndex === definitionLine) {
+                continue;
+            }
+            // Create location for this reference
+            const location = {
+                uri,
+                range: {
+                    start: { line: lineIndex, character: matchIndex },
+                    end: { line: lineIndex, character: matchIndex + typeName.length },
+                },
+            };
+            references.push(location);
+        }
+    }
+    return references;
+}
+/**
+ * Recursively scan directory for .mez files
+ */
+function scanDirectoryForReferences(dir, typeName, excludeDefinition, openDocumentUris) {
+    const references = [];
+    try {
+        if (!fs.existsSync(dir)) {
+            return references;
+        }
+        const entries = fs.readdirSync(dir, { withFileTypes: true });
+        for (const entry of entries) {
+            const fullPath = path.join(dir, entry.name);
+            if (entry.isDirectory()) {
+                // Scan model directories and subdirectories
+                if (entry.name === "model" || !entry.name.startsWith(".")) {
+                    const subRefs = scanDirectoryForReferences(fullPath, typeName, excludeDefinition, openDocumentUris);
+                    references.push(...subRefs);
+                }
+            }
+            else if (entry.isFile() && entry.name.endsWith(".mez")) {
+                // Check if this file is in a model directory
+                const parts = fullPath.split(path.sep);
+                if (parts.includes("model")) {
+                    const uri = vscode_uri_1.URI.file(fullPath).toString();
+                    // Skip if already processed as an open document
+                    if (openDocumentUris.has(uri)) {
+                        continue;
+                    }
+                    try {
+                        const content = fs.readFileSync(fullPath, "utf8");
+                        const doc = vscode_languageserver_textdocument_1.TextDocument.create(uri, "mez", 1, content);
+                        const fileRefs = findReferencesInDocument(doc, typeName, excludeDefinition);
+                        references.push(...fileRefs);
+                    }
+                    catch (err) {
+                        // Silently ignore errors reading files
+                        console.error(`[References] Error reading file ${fullPath}:`, err);
+                    }
+                }
+            }
+        }
+    }
+    catch (err) {
+        // Silently ignore errors (permissions, etc.)
+    }
+    return references;
+}
+connection.onReferences((params) => {
+    console.log(`[References] ===== onReferences called =====`);
+    console.log(`[References] URI: ${params.textDocument.uri}`);
+    console.log(`[References] Position: line ${params.position.line}, character ${params.position.character}`);
+    console.log(`[References] Include declaration: ${params.context.includeDeclaration}`);
+    const doc = documents.get(params.textDocument.uri);
+    if (!doc) {
+        console.log(`[References] Document not found: ${params.textDocument.uri}`);
+        return [];
+    }
+    // Extract type name at cursor position
+    const typeName = extractTypeNameAtPosition(doc, params.position);
+    if (!typeName) {
+        console.log(`[References] Could not extract type name at position`);
+        return [];
+    }
+    console.log(`[References] Extracted type name: "${typeName}"`);
+    // Verify it's a user-defined type
+    if (!workspaceIndex.isUserDefinedType(typeName)) {
+        console.log(`[References] "${typeName}" is not a user-defined type`);
+        return [];
+    }
+    console.log(`[References] Searching for references to "${typeName}"...`);
+    const excludeDefinition = !params.context.includeDeclaration;
+    const references = [];
+    // Get all open document URIs to avoid duplicates
+    const openDocumentUris = new Set();
+    documents.all().forEach((d) => openDocumentUris.add(d.uri));
+    // Search all open documents
+    console.log(`[References] Searching ${openDocumentUris.size} open documents...`);
+    documents.all().forEach((document) => {
+        const docRefs = findReferencesInDocument(document, typeName, excludeDefinition);
+        references.push(...docRefs);
+        console.log(`[References] Found ${docRefs.length} references in ${document.uri}`);
+    });
+    // Search workspace files
+    const debugInfo = workspaceIndex.getDebugInfo();
+    console.log(`[References] Searching workspace files in ${debugInfo.workspaceRoots.length} root(s)...`);
+    for (const root of debugInfo.workspaceRoots) {
+        const workspaceRefs = scanDirectoryForReferences(root, typeName, excludeDefinition, openDocumentUris);
+        references.push(...workspaceRefs);
+        console.log(`[References] Found ${workspaceRefs.length} references in workspace root: ${root}`);
+    }
+    console.log(`[References] ===== Found ${references.length} total references =====`);
+    return references;
 });
 connection.languages.semanticTokens.on((params) => {
     console.error(`[SemanticTokens] ===== Request Received =====`);
