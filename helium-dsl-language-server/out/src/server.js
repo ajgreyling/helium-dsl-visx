@@ -54,6 +54,16 @@ connection.onInitialize((params) => {
     console.log(`[Server] Workspace folders:`, params.workspaceFolders);
     // Initialize workspace index with workspace folders
     workspaceIndex.initialize(params.workspaceFolders || null);
+    // After initializing the index, send a notification with all discovered user-defined types
+    try {
+        const debug = workspaceIndex.getDebugInfo();
+        const types = debug.objects || [];
+        console.log(`[Server] Sending ${types.length} discovered user-defined types to client`);
+        connection.sendNotification("helium/userTypes", types);
+    }
+    catch (err) {
+        console.error("[Server] Error sending userTypes notification:", err);
+    }
     // Register a file watcher for .mez files under any `model` directory so the client
     // notifies us when .mez files are created/changed/deleted.
     try {
@@ -110,6 +120,15 @@ connection.onDidChangeWatchedFiles((params) => {
                 // For create/delete/change, update the file entry in the index
                 workspaceIndex.updateFile(ch.uri);
             }
+        }
+        // After processing watched changes, send updated list of types
+        try {
+            const types = workspaceIndex.getDebugInfo().objects || [];
+            console.log(`[Server] Watched files processed - sending ${types.length} user-defined types to client`);
+            connection.sendNotification("helium/userTypes", types);
+        }
+        catch (err) {
+            console.error("[Server] Error sending userTypes after watched files processed:", err);
         }
     }
     catch (err) {
@@ -264,6 +283,14 @@ connection.workspace.onDidChangeWorkspaceFolders((_event) => {
     // Re-initialize workspace index when folders change
     connection.workspace.getWorkspaceFolders().then((folders) => {
         workspaceIndex.initialize(folders);
+        try {
+            const types = workspaceIndex.getDebugInfo().objects || [];
+            console.log(`[Server] Workspace folders changed - sending ${types.length} user-defined types to client`);
+            connection.sendNotification("helium/userTypes", types);
+        }
+        catch (err) {
+            console.error("[Server] Error sending userTypes after workspace folder change:", err);
+        }
     });
 });
 documents.listen(connection);
