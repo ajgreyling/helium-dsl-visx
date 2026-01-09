@@ -186,6 +186,76 @@ connection.onHover((_params): Hover | null => {
   return null; // Placeholder; will be expanded with type info
 });
 
+/**
+ * Find a function definition in a file's content
+ * Returns the location of the function definition, or null if not found
+ */
+function findFunctionDefinitionInFile(
+  functionName: string,
+  fileContent: string,
+  fileUri: string
+): Location | null {
+  const lines = fileContent.split(/\r?\n/);
+  
+  // Pattern to match function definitions: returnType functionName(
+  // Same pattern as used in buildSymbolTable
+  const functionPattern = new RegExp(
+    `\\b(?:int|void|bool|string|decimal|uuid|json|jsonarray|date|datetime|bigint|blob|[A-Za-z_][A-Za-z0-9_]*)\\s+${functionName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\(`,
+    "g"
+  );
+
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+    const line = lines[lineIndex];
+    let match: RegExpExecArray | null;
+    
+    // Reset regex lastIndex for each line
+    functionPattern.lastIndex = 0;
+    
+    while ((match = functionPattern.exec(line)) !== null) {
+      const matchIndex = match.index;
+      
+      // Skip if in comment
+      const beforeMatch = line.substring(0, matchIndex);
+      const commentIndex = beforeMatch.indexOf("//");
+      if (commentIndex !== -1) {
+        // Check if it's not inside a string
+        const beforeComment = beforeMatch.substring(0, commentIndex);
+        const singleQuotes = (beforeComment.match(/'/g) || []).length;
+        const doubleQuotes = (beforeComment.match(/"/g) || []).length;
+        if (singleQuotes % 2 === 0 && doubleQuotes % 2 === 0) {
+          continue; // It's in a comment
+        }
+      }
+      
+      // Found the function definition
+      // Find the start of the function name (after the return type)
+      const returnTypeMatch = beforeMatch.match(/\b(?:int|void|bool|string|decimal|uuid|json|jsonarray|date|datetime|bigint|blob|[A-Za-z_][A-Za-z0-9_]*)\s+$/);
+      const functionNameStart = returnTypeMatch 
+        ? returnTypeMatch.index! + returnTypeMatch[0].length
+        : matchIndex;
+      
+      const location: Location = {
+        uri: fileUri,
+        range: {
+          start: {
+            line: lineIndex,
+            character: functionNameStart,
+          },
+          end: {
+            line: lineIndex,
+            character: functionNameStart + functionName.length,
+          },
+        },
+      };
+      
+      console.log(`[Definition] Found function "${functionName}" in file at line ${lineIndex + 1}, character ${functionNameStart}`);
+      return location;
+    }
+  }
+  
+  return null;
+}
+
 connection.onDefinition((params: DefinitionParams): Location | Location[] | null => {
   console.log(`[Definition] onDefinition called for ${params.textDocument.uri} at line ${params.position.line}, char ${params.position.character}`);
   const doc = documents.get(params.textDocument.uri);
@@ -287,8 +357,75 @@ connection.onDefinition((params: DefinitionParams): Location | Location[] | null
     }
   }
 
-  // If not a type, check if it's a variable
-  console.log(`[Definition] "${fullWord}" is not a user-defined type, checking for variable...`);
+  // Check if this is a function name in a unit-qualified call (e.g., RoleDetails:getPermissionsTable)
+  // Function names start with lowercase, so check if fullWord starts with lowercase
+  const isFunctionName = /^[a-z]/.test(fullWord);
+  
+  if (isFunctionName) {
+    console.log(`[Definition] "${fullWord}" looks like a function name, checking for unit qualifier...`);
+    
+    // Look backwards in the line to find a unit qualifier pattern (UnitName:)
+    const beforeWord = line.substring(0, wordStart);
+    const unitQualifierMatch = beforeWord.match(/\b([A-Z][A-Za-z0-9_]*)\s*:\s*$/);
+    
+    if (unitQualifierMatch) {
+      const unitName = unitQualifierMatch[1];
+      console.log(`[Definition] Found unit qualifier "${unitName}:" before function "${fullWord}"`);
+      
+      // Verify the unit exists
+      if (workspaceIndex.isUnit(unitName)) {
+        console.log(`[Definition] Unit "${unitName}" exists, searching for function "${fullWord}"...`);
+        
+        // Get the unit file location
+        const unitLocation = workspaceIndex.getUnitLocation(unitName);
+        if (!unitLocation) {
+          console.log(`[Definition] WARNING: Unit "${unitName}" exists but getUnitLocation returned null`);
+        } else {
+          console.log(`[Definition] Unit file: ${unitLocation.uri}`);
+          
+          // Try to get the file content from open documents first
+          let unitFileContent: string | null = null;
+          const unitDoc = documents.get(unitLocation.uri);
+          if (unitDoc) {
+            unitFileContent = unitDoc.getText();
+            console.log(`[Definition] Unit file is open in editor`);
+          } else {
+            // Read from disk
+            try {
+              const unitFilePath = URI.parse(unitLocation.uri).fsPath;
+              unitFileContent = fs.readFileSync(unitFilePath, "utf8");
+              console.log(`[Definition] Read unit file from disk: ${unitFilePath}`);
+            } catch (err) {
+              console.log(`[Definition] ERROR: Could not read unit file: ${err}`);
+              unitFileContent = null;
+            }
+          }
+          
+          if (unitFileContent) {
+            // Search for the function definition in the unit file
+            const functionLocation = findFunctionDefinitionInFile(
+              fullWord,
+              unitFileContent,
+              unitLocation.uri
+            );
+            
+            if (functionLocation) {
+              console.log(`[Definition] SUCCESS: Found function "${fullWord}" in unit "${unitName}"`);
+              console.log(`[Definition] Location:`, JSON.stringify(functionLocation, null, 2));
+              return [functionLocation];
+            } else {
+              console.log(`[Definition] Function "${fullWord}" not found in unit "${unitName}"`);
+            }
+          }
+        }
+      } else {
+        console.log(`[Definition] Unit "${unitName}" does not exist in workspace index`);
+      }
+    }
+  }
+
+  // If not a type or unit-qualified function, check if it's a variable
+  console.log(`[Definition] "${fullWord}" is not a user-defined type or unit-qualified function, checking for variable...`);
   const symbolTable = buildSymbolTable(text);
   
   // Find the most recent declaration of this variable before or at the cursor position
@@ -330,7 +467,7 @@ connection.onDefinition((params: DefinitionParams): Location | Location[] | null
     return [location];
   }
 
-  console.log(`[Definition] "${fullWord}" is not a type or variable - returning null`);
+  console.log(`[Definition] "${fullWord}" is not a type, unit-qualified function, or variable - returning null`);
   return null;
 });
 
