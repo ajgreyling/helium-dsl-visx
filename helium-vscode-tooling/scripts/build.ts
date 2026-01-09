@@ -15,6 +15,7 @@ async function ensureGenerated() {
   await fs.ensureDir(path.join(generated, "parser"));
   await fs.ensureDir(path.join(generated, "rules"));
   await fs.ensureDir(path.join(generated, "bifs"));
+  await fs.ensureDir(path.join(generated, "syntaxes"));
 }
 
 async function main() {

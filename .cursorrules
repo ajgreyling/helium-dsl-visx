@@ -107,3 +107,82 @@ If you need to modify the packaging process:
 ✅ **DO**: Validate dependency tree
 ✅ **DO**: Test in Cursor IDE
 ✅ **DO**: Use explicit, distinct build steps
+
+## Generated Files - DO NOT EDIT DIRECTLY
+
+**CRITICAL**: The following files are **generated at runtime** during the build process. The Cursor Agent should **NEVER** make plans to edit or directly modify these files. If changes are needed:
+
+1. **Update the upstream generator script** that creates the file
+2. **If upstream changes are not possible**, make changes programmatically via a script that runs during the build process
+3. **Never edit these files manually** - they will be overwritten on the next build
+
+### Generated Files List
+
+**helium-vscode-tooling/generated/** (All files in this directory are generated):
+- `grammar/MezDSL.g3` - Extracted ANTLR3 grammar from Java project
+- `grammar/MezDSL.g3.hash` - SHA256 hash of extracted grammar
+- `grammar/MezDSL.g4` - Converted ANTLR4 grammar
+- `parser/MezDSL.interp` - ANTLR4 interpreter data
+- `parser/MezDSL.tokens` - ANTLR4 token definitions
+- `parser/MezDSLLexer.interp` - Lexer interpreter data
+- `parser/MezDSLLexer.tokens` - Lexer token definitions
+- `parser/MezDSLLexer.ts` - Generated TypeScript lexer
+- `parser/MezDSLListener.ts` - Generated listener interface
+- `parser/MezDSLParser.ts` - Generated TypeScript parser
+- `parser/MezDSLVisitor.ts` - Generated visitor interface
+- `parser/generated/grammar/*` - All files in this subdirectory (duplicate parser files)
+- `rules/dsl-rules.json` - Linting rules metadata
+- `bifs/bif-metadata.json` - Built-in function metadata
+- `syntaxes/helium-dsl.tmLanguage.json` - TextMate syntax highlighting grammar
+
+**helium-dsl-language-server/out/** (All compiled TypeScript output):
+- All `.js` files compiled from TypeScript source
+- `tsconfig.tsbuildinfo` - TypeScript incremental build info
+- All subdirectories and their contents (completion/, diagnostics.js, linter/, parser/, symbols/, tests/, etc.)
+
+**helium-dsl-language-server/generated/** (Generated test files):
+- `tests/munic-chat.test.ts` - Dynamically generated validation test
+
+**helium-dsl-vscode/out/** (Compiled extension output):
+- `extension.js` - Compiled extension code
+- `tsconfig.tsbuildinfo` - TypeScript incremental build info
+
+**helium-vscode-tooling/dist/** (Packaged artifacts):
+- `helium-dsl.vsix` - Packaged VSCode extension file
+
+**helium-dsl-vscode/server/** (Copied during packaging):
+- `out/**` - Language server compiled output (copied from helium-dsl-language-server/out/)
+- `node_modules/**` - Language server dependencies (copied during Docker packaging)
+
+### How to Modify Generated Files
+
+If you need to change any of these files:
+
+1. **Grammar files** (`generated/grammar/*`):
+   - Modify `scripts/extract-grammar.ts` or `scripts/convert-grammar.ts`
+   - Or update the source grammar in the Java project
+
+2. **Parser files** (`generated/parser/*`):
+   - Modify the grammar files (`generated/grammar/MezDSL.g4`)
+   - Parser is regenerated from grammar using ANTLR4
+
+3. **Rules metadata** (`generated/rules/dsl-rules.json`):
+   - Modify `scripts/extract-rules.ts`
+
+4. **BIF metadata** (`generated/bifs/bif-metadata.json`):
+   - Modify `scripts/generate-bif-metadata.ts`
+   - Or update the grammar file to include new BIF tokens
+
+5. **TextMate grammar** (`generated/syntaxes/helium-dsl.tmLanguage.json`):
+   - Modify `scripts/generate-textmate.ts`
+
+6. **Compiled output** (`out/**`):
+   - Modify the corresponding TypeScript source files
+   - Run `npm run build` to regenerate
+
+7. **Test files** (`generated/tests/*`):
+   - Modify `validate-dsl.sh` script that generates the test file
+
+8. **VSIX package** (`dist/*.vsix`):
+   - Modify packaging scripts or extension source
+   - Regenerate by running the full build pipeline

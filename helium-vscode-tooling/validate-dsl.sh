@@ -254,13 +254,15 @@ EOF
 
 # Update test configuration to use the sample project path
 echo -e "${BLUE}Updating test configuration...${NC}"
-cat > "$SCRIPT_DIR/../helium-dsl-language-server/tests/munic-chat.test.ts" << EOF
+mkdir -p "$SCRIPT_DIR/../helium-dsl-language-server/generated/tests"
+cat > "$SCRIPT_DIR/../helium-dsl-language-server/generated/tests/munic-chat.test.ts" << EOF
 import { describe, it } from "mocha";
 import { expect } from "chai";
 import * as fs from "fs";
 import * as path from "path";
-import { parseText } from "../src/parser/index";
-import { runLints } from "../src/linter/engine";
+import { Diagnostic } from "vscode-languageserver";
+import { parseText } from "../../src/parser/index";
+import { runLints } from "../../src/linter/engine";
 
 const SAMPLE_PROJECT_PATH = "$SAMPLE_PROJECT_PATH";
 
@@ -376,7 +378,7 @@ describe("Sample DSL Codebase Validation", () => {
     \`;
 
     const lintDiagnostics = await runLints(testCode);
-    const varInElseErrors = lintDiagnostics.filter((d) =>
+    const varInElseErrors = lintDiagnostics.filter((d: Diagnostic) =>
       d.message.includes("Variables cannot be declared in else blocks")
     );
 
@@ -470,8 +472,8 @@ echo -e "${GREEN}Version restored to: ${ORIGINAL_VERSION}${NC}"
 
 echo ""
 echo -e "${BLUE}=== Step 13: Run Validation Tests ===${NC}"
-cd "$SCRIPT_DIR"
-npm test
+cd "$SCRIPT_DIR/../helium-dsl-language-server"
+npx mocha -r ts-node/register tests/**/*.test.ts generated/tests/**/*.test.ts
 
 echo ""
 echo -e "${BLUE}=== Step 14: Install Extension in Cursor ===${NC}"

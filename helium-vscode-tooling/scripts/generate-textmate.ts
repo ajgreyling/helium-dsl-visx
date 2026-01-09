@@ -4,7 +4,7 @@ import fs from "fs-extra";
 const root = path.resolve(__dirname, "..");
 const grammarPath = path.join(root, "generated/grammar/MezDSL.g4");
 const bifMetaPath = path.join(root, "generated/bifs/bif-metadata.json");
-const output = path.join(root, "helium-dsl-vscode/syntaxes/helium-dsl.tmLanguage.json");
+const output = path.join(root, "generated/syntaxes/helium-dsl.tmLanguage.json");
 
 // System/primitive types
 const systemTypes = [
@@ -323,6 +323,7 @@ async function main() {
     uuid: "a0416cfa-4b07-44d4-9f7a-8ad7f3f1b0f1",
   };
 
+  await fs.ensureDir(path.dirname(output));
   await fs.writeJson(output, tmLanguage, { spaces: 2 });
   console.log(`Generated TextMate grammar at ${output}`);
 }
