@@ -187,6 +187,46 @@ The validation script automatically configures the following paths:
 - **Rules**: Defined in `scripts/extract-rules.ts`
 - **Sample Project**: Path provided via `-p` parameter
 
+### Extension Settings
+
+The extension supports the following configuration options:
+
+#### Trace Server Logging
+
+**Setting**: `heliumDsl.trace.server`
+
+Controls the verbosity of language server logs in the Output channel ("Helium DSL Language Server").
+
+**Options**:
+- `off` (default): Minimal logging - only errors and critical messages
+- `messages`: LSP protocol messages only - useful for debugging protocol communication
+- `verbose`: Full debug logging including WorkspaceIndex operations and type discovery
+
+**What's logged at each level**:
+
+- **`off`**: Only error messages and critical server events
+- **`messages`**: LSP protocol messages (requests/responses between client and server)
+- **`verbose`**: All logs including:
+  - WorkspaceIndex workspace scanning operations
+  - Object and unit discovery logs
+  - File update operations
+  - User-defined types list and workspace roots
+  - Type checking operations
+  - Server initialization details
+
+**To enable verbose logging**:
+
+1. Open Settings (Command Palette → "Preferences: Open Settings (JSON)")
+2. Add:
+   ```json
+   {
+     "heliumDsl.trace.server": "verbose"
+   }
+   ```
+3. Reload the window or restart the language server
+
+**Note**: Error logs (`console.error`) always appear regardless of trace level. Only debug/informational logs are controlled by this setting.
+
 ## Linting Rules
 
 The linter currently implements the following rules:
@@ -627,6 +667,56 @@ When the Helium DSL is updated:
 
 **`npm run build:textmate`** → `scripts/generate-textmate.ts`
 - Generates TextMate grammar for syntax highlighting
+
+## Syntax Highlighting Best Practices
+
+The extension uses **TextMate grammar** for syntax highlighting, relying on theme defaults rather than custom color overrides. This ensures compatibility across different themes (Cursor Dark, Solarized Dark, MonoKai, etc.).
+
+### TextMate Scope Selection
+
+**Use Standard Scopes**: Always use standard TextMate scopes that themes recognize:
+- ✅ `support.class` - For unit names (units are like classes/modules)
+- ✅ `support.function` - For methods in unit references
+- ✅ `support.function.builtin` - For built-in functions (BIFs)
+- ✅ `entity.name.function` - For regular function definitions
+- ✅ `entity.name.type` - For object/class names
+- ✅ `variable.other` - For variables
+- ✅ `keyword.control` - For control keywords
+- ✅ `storage.type` - For primitive types
+- ❌ Avoid custom scopes with `.helium` suffix - themes won't recognize them
+
+**Scope Differentiation**: Use different scopes for different token types to ensure unique colors:
+- Unit names use `support.class` (not `entity.name.type`)
+- Unit methods use `support.function` (not `entity.name.function`)
+- BIFs use `support.function.builtin` (distinct from regular functions)
+
+### Semantic Tokens vs TextMate Grammar
+
+**Semantic Tokens Can Override TextMate**: Semantic tokens take precedence over TextMate grammar. To ensure TextMate grammar handles specific constructs:
+
+1. **Remove `semanticTokenColors`**: Don't define custom semantic token colors in `package.json` - let themes use their defaults
+2. **Skip Overlapping Tokens**: Configure semantic token provider to skip tokens that TextMate grammar handles (e.g., unit references)
+3. **Use TextMate for Syntax**: TextMate grammar is better for syntax highlighting based on patterns
+4. **Use Semantic Tokens for Context**: Semantic tokens are better for context-aware highlighting (e.g., distinguishing local variables from types)
+
+### Unit Reference Pattern
+
+Unit references (`UnitName:method()`) require special handling:
+- Pattern must match even when followed by `(` or other punctuation
+- Use lookahead: `(?=\\s*[;(,=)]|\\s*$|\\s*[^a-zA-Z0-9_])`
+- Unit name gets `support.class` scope
+- Method name gets `support.function` scope
+
+### Testing Syntax Highlighting
+
+After making changes to TextMate grammar:
+1. Regenerate grammar: `npm run build:textmate`
+2. Repackage extension: `npm run package`
+3. Reinstall extension: `cursor --install-extension dist/helium-dsl.vsix --force`
+4. Reload Cursor window
+5. Test with "Developer: Inspect Editor Tokens and Scopes" to verify scopes are applied correctly
+
+See `helium-vscode-tooling/TOKEN_MAPPINGS.md` for complete token scope reference.
 
 ## Notes
 

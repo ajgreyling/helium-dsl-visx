@@ -3,6 +3,7 @@
   "displayName": "Helium DSL",
   "version": "0.2.0",
   "publisher": "mezzanineware",
+  "readme": "./README.md",
   "repository": {
     "type": "git",
     "url": "https://github.com/ajgreyling/helium-dsl-visx.git"

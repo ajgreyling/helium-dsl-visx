@@ -200,3 +200,103 @@ If you need to change any of these files:
 8. **VSIX package** (`helium-vscode-tooling/dist/*.vsix`):
    - Modify packaging scripts or extension source
    - Regenerate by running the full build pipeline
+
+## Syntax Highlighting Guidelines
+
+**CRITICAL**: The extension uses TextMate grammar for syntax highlighting, relying on theme defaults rather than custom color overrides.
+
+### TextMate Scope Rules
+
+**USE STANDARD SCOPES ONLY:**
+- ✅ Use `support.class` for unit names (not `entity.name.type` or `entity.name.namespace`)
+- ✅ Use `support.function` for unit methods (not `entity.name.function` or `entity.name.method`)
+- ✅ Use `support.function.builtin` for BIFs (distinct from regular functions)
+- ✅ Use `entity.name.function` for regular function definitions
+- ✅ Use `entity.name.type` for object/class names
+- ✅ Use `variable.other` for variables
+- ✅ Use `keyword.control` for keywords
+- ✅ Use `storage.type` for primitive types
+- ❌ NEVER use custom scopes with `.helium` suffix - themes won't recognize them
+- ❌ NEVER use `entity.name.namespace` or `entity.name.method` - these aren't widely supported
+
+**SCOPE DIFFERENTIATION:**
+- Each token type must use a distinct scope to ensure unique colors in themes
+- Unit names (`RoleDetails`) use `support.class` - different from object types
+- Unit methods (`getPermissionsTable`) use `support.function` - different from regular functions
+- BIFs (`Mez:now`) use `support.function.builtin` - different from unit methods
+
+### Semantic Tokens vs TextMate
+
+**SEMANTIC TOKENS OVERRIDE TEXTMATE:**
+- Semantic tokens take precedence over TextMate grammar
+- If semantic tokens provide tokens for constructs handled by TextMate, they will override the TextMate highlighting
+- Solution: Configure semantic token provider to skip tokens that TextMate handles
+
+**BEST PRACTICES:**
+- ✅ Remove `semanticTokenColors` from `package.json` - let themes use defaults
+- ✅ Skip unit references in semantic token provider - let TextMate handle them
+- ✅ Use TextMate for syntax-based highlighting (patterns)
+- ✅ Use semantic tokens for context-aware highlighting (variables, types from workspace)
+
+### Unit Reference Pattern
+
+**UNIT REFERENCES REQUIRE SPECIAL HANDLING:**
+- Pattern must match `UnitName:method()` even when followed by `(` or punctuation
+- Use lookahead: `(?=\\s*[;(,=)]|\\s*$|\\s*[^a-zA-Z0-9_])`
+- Unit name captures use `support.class` scope
+- Method name captures use `support.function` scope
+- Pattern must exclude BIF namespaces (Mez, sql, String, etc.)
+
+### When Modifying Syntax Highlighting
+
+1. **Update Generator Script**: Modify `helium-vscode-tooling/scripts/generate-textmate.ts`
+2. **Regenerate Grammar**: Run `npm run build:textmate`
+3. **Repackage Extension**: Run `npm run package`
+4. **Reinstall Extension**: `cursor --install-extension dist/helium-dsl.vsix --force`
+5. **Reload Cursor**: Reload window to pick up changes
+6. **Test Scopes**: Use "Developer: Inspect Editor Tokens and Scopes" to verify
+7. **Test Themes**: Verify colors work in Cursor Dark, Solarized Dark, MonoKai
+
+**REFERENCE**: See `helium-vscode-tooling/TOKEN_MAPPINGS.md` for complete token scope documentation.
+
+## Logging and Debugging
+
+The extension provides configurable logging to control verbosity of language server logs in the Output channel.
+
+### Trace Level Configuration
+
+The extension supports three trace levels controlled by the `heliumDsl.trace.server` setting:
+
+- **`off`** (default): Minimal logging - only errors and critical messages
+- **`messages`**: LSP protocol messages only - useful for debugging protocol communication
+- **`verbose`**: Full debug logging including WorkspaceIndex operations and type discovery
+
+### What Logs Are Controlled
+
+When trace level is set to `verbose`, the following debug logs appear in the "Helium DSL Language Server" Output channel:
+
+- **WorkspaceIndex logs**: Workspace scanning, object/unit discovery, file updates
+- **Type discovery logs**: User-defined types list, workspace roots, type checking operations
+- **Server initialization logs**: Detailed initialization steps and configuration
+
+When trace level is `off` (default), these verbose logs are suppressed to keep the Output channel clean. Error logs (`console.error`) always appear regardless of trace level.
+
+### Enabling Verbose Logging
+
+To enable verbose logging for debugging:
+
+1. Open Cursor/VS Code Settings (Command Palette → "Preferences: Open Settings (JSON)")
+2. Add or update the setting:
+   ```json
+   {
+     "heliumDsl.trace.server": "verbose"
+   }
+   ```
+3. Reload the window or restart the language server
+
+### Implementation Details
+
+- Logger utility: `helium-dsl-language-server/src/utils/logger.ts`
+- Trace level is passed from extension client to language server via `initializationOptions`
+- WorkspaceIndex uses `logVerbose()` for all debug logging
+- Server initialization logs use `logVerbose()` for verbose information
