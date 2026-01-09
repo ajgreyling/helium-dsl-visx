@@ -119,8 +119,7 @@ function getObjectProperties(typeName, workspaceIndex) {
                 if (propertyMatch && propertyMatch[1]) {
                     properties.push(propertyMatch[1]);
                     continue;
-                }
-                // Match relationship properties: @ManyToOne Type propertyName via relationship;
+                } // Match relationship properties: @ManyToOne Type propertyName via relationship;
                 // or @OneToMany Type[] propertyName via relationship;
                 const relationshipMatch = trimmedLine.match(/^\s*@(?:ManyToOne|OneToMany|OneToOne)\s+[A-Za-z_][A-Za-z0-9_]*(?:\[\])?\s+([a-z][A-Za-z0-9_]*)\s+via\s+\w+;/);
                 if (relationshipMatch && relationshipMatch[1]) {
