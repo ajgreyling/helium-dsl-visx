@@ -1,0 +1,112 @@
+{
+  "name": "helium-dsl-vscode",
+  "displayName": "Helium DSL",
+  "version": "0.2.0",
+  "publisher": "mezzanineware",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ajgreyling/helium-dsl-visx.git"
+  },
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onLanguage:helium-dsl",
+    "onLanguage:helium-vxml"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "Helium DSL",
+      "properties": {
+        "heliumDsl.lint.noVarInElse": {
+          "type": "string",
+          "enum": [
+            "error",
+            "warning",
+            "info",
+            "off"
+          ],
+          "default": "error",
+          "description": "Variables cannot be declared in else blocks."
+        },
+        "heliumDsl.lint.namingConventions": {
+          "type": "string",
+          "enum": [
+            "error",
+            "warning",
+            "info",
+            "off"
+          ],
+          "default": "warning",
+          "description": "Naming conventions enforcement."
+        }
+      }
+    },
+    "languages": [
+      {
+        "id": "helium-dsl",
+        "aliases": [
+          "Helium DSL",
+          "helium-dsl"
+        ],
+        "extensions": [
+          ".mez"
+        ],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "helium-vxml",
+        "aliases": [
+          "Helium VXML",
+          "helium-vxml"
+        ],
+        "extensions": [
+          ".vxml"
+        ]
+      }
+    ],
+    "grammars": [
+      {
+        "language": "helium-dsl",
+        "scopeName": "source.helium-dsl",
+        "path": "./syntaxes/helium-dsl.tmLanguage.json"
+      }
+    ],
+    "semanticTokenColors": {
+      "variable": {
+        "foreground": "#d6d6dd"
+      },
+      "function": {
+        "foreground": "#efb080"
+      },
+      "type": {
+        "foreground": "#efb080"
+      },
+      "namespace": {
+        "foreground": "#efb080"
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "rimraf out",
+    "watch": "tsc -b -w",
+    "package": "docker compose run --rm vsix",
+    "test": "echo \"No tests yet\""
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.0.0",
+    "adm-zip": "^0.5.16",
+    "rimraf": "^6.0.1",
+    "typescript": "^5.6.3"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  }
+}

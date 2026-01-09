@@ -1,0 +1,109 @@
+# Helium DSL VSCode Extension Tooling - Cursor Rules
+
+This project builds a VSCode extension for the Helium DSL that works in **Cursor IDE**. The packaging process uses Docker to ensure robust, reproducible builds.
+
+## Target Platform
+
+- **Primary Target**: Cursor IDE
+- **Secondary Target**: VS Code (compatible but not primary focus)
+- **Installation Commands**: Always use `cursor --install-extension`, NOT `code --install-extension`
+
+## Docker-Based Packaging Rationale
+
+### Why Docker?
+
+The extension uses **Docker-based packaging** for the following critical reasons:
+
+1. **Workspace Isolation**: npm workspaces hoist dependencies to the root, causing `vsce` validation to fail. Docker containers never see the workspace root, eliminating hoisting issues entirely.
+
+2. **Reproducible Builds**: Same Docker image and Node version every time ensures consistent builds across different developer machines and CI environments.
+
+3. **Clean Dependency Tree**: Each Docker run starts with a fresh environment, ensuring no cached dependencies, symlinks, or workspace artifacts interfere with packaging.
+
+4. **Proper Dependency Bundling**: Docker allows us to install dependencies in isolation, flatten nested dependencies, and ensure ALL transitive dependencies are included in the VSIX.
+
+5. **Cursor Compatibility**: Cursor requires all dependencies to be properly bundled. Docker ensures this without hacks or workarounds.
+
+### Critical Rules
+
+**DO NOT USE `--no-dependencies` FLAG:**
+- ❌ NEVER use `vsce package --no-dependencies`
+- ❌ NEVER suggest or implement workarounds that skip dependency bundling
+- ✅ ALWAYS ensure all dependencies are properly included in the VSIX
+- ✅ Cursor requires dependencies to be bundled normally for proper extraction
+
+**NO HOISTING HACKS:**
+- ❌ NEVER rename `package.json` to disable workspaces
+- ❌ NEVER use symlink removal hacks
+- ❌ NEVER use workspace-disabling scripts
+- ✅ Use Docker to naturally isolate from workspace context
+- ✅ Let Docker's isolation solve the problem, not hacks
+
+**ROBUST BUILDS:**
+- ✅ Use distinct, clear steps for VSIX packaging
+- ✅ Prefer multiple containers with correct Node versions if needed
+- ✅ Each step should be explicit and verifiable
+- ✅ Builds should work consistently across environments
+- ✅ Fail fast with clear error messages
+
+**DEPENDENCY MANAGEMENT:**
+- ✅ Install dependencies locally in each package (use `--no-workspaces` when needed)
+- ✅ Flatten nested dependencies to root `node_modules` before packaging
+- ✅ Validate dependency tree with `npm list --production` before packaging
+- ✅ Ensure language server dependencies are included in `server/node_modules/`
+
+## Extension Installation
+
+**ALWAYS use Cursor commands:**
+```bash
+# Correct
+cursor --install-extension dist/helium-dsl.vsix --force
+
+# Wrong - DO NOT USE
+code --install-extension dist/helium-dsl.vsix
+```
+
+## Packaging Workflow
+
+The packaging process follows these principles:
+
+1. **Build on Host**: Language server and extension are built on the host machine
+2. **Package in Docker**: VSIX packaging happens in isolated Docker container
+3. **No Workspace Context**: Docker container never sees workspace root
+4. **Clean Dependencies**: Fresh `npm install` in Docker ensures clean tree
+5. **Flatten Dependencies**: Move nested dependencies to root before packaging
+6. **Validate**: Run `npm list --production` to verify dependency tree
+7. **Package**: Use `vsce package` (WITHOUT `--no-dependencies`)
+
+## File Structure
+
+- `scripts/package-docker.sh` - Orchestrates build and Docker packaging
+- `docker/Dockerfile.vsix` - Docker image with Node 20.11.1 and vsce 2.26.0
+- `docker/package.sh` - Runs inside Docker, assembles and packages extension
+- `docker-compose.yml` - Defines volumes and service configuration
+
+## When Modifying Packaging
+
+If you need to modify the packaging process:
+
+1. **Prefer More Steps**: Break complex operations into distinct, verifiable steps
+2. **Use Multiple Containers**: If different Node versions are needed, use separate containers
+3. **No Shortcuts**: Don't use flags or hacks to skip validation or dependency bundling
+4. **Test in Cursor**: Always verify the VSIX works in Cursor, not just VS Code
+5. **Document Changes**: Update README.md with any workflow changes
+
+## Common Mistakes to Avoid
+
+❌ **DON'T**: Use `--no-dependencies` flag
+❌ **DON'T**: Disable workspaces by renaming files
+❌ **DON'T**: Remove symlinks as a workaround
+❌ **DON'T**: Use `code --install-extension` commands
+❌ **DON'T**: Skip dependency validation
+❌ **DON'T**: Assume VS Code compatibility means Cursor compatibility
+
+✅ **DO**: Use Docker for isolation
+✅ **DO**: Include all dependencies in VSIX
+✅ **DO**: Use `cursor --install-extension`
+✅ **DO**: Validate dependency tree
+✅ **DO**: Test in Cursor IDE
+✅ **DO**: Use explicit, distinct build steps

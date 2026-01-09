@@ -1,0 +1,13 @@
+node_modules
+dist
+*.log
+generated/
+helium-dsl-vscode/.vscode-test/
+helium-dsl-vscode/.vscode/
+helium-dsl-vscode/out/
+helium-dsl-vscode/server/
+helium-dsl-vscode/generated/
+helium-dsl-vscode/*.vsix
+helium-dsl-language-server/out/
+helium-dsl-language-server/lib/
+
