@@ -6,6 +6,7 @@ import {
   LanguageClientOptions,
   ServerOptions,
   TransportKind,
+  Trace,
 } from "vscode-languageclient/node";
 
 let client: LanguageClient | undefined;
@@ -44,6 +45,25 @@ export function activate(context: vscode.ExtensionContext) {
   outputChannel = vscode.window.createOutputChannel("Helium DSL Language Server");
   context.subscriptions.push(outputChannel);
 
+  // Read trace level from configuration
+  const config = vscode.workspace.getConfiguration("heliumDsl");
+  const traceConfig = config.get<string>("trace.server", "off");
+  
+  // Map configuration values to Trace enum
+  let traceLevel: Trace;
+  switch (traceConfig) {
+    case "messages":
+      traceLevel = Trace.Messages;
+      break;
+    case "verbose":
+      traceLevel = Trace.Verbose;
+      break;
+    case "off":
+    default:
+      traceLevel = Trace.Off;
+      break;
+  }
+
   const clientOptions: LanguageClientOptions = {
     documentSelector: [
       { scheme: "file", language: "helium-dsl" },
@@ -54,6 +74,9 @@ export function activate(context: vscode.ExtensionContext) {
     },
     outputChannel: outputChannel,
     traceOutputChannel: outputChannel,
+    initializationOptions: {
+      trace: traceConfig,
+    },
   };
 
   client = new LanguageClient(
@@ -98,10 +121,15 @@ export function activate(context: vscode.ExtensionContext) {
   
   client.start().then(
     () => {
+      // Set trace level after client starts
+      if (client) {
+        client.setTrace(traceLevel);
+      }
       console.log("[HeliumDSL] Language client started successfully");
       if (outputChannel) {
         outputChannel.appendLine("Helium DSL Language Server started successfully");
         outputChannel.appendLine(`[HeliumDSL] Server module: ${serverModule}`);
+        outputChannel.appendLine(`[HeliumDSL] Trace level: ${traceConfig}`);
       }
     },
     (error) => {

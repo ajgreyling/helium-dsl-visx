@@ -37,6 +37,7 @@ exports.WorkspaceIndex = void 0;
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
 const vscode_uri_1 = require("vscode-uri");
+const logger_1 = require("../utils/logger");
 class WorkspaceIndex {
     constructor() {
         this.objectDefinitions = new Map();
@@ -47,55 +48,55 @@ class WorkspaceIndex {
      * Initialize the workspace index by scanning workspace folders
      */
     initialize(workspaceFolders) {
-        console.log("[WorkspaceIndex] ===== Initializing workspace index =====");
+        (0, logger_1.logVerbose)("[WorkspaceIndex] ===== Initializing workspace index =====");
         this.workspaceRoots = (workspaceFolders || []).map((folder) => {
             const uri = vscode_uri_1.URI.parse(folder.uri);
-            console.log(`[WorkspaceIndex] Workspace folder: ${folder.name || "unnamed"} -> ${uri.fsPath}`);
+            (0, logger_1.logVerbose)(`[WorkspaceIndex] Workspace folder: ${folder.name || "unnamed"} -> ${uri.fsPath}`);
             return uri.fsPath;
         });
         if (this.workspaceRoots.length === 0) {
-            console.log("[WorkspaceIndex] WARNING: No workspace folders found!");
-            console.log("[WorkspaceIndex] This will prevent object definitions from being found!");
+            (0, logger_1.logVerbose)("[WorkspaceIndex] WARNING: No workspace folders found!");
+            (0, logger_1.logVerbose)("[WorkspaceIndex] This will prevent object definitions from being found!");
         }
         else {
-            console.log(`[WorkspaceIndex] Will scan ${this.workspaceRoots.length} workspace root(s)`);
+            (0, logger_1.logVerbose)(`[WorkspaceIndex] Will scan ${this.workspaceRoots.length} workspace root(s)`);
         }
         this.scanWorkspace();
-        console.log(`[WorkspaceIndex] ===== Index initialization complete =====`);
-        console.log(`[WorkspaceIndex] Total object definitions found: ${this.objectDefinitions.size}`);
+        (0, logger_1.logVerbose)(`[WorkspaceIndex] ===== Index initialization complete =====`);
+        (0, logger_1.logVerbose)(`[WorkspaceIndex] Total object definitions found: ${this.objectDefinitions.size}`);
         if (this.objectDefinitions.size > 0) {
             const typeNames = Array.from(this.objectDefinitions.keys());
             if (typeNames.length <= 30) {
-                console.log(`[WorkspaceIndex] Object types: ${typeNames.join(", ")}`);
+                (0, logger_1.logVerbose)(`[WorkspaceIndex] Object types: ${typeNames.join(", ")}`);
             }
             else {
-                console.log(`[WorkspaceIndex] First 30 object types: ${typeNames.slice(0, 30).join(", ")}...`);
+                (0, logger_1.logVerbose)(`[WorkspaceIndex] First 30 object types: ${typeNames.slice(0, 30).join(", ")}...`);
             }
             // Log a few examples with their locations
             const examples = typeNames.slice(0, 5);
             examples.forEach(name => {
                 const def = this.objectDefinitions.get(name);
                 if (def) {
-                    console.log(`[WorkspaceIndex] Example: ${name} -> ${def.uri}:${def.line + 1}`);
+                    (0, logger_1.logVerbose)(`[WorkspaceIndex] Example: ${name} -> ${def.uri}:${def.line + 1}`);
                 }
             });
         }
         else {
-            console.log("[WorkspaceIndex] WARNING: No object definitions found! Check if model directories exist.");
+            (0, logger_1.logVerbose)("[WorkspaceIndex] WARNING: No object definitions found! Check if model directories exist.");
         }
     }
     /**
      * Scan all .mez files in model directories to find object definitions
      */
     scanWorkspace() {
-        console.log("[WorkspaceIndex] Starting workspace scan...");
+        (0, logger_1.logVerbose)("[WorkspaceIndex] Starting workspace scan...");
         this.objectDefinitions.clear();
         this.unitDefinitions.clear();
         for (const root of this.workspaceRoots) {
-            console.log(`[WorkspaceIndex] Scanning directory: ${root}`);
+            (0, logger_1.logVerbose)(`[WorkspaceIndex] Scanning directory: ${root}`);
             this.scanDirectory(root);
         }
-        console.log(`[WorkspaceIndex] Workspace scan complete. Found ${this.objectDefinitions.size} object definitions and ${this.unitDefinitions.size} unit definitions.`);
+        (0, logger_1.logVerbose)(`[WorkspaceIndex] Workspace scan complete. Found ${this.objectDefinitions.size} object definitions and ${this.unitDefinitions.size} unit definitions.`);
     }
     /**
      * Recursively scan a directory for .mez files in model folders
@@ -189,7 +190,7 @@ class WorkspaceIndex {
                         roleName: roleInfo.roleName ?? null,
                     });
                     foundInFile++;
-                    console.log(`[WorkspaceIndex] ✓ Found persistent object: ${objectName} in ${filePath} at line ${idx + 1} role=${roleInfo.isRole}`);
+                    (0, logger_1.logVerbose)(`[WorkspaceIndex] ✓ Found persistent object: ${objectName} in ${filePath} at line ${idx + 1} role=${roleInfo.isRole}`);
                     return;
                 }
                 // Match non-persistent object definitions (only if not already matched)
@@ -207,14 +208,14 @@ class WorkspaceIndex {
                         roleName: roleInfo.roleName ?? null,
                     });
                     foundInFile++;
-                    console.log(`[WorkspaceIndex] ✓ Found object: ${objectName} in ${filePath} at line ${idx + 1} role=${roleInfo.isRole}`);
+                    (0, logger_1.logVerbose)(`[WorkspaceIndex] ✓ Found object: ${objectName} in ${filePath} at line ${idx + 1} role=${roleInfo.isRole}`);
                 }
             });
             if (foundInFile === 0 && this.isInModelDirectory(filePath)) {
-                console.log(`[WorkspaceIndex] ⚠ Scanned model file but found no objects: ${filePath}`);
+                (0, logger_1.logVerbose)(`[WorkspaceIndex] ⚠ Scanned model file but found no objects: ${filePath}`);
             }
             else if (foundInFile > 0) {
-                console.log(`[WorkspaceIndex] Scanned ${filePath}: found ${foundInFile} object(s)`);
+                (0, logger_1.logVerbose)(`[WorkspaceIndex] Scanned ${filePath}: found ${foundInFile} object(s)`);
             }
         }
         catch (err) {
@@ -240,7 +241,7 @@ class WorkspaceIndex {
                         line: idx,
                         character: unitMatch.index ?? 0,
                     });
-                    console.log(`[WorkspaceIndex] ✓ Found unit: ${unitName} in ${filePath} at line ${idx + 1}`);
+                    (0, logger_1.logVerbose)(`[WorkspaceIndex] ✓ Found unit: ${unitName} in ${filePath} at line ${idx + 1}`);
                 }
             });
         }
@@ -263,7 +264,7 @@ class WorkspaceIndex {
     getObjectLocation(typeName) {
         const definition = this.findObjectDefinition(typeName);
         if (!definition) {
-            console.log(`[WorkspaceIndex] getObjectLocation: No definition found for "${typeName}"`);
+            (0, logger_1.logVerbose)(`[WorkspaceIndex] getObjectLocation: No definition found for "${typeName}"`);
             return null;
         }
         const location = {
@@ -279,7 +280,7 @@ class WorkspaceIndex {
                 },
             },
         };
-        console.log(`[WorkspaceIndex] getObjectLocation: Returning location for "${typeName}":`, {
+        (0, logger_1.logVerbose)(`[WorkspaceIndex] getObjectLocation: Returning location for "${typeName}":`, {
             uri: location.uri,
             start: location.range.start,
             end: location.range.end,
@@ -291,10 +292,10 @@ class WorkspaceIndex {
      */
     updateFile(uri) {
         const filePath = vscode_uri_1.URI.parse(uri).fsPath;
-        console.log(`[WorkspaceIndex] updateFile called for: ${uri} (${filePath})`);
+        (0, logger_1.logVerbose)(`[WorkspaceIndex] updateFile called for: ${uri} (${filePath})`);
         if (filePath.endsWith(".mez")) {
             if (this.isInModelDirectory(filePath)) {
-                console.log(`[WorkspaceIndex] Updating model file: ${filePath}`);
+                (0, logger_1.logVerbose)(`[WorkspaceIndex] Updating model file: ${filePath}`);
                 // Remove old object definitions from this file
                 const removed = [];
                 for (const [name, def] of this.objectDefinitions.entries()) {
@@ -304,13 +305,13 @@ class WorkspaceIndex {
                     }
                 }
                 if (removed.length > 0) {
-                    console.log(`[WorkspaceIndex] Removed ${removed.length} old object definitions:`, removed);
+                    (0, logger_1.logVerbose)(`[WorkspaceIndex] Removed ${removed.length} old object definitions:`, removed);
                 }
                 // Re-scan the file for objects
                 this.scanMezFile(filePath);
             }
             if (this.isInServiceDirectory(filePath)) {
-                console.log(`[WorkspaceIndex] Updating service file: ${filePath}`);
+                (0, logger_1.logVerbose)(`[WorkspaceIndex] Updating service file: ${filePath}`);
                 // Remove old unit definitions from this file
                 const removed = [];
                 for (const [name, def] of this.unitDefinitions.entries()) {
@@ -320,14 +321,14 @@ class WorkspaceIndex {
                     }
                 }
                 if (removed.length > 0) {
-                    console.log(`[WorkspaceIndex] Removed ${removed.length} old unit definitions:`, removed);
+                    (0, logger_1.logVerbose)(`[WorkspaceIndex] Removed ${removed.length} old unit definitions:`, removed);
                 }
                 // Re-scan the file for units
                 this.scanMezFileForUnits(filePath);
             }
         }
         else {
-            console.log(`[WorkspaceIndex] File not a .mez file, skipping update`);
+            (0, logger_1.logVerbose)(`[WorkspaceIndex] File not a .mez file, skipping update`);
         }
     }
     /**
@@ -362,11 +363,11 @@ class WorkspaceIndex {
         ];
         const isSystemType = systemTypes.includes(typeName.toLowerCase());
         const isInIndex = this.objectDefinitions.has(typeName);
-        console.log(`[WorkspaceIndex] Checking type "${typeName}": isSystemType=${isSystemType}, isInIndex=${isInIndex}, result=${!isSystemType && isInIndex}`);
+        (0, logger_1.logVerbose)(`[WorkspaceIndex] Checking type "${typeName}": isSystemType=${isSystemType}, isInIndex=${isInIndex}, result=${!isSystemType && isInIndex}`);
         if (isInIndex) {
             const def = this.objectDefinitions.get(typeName);
             if (def) {
-                console.log(`[WorkspaceIndex] Definition found: ${def.name} at ${def.uri}:${def.line + 1}`);
+                (0, logger_1.logVerbose)(`[WorkspaceIndex] Definition found: ${def.name} at ${def.uri}:${def.line + 1}`);
             }
         }
         return !isSystemType && isInIndex;
@@ -384,7 +385,7 @@ class WorkspaceIndex {
     getUnitLocation(unitName) {
         const definition = this.findUnitDefinition(unitName);
         if (!definition) {
-            console.log(`[WorkspaceIndex] getUnitLocation: No definition found for "${unitName}"`);
+            (0, logger_1.logVerbose)(`[WorkspaceIndex] getUnitLocation: No definition found for "${unitName}"`);
             return null;
         }
         const location = {
@@ -400,7 +401,7 @@ class WorkspaceIndex {
                 },
             },
         };
-        console.log(`[WorkspaceIndex] getUnitLocation: Returning location for "${unitName}":`, {
+        (0, logger_1.logVerbose)(`[WorkspaceIndex] getUnitLocation: Returning location for "${unitName}":`, {
             uri: location.uri,
             start: location.range.start,
             end: location.range.end,
@@ -412,11 +413,11 @@ class WorkspaceIndex {
      */
     isUnit(unitName) {
         const isInIndex = this.unitDefinitions.has(unitName);
-        console.log(`[WorkspaceIndex] Checking unit "${unitName}": isInIndex=${isInIndex}`);
+        (0, logger_1.logVerbose)(`[WorkspaceIndex] Checking unit "${unitName}": isInIndex=${isInIndex}`);
         if (isInIndex) {
             const def = this.unitDefinitions.get(unitName);
             if (def) {
-                console.log(`[WorkspaceIndex] Unit definition found: ${def.name} at ${def.uri}:${def.line + 1}`);
+                (0, logger_1.logVerbose)(`[WorkspaceIndex] Unit definition found: ${def.name} at ${def.uri}:${def.line + 1}`);
             }
         }
         return isInIndex;

@@ -43,6 +43,7 @@ const symbolTable_1 = require("./symbols/symbolTable");
 const completionProvider_1 = require("./completion/completionProvider");
 const engine_1 = require("./linter/engine");
 const workspaceIndex_1 = require("./symbols/workspaceIndex");
+const logger_1 = require("./utils/logger");
 // Log immediately when server module loads
 console.error("[Server] ===== Language Server Module Loading =====");
 console.error("[Server] Server process started");
@@ -60,6 +61,13 @@ connection.onInitialize((params) => {
     console.error(`[Server] Workspace folders:`, JSON.stringify(params.workspaceFolders, null, 2));
     console.error(`[Server] Root URI: ${params.rootUri || 'null'}`);
     console.error(`[Server] Root path: ${params.rootPath || 'null'}`);
+    // Initialize logger with trace level from client
+    // Check params.trace first (set by client.setTrace()), then fall back to initializationOptions
+    const traceLevel = params.trace ||
+        params.initializationOptions?.trace ||
+        "off";
+    (0, logger_1.initializeLogger)(traceLevel);
+    console.error(`[Server] Logger initialized with trace level: ${traceLevel}`);
     // Initialize workspace index with workspace folders
     console.error("[Server] Initializing workspace index...");
     workspaceIndex.initialize(params.workspaceFolders || null);
@@ -68,12 +76,12 @@ connection.onInitialize((params) => {
     try {
         const debug = workspaceIndex.getDebugInfo();
         const types = debug.objects || [];
-        console.error(`[Server] ===== Sending User Types Notification =====`);
-        console.error(`[Server] Found ${types.length} user-defined types`);
-        console.error(`[Server] Types: ${JSON.stringify(types, null, 2)}`);
-        console.error(`[Server] Workspace roots: ${JSON.stringify(debug.workspaceRoots, null, 2)}`);
+        (0, logger_1.logVerbose)(`[Server] ===== Sending User Types Notification =====`);
+        (0, logger_1.logVerbose)(`[Server] Found ${types.length} user-defined types`);
+        (0, logger_1.logVerbose)(`[Server] Types: ${JSON.stringify(types, null, 2)}`);
+        (0, logger_1.logVerbose)(`[Server] Workspace roots: ${JSON.stringify(debug.workspaceRoots, null, 2)}`);
         connection.sendNotification("helium/userTypes", types);
-        console.error(`[Server] Notification sent successfully`);
+        (0, logger_1.logVerbose)(`[Server] Notification sent successfully`);
     }
     catch (err) {
         console.error("[Server] ERROR sending userTypes notification:", err);
@@ -117,7 +125,7 @@ connection.onInitialize((params) => {
                 workspaceIndex.initialize(folders);
                 try {
                     const types = workspaceIndex.getDebugInfo().objects || [];
-                    console.error(`[Server] Workspace folders changed - sending ${types.length} user-defined types to client`);
+                    (0, logger_1.logVerbose)(`[Server] Workspace folders changed - sending ${types.length} user-defined types to client`);
                     connection.sendNotification("helium/userTypes", types);
                 }
                 catch (err) {
@@ -840,9 +848,15 @@ connection.languages.semanticTokens.on((params) => {
             const charAfter = startChar + length < line.length ? line[startChar + length] : ' ';
             const isUnitRef = charAfter === ':';
             if (workspaceIndex.isUnit(identifier)) {
-                // Only highlight as unit if it's followed by ':' or is a standalone reference (not a type)
-                if (isUnitRef || !workspaceIndex.isUserDefinedType(identifier)) {
-                    console.error(`[SemanticTokens] ✓ Found unit "${identifier}" at line ${lineIndex + 1}, char ${startChar}`);
+                // Skip semantic tokens for unit references (UnitName:identifier) - let TextMate grammar handle them
+                // TextMate grammar provides entity.name.type scope for unit names in references
+                if (isUnitRef) {
+                    console.error(`[SemanticTokens] Skipping unit reference "${identifier}" at line ${lineIndex + 1} - TextMate grammar handles it`);
+                    continue;
+                }
+                // Only highlight standalone unit names (not followed by ':') if they're not also types
+                if (!workspaceIndex.isUserDefinedType(identifier)) {
+                    console.error(`[SemanticTokens] ✓ Found standalone unit "${identifier}" at line ${lineIndex + 1}, char ${startChar}`);
                     // Token type index 3 corresponds to "namespace" in our legend (units are like namespaces/modules)
                     builder.push(lineIndex, startChar, length, 3, 0);
                     continue;

@@ -76,21 +76,7 @@
         "scopeName": "source.helium-dsl",
         "path": "./generated/syntaxes/helium-dsl.tmLanguage.json"
       }
-    ],
-    "semanticTokenColors": {
-      "variable": {
-        "foreground": "#d6d6dd"
-      },
-      "function": {
-        "foreground": "#efb080"
-      },
-      "type": {
-        "foreground": "#efb080"
-      },
-      "namespace": {
-        "foreground": "#efb080"
-      }
-    }
+    ]
   },
   "scripts": {
     "build": "tsc -b",
