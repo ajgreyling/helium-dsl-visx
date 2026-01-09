@@ -13,8 +13,16 @@ export interface ObjectDefinition {
   roleName?: string | null;
 }
 
+export interface UnitDefinition {
+  name: string;
+  uri: string;
+  line: number;
+  character: number;
+}
+
 export class WorkspaceIndex {
   private objectDefinitions: Map<string, ObjectDefinition> = new Map();
+  private unitDefinitions: Map<string, UnitDefinition> = new Map();
   private workspaceRoots: string[] = [];
 
   /**
@@ -62,12 +70,13 @@ export class WorkspaceIndex {
   private scanWorkspace(): void {
     console.log("[WorkspaceIndex] Starting workspace scan...");
     this.objectDefinitions.clear();
+    this.unitDefinitions.clear();
 
     for (const root of this.workspaceRoots) {
       console.log(`[WorkspaceIndex] Scanning directory: ${root}`);
       this.scanDirectory(root);
     }
-    console.log(`[WorkspaceIndex] Workspace scan complete. Found ${this.objectDefinitions.size} object definitions.`);
+    console.log(`[WorkspaceIndex] Workspace scan complete. Found ${this.objectDefinitions.size} object definitions and ${this.unitDefinitions.size} unit definitions.`);
   }
 
   /**
@@ -94,6 +103,10 @@ export class WorkspaceIndex {
           if (this.isInModelDirectory(fullPath)) {
             this.scanMezFile(fullPath);
           }
+          // Also scan for units in service directories
+          if (this.isInServiceDirectory(fullPath)) {
+            this.scanMezFileForUnits(fullPath);
+          }
         }
       }
     } catch (err) {
@@ -107,6 +120,14 @@ export class WorkspaceIndex {
   private isInModelDirectory(filePath: string): boolean {
     const parts = filePath.split(path.sep);
     return parts.includes("model");
+  }
+
+  /**
+   * Check if a file path is in a service directory (services, utilities, web-app)
+   */
+  private isInServiceDirectory(filePath: string): boolean {
+    const parts = filePath.split(path.sep);
+    return parts.includes("services") || parts.includes("utilities") || parts.includes("web-app");
   }
 
   /**
@@ -189,6 +210,34 @@ export class WorkspaceIndex {
   }
 
   /**
+   * Scan a .mez file for unit definitions
+   */
+  private scanMezFileForUnits(filePath: string): void {
+    try {
+      const content = fs.readFileSync(filePath, "utf8");
+      const lines = content.split(/\r?\n/);
+      const uri = URI.file(filePath).toString();
+
+      lines.forEach((line, idx) => {
+        // Match unit definitions: unit UnitName;
+        const unitMatch = line.match(/\bunit\s+([A-Za-z_][A-Za-z0-9_]*)/);
+        if (unitMatch) {
+          const unitName = unitMatch[1];
+          this.unitDefinitions.set(unitName, {
+            name: unitName,
+            uri,
+            line: idx,
+            character: unitMatch.index ?? 0,
+          });
+          console.log(`[WorkspaceIndex] ✓ Found unit: ${unitName} in ${filePath} at line ${idx + 1}`);
+        }
+      });
+    } catch (err) {
+      console.error(`[WorkspaceIndex] ✗ Error scanning file for units ${filePath}:`, err);
+    }
+  }
+
+  /**
    * Find the definition location for an object type
    */
   findObjectDefinition(typeName: string): ObjectDefinition | undefined {
@@ -237,33 +286,53 @@ export class WorkspaceIndex {
   updateFile(uri: string): void {
     const filePath = URI.parse(uri).fsPath;
     console.log(`[WorkspaceIndex] updateFile called for: ${uri} (${filePath})`);
-    if (filePath.endsWith(".mez") && this.isInModelDirectory(filePath)) {
-      console.log(`[WorkspaceIndex] Updating model file: ${filePath}`);
-      // Remove old definitions from this file
-      const removed: string[] = [];
-      for (const [name, def] of this.objectDefinitions.entries()) {
-        if (def.uri === uri) {
-          this.objectDefinitions.delete(name);
-          removed.push(name);
+    if (filePath.endsWith(".mez")) {
+      if (this.isInModelDirectory(filePath)) {
+        console.log(`[WorkspaceIndex] Updating model file: ${filePath}`);
+        // Remove old object definitions from this file
+        const removed: string[] = [];
+        for (const [name, def] of this.objectDefinitions.entries()) {
+          if (def.uri === uri) {
+            this.objectDefinitions.delete(name);
+            removed.push(name);
+          }
         }
+        if (removed.length > 0) {
+          console.log(`[WorkspaceIndex] Removed ${removed.length} old object definitions:`, removed);
+        }
+        // Re-scan the file for objects
+        this.scanMezFile(filePath);
       }
-      if (removed.length > 0) {
-        console.log(`[WorkspaceIndex] Removed ${removed.length} old definitions:`, removed);
+      if (this.isInServiceDirectory(filePath)) {
+        console.log(`[WorkspaceIndex] Updating service file: ${filePath}`);
+        // Remove old unit definitions from this file
+        const removed: string[] = [];
+        for (const [name, def] of this.unitDefinitions.entries()) {
+          if (def.uri === uri) {
+            this.unitDefinitions.delete(name);
+            removed.push(name);
+          }
+        }
+        if (removed.length > 0) {
+          console.log(`[WorkspaceIndex] Removed ${removed.length} old unit definitions:`, removed);
+        }
+        // Re-scan the file for units
+        this.scanMezFileForUnits(filePath);
       }
-      // Re-scan the file
-      this.scanMezFile(filePath);
     } else {
-      console.log(`[WorkspaceIndex] File not a model .mez file, skipping update`);
+      console.log(`[WorkspaceIndex] File not a .mez file, skipping update`);
     }
   }
   
   /**
    * Get debug information about the index
    */
-  getDebugInfo(): { objectCount: number; objects: string[]; workspaceRoots: string[] } {
+  getDebugInfo(): { objectCount: number; objects: string[]; unitCount: number; units: string[]; workspaceRoots: string[] } {
     return {
       objectCount: this.objectDefinitions.size,
       objects: Array.from(this.objectDefinitions.keys()),
+      unitCount: this.unitDefinitions.size,
+      units: Array.from(this.unitDefinitions.keys()),
       workspaceRoots: this.workspaceRoots,
     };
   }
@@ -296,6 +365,62 @@ export class WorkspaceIndex {
       }
     }
     return !isSystemType && isInIndex;
+  }
+
+  /**
+   * Find the definition location for a unit
+   */
+  findUnitDefinition(unitName: string): UnitDefinition | undefined {
+    return this.unitDefinitions.get(unitName);
+  }
+
+  /**
+   * Get location for a unit definition
+   * Returns a Location object matching LSP specification
+   */
+  getUnitLocation(unitName: string): Location | null {
+    const definition = this.findUnitDefinition(unitName);
+    if (!definition) {
+      console.log(`[WorkspaceIndex] getUnitLocation: No definition found for "${unitName}"`);
+      return null;
+    }
+
+    const location: Location = {
+      uri: definition.uri,
+      range: {
+        start: { 
+          line: definition.line, 
+          character: definition.character 
+        },
+        end: { 
+          line: definition.line, 
+          character: definition.character + definition.name.length 
+        },
+      },
+    };
+    
+    console.log(`[WorkspaceIndex] getUnitLocation: Returning location for "${unitName}":`, {
+      uri: location.uri,
+      start: location.range.start,
+      end: location.range.end,
+    });
+    
+    return location;
+  }
+
+  /**
+   * Check if a name is a unit
+   */
+  isUnit(unitName: string): boolean {
+    const isInIndex = this.unitDefinitions.has(unitName);
+    console.log(`[WorkspaceIndex] Checking unit "${unitName}": isInIndex=${isInIndex}`);
+    if (isInIndex) {
+      const def = this.unitDefinitions.get(unitName);
+      if (def) {
+        console.log(`[WorkspaceIndex] Unit definition found: ${def.name} at ${def.uri}:${def.line + 1}`);
+      }
+    }
+    return isInIndex;
   }
 }
 
