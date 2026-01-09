@@ -2,6 +2,20 @@
 
 This project builds a VSCode extension for the Helium DSL that works in **Cursor IDE**. The packaging process uses Docker to ensure robust, reproducible builds.
 
+## Project Structure
+
+```
+helium-dsl-visx/ (project root)
+├── helium-dsl-language-server/  # LSP server implementation
+├── helium-vscode-tooling/       # Tooling and packaging
+│   ├── scripts/                 # Build automation scripts
+│   ├── docker/                  # Docker packaging infrastructure
+│   ├── helium-dsl-vscode/       # VSCode extension client
+│   ├── generated/               # Generated files (not in git)
+│   └── dist/                    # VSIX output directory (not in git)
+└── README.md
+```
+
 ## Target Platform
 
 - **Primary Target**: Cursor IDE
@@ -57,10 +71,10 @@ The extension uses **Docker-based packaging** for the following critical reasons
 **ALWAYS use Cursor commands:**
 ```bash
 # Correct
-cursor --install-extension dist/helium-dsl.vsix --force
+cursor --install-extension helium-vscode-tooling/dist/helium-dsl.vsix --force
 
 # Wrong - DO NOT USE
-code --install-extension dist/helium-dsl.vsix
+code --install-extension helium-vscode-tooling/dist/helium-dsl.vsix
 ```
 
 ## Packaging Workflow
@@ -77,10 +91,10 @@ The packaging process follows these principles:
 
 ## File Structure
 
-- `scripts/package-docker.sh` - Orchestrates build and Docker packaging
-- `docker/Dockerfile.vsix` - Docker image with Node 20.11.1 and vsce 2.26.0
-- `docker/package.sh` - Runs inside Docker, assembles and packages extension
-- `docker-compose.yml` - Defines volumes and service configuration
+- `helium-vscode-tooling/scripts/package-docker.sh` - Orchestrates build and Docker packaging
+- `helium-vscode-tooling/docker/Dockerfile.vsix` - Docker image with Node 20.11.1 and vsce 2.26.0
+- `helium-vscode-tooling/docker/package.sh` - Runs inside Docker, assembles and packages extension
+- `helium-vscode-tooling/docker-compose.yml` - Defines volumes and service configuration
 
 ## When Modifying Packaging
 
@@ -143,14 +157,14 @@ If you need to modify the packaging process:
 **helium-dsl-language-server/generated/** (Generated test files):
 - `tests/munic-chat.test.ts` - Dynamically generated validation test
 
-**helium-dsl-vscode/out/** (Compiled extension output):
+**helium-vscode-tooling/helium-dsl-vscode/out/** (Compiled extension output):
 - `extension.js` - Compiled extension code
 - `tsconfig.tsbuildinfo` - TypeScript incremental build info
 
 **helium-vscode-tooling/dist/** (Packaged artifacts):
 - `helium-dsl.vsix` - Packaged VSCode extension file
 
-**helium-dsl-vscode/server/** (Copied during packaging):
+**helium-vscode-tooling/helium-dsl-vscode/server/** (Copied during packaging):
 - `out/**` - Language server compiled output (copied from helium-dsl-language-server/out/)
 - `node_modules/**` - Language server dependencies (copied during Docker packaging)
 
@@ -158,31 +172,31 @@ If you need to modify the packaging process:
 
 If you need to change any of these files:
 
-1. **Grammar files** (`generated/grammar/*`):
-   - Modify `scripts/extract-grammar.ts` or `scripts/convert-grammar.ts`
+1. **Grammar files** (`helium-vscode-tooling/generated/grammar/*`):
+   - Modify `helium-vscode-tooling/scripts/extract-grammar.ts` or `helium-vscode-tooling/scripts/convert-grammar.ts`
    - Or update the source grammar in the Java project
 
-2. **Parser files** (`generated/parser/*`):
-   - Modify the grammar files (`generated/grammar/MezDSL.g4`)
+2. **Parser files** (`helium-vscode-tooling/generated/parser/*`):
+   - Modify the grammar files (`helium-vscode-tooling/generated/grammar/MezDSL.g4`)
    - Parser is regenerated from grammar using ANTLR4
 
-3. **Rules metadata** (`generated/rules/dsl-rules.json`):
-   - Modify `scripts/extract-rules.ts`
+3. **Rules metadata** (`helium-vscode-tooling/generated/rules/dsl-rules.json`):
+   - Modify `helium-vscode-tooling/scripts/extract-rules.ts`
 
-4. **BIF metadata** (`generated/bifs/bif-metadata.json`):
-   - Modify `scripts/generate-bif-metadata.ts`
+4. **BIF metadata** (`helium-vscode-tooling/generated/bifs/bif-metadata.json`):
+   - Modify `helium-vscode-tooling/scripts/generate-bif-metadata.ts`
    - Or update the grammar file to include new BIF tokens
 
-5. **TextMate grammar** (`generated/syntaxes/helium-dsl.tmLanguage.json`):
-   - Modify `scripts/generate-textmate.ts`
+5. **TextMate grammar** (`helium-vscode-tooling/generated/syntaxes/helium-dsl.tmLanguage.json`):
+   - Modify `helium-vscode-tooling/scripts/generate-textmate.ts`
 
-6. **Compiled output** (`out/**`):
+6. **Compiled output** (`helium-dsl-language-server/out/**` and `helium-vscode-tooling/helium-dsl-vscode/out/**`):
    - Modify the corresponding TypeScript source files
    - Run `npm run build` to regenerate
 
-7. **Test files** (`generated/tests/*`):
-   - Modify `validate-dsl.sh` script that generates the test file
+7. **Test files** (`helium-dsl-language-server/generated/tests/*`):
+   - Modify `helium-vscode-tooling/validate-dsl.sh` script that generates the test file
 
-8. **VSIX package** (`dist/*.vsix`):
+8. **VSIX package** (`helium-vscode-tooling/dist/*.vsix`):
    - Modify packaging scripts or extension source
    - Regenerate by running the full build pipeline
