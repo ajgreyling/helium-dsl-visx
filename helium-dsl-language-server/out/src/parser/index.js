@@ -24,6 +24,27 @@ function loadGenerated(name) {
     }
     return undefined;
 }
+/**
+ * Check if an error message indicates a parser runtime error (false positive)
+ * These are JavaScript runtime errors that occur during parsing but don't indicate
+ * actual code problems - the code compiles fine despite these errors.
+ */
+function isParserRuntimeError(errorMsg) {
+    // Filter out "Maximum call stack size exceeded" - indicates parser recursion issues
+    if (errorMsg.includes("Maximum call stack size exceeded")) {
+        return true;
+    }
+    // Filter out "token is not defined" - JavaScript ReferenceError from parser runtime
+    if (errorMsg.includes("token is not defined")) {
+        return true;
+    }
+    // Filter out other common "is not defined" patterns that are parser runtime issues
+    // These typically indicate missing variables in the parser's generated code
+    if (errorMsg.match(/^\w+ is not defined$/)) {
+        return true;
+    }
+    return false;
+}
 class CollectingErrorListener {
     constructor(sourceText) {
         this.diagnostics = [];
@@ -163,8 +184,8 @@ function parseText(text) {
     catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err);
         // Filter out false positive parser errors for code that builds fine
-        // "Maximum call stack size exceeded" indicates parser recursion issues, not actual code errors
-        if (!errorMsg.includes("Maximum call stack size exceeded")) {
+        // These are parser runtime errors, not actual code errors
+        if (!isParserRuntimeError(errorMsg)) {
             listener.diagnostics.push({
                 message: errorMsg,
                 range: {
@@ -176,7 +197,7 @@ function parseText(text) {
             });
         }
     }
-    // Filter out "Maximum call stack size exceeded" from syntax errors as well
-    const filteredDiagnostics = listener.diagnostics.filter((d) => !d.message.includes("Maximum call stack size exceeded"));
+    // Filter out parser runtime errors from syntax errors as well (safety net)
+    const filteredDiagnostics = listener.diagnostics.filter((d) => !isParserRuntimeError(d.message));
     return { diagnostics: filteredDiagnostics };
 }

@@ -147,3 +147,231 @@ MIT License - see the [LICENSE](LICENSE) file for details.
 
 - [Repository](https://github.com/ajgreyling/helium-dsl-visx)
 - [Open VSX Registry](https://open-vsx.org/extension/mezzanineware/helium-dsl-vscode)
+
+## Build and Packaging Process
+
+This extension is built from the Helium DSL ANTLR3 grammar through a multi-step process that extracts, converts, and generates all necessary components. Here's how everything is obtained, updated, and packaged:
+
+### Overview
+
+The build process transforms the original ANTLR3 grammar from the Helium Java project into a complete VSCode/Cursor extension with syntax highlighting, IntelliSense, and linting capabilities.
+
+### Step-by-Step Build Process
+
+#### 1. Grammar Extraction (`npm run build:extract`)
+
+**Script**: `scripts/extract-grammar.ts`
+
+- **Source**: Extracts the ANTLR3 grammar file (`MezDSL.g`) from the Java project at:
+  ```
+  appexec-dsl-commons/WebDSLParser-lib/src/main/antlr3/com/mezzanine/dsl/web/MezDSL.g
+  ```
+- **Output**: Copies the grammar to `generated/grammar/MezDSL.g3`
+- **Hash Tracking**: Generates a SHA256 hash (`MezDSL.g3.hash`) to detect grammar changes
+- **Purpose**: Ensures we're always working with the latest grammar from the source project
+
+#### 2. Grammar Conversion (`npm run build:grammar`)
+
+**Script**: `scripts/convert-grammar.ts`
+
+- **Input**: `generated/grammar/MezDSL.g3` (ANTLR3 format)
+- **Output**: `generated/grammar/MezDSL.g4` (ANTLR4 format)
+- **Transformations**:
+  - Removes ANTLR3-specific options (`output=AST`, `ASTLabelType`, `superClass`)
+  - Converts token syntax (semicolons → commas)
+  - Removes tree rewrite operators (`->`, `^`, `!`)
+  - Removes semantic predicates and AST-related actions
+  - Converts `$channel=HIDDEN` to `-> channel(HIDDEN)`
+  - Removes Java-specific `@header` sections
+  - Fixes access expressions to support chaining
+  - Improves JSON expression BIF support for left-recursive chaining
+- **Purpose**: Converts the grammar to ANTLR4 format compatible with TypeScript parser generation
+
+#### 3. Grammar Validation (`npm run build:validate`)
+
+**Script**: `scripts/validate-grammar.ts`
+
+- **Input**: `generated/grammar/MezDSL.g4`
+- **Purpose**: Validates the converted grammar syntax and catches conversion errors early
+
+#### 4. Parser Generation (`npm run build:parser`)
+
+**Tool**: `antlr4ts` CLI
+
+- **Input**: `generated/grammar/MezDSL.g4`
+- **Output**: TypeScript parser files in `generated/parser/`:
+  - `MezDSLLexer.ts` - Token lexer
+  - `MezDSLParser.ts` - Parser implementation
+  - `MezDSLListener.ts` - Parse tree listener interface
+  - `MezDSLVisitor.ts` - Parse tree visitor interface
+  - Token definition files (`.tokens`, `.interp`)
+- **Purpose**: Generates the TypeScript parser used by the language server for syntax analysis
+
+#### 5. Rules Extraction (`npm run build:rules`)
+
+**Script**: `scripts/extract-rules.ts`
+
+- **Output**: `generated/rules/dsl-rules.json`
+- **Content**: Metadata for linting rules (IDs, severity levels, messages, categories)
+- **Purpose**: Provides rule definitions used by the linter engine
+
+#### 6. BIF Metadata Generation (`npm run build:bifs`)
+
+**Script**: `scripts/generate-bif-metadata.ts`
+
+- **Input**: `generated/grammar/MezDSL.g4` (scans for BIF token definitions)
+- **Output**: `generated/bifs/bif-metadata.json`
+- **Content**: Extracts built-in function tokens (e.g., `Mez:now`, `sql:query`) with namespaces, signatures, and grammar line numbers
+- **Purpose**: Powers autocomplete suggestions for built-in functions
+
+#### 7. TextMate Grammar Generation (`npm run build:textmate`)
+
+**Script**: `scripts/generate-textmate.ts`
+
+- **Input**: `generated/grammar/MezDSL.g4` and BIF metadata
+- **Output**: `generated/syntaxes/helium-dsl.tmLanguage.json`
+- **Purpose**: Generates TextMate grammar for syntax highlighting in the editor
+- **Features**: Maps grammar tokens to TextMate scopes (`support.class`, `support.function`, `keyword.control`, etc.)
+
+#### 8. Language Server Build
+
+**Location**: `helium-dsl-language-server/`
+
+- **Dependencies**: Installed locally (`npm install`) to ensure they're available for packaging
+- **Build**: Compiles TypeScript source (`src/`) to JavaScript (`out/`)
+- **Output**: 
+  - `out/server.js` - Main language server entry point
+  - `out/` - All compiled language server modules
+  - `node_modules/` - Language server runtime dependencies
+
+#### 9. Extension Build
+
+**Location**: `helium-dsl-vscode/`
+
+- **Dependencies**: Installed via `npm install`
+- **Build**: Compiles TypeScript extension code (`src/extension.ts`) to `out/extension.js`
+- **Output**: Compiled extension client code
+
+#### 10. Docker-Based VSIX Packaging (`npm run package`)
+
+**Orchestrator**: `scripts/package-docker.sh`
+
+The packaging process uses Docker to ensure reproducible builds and proper dependency bundling:
+
+**Step 10a: Host-Side Prerequisites** (runs on host machine)
+- Builds language server with local dependencies
+- Builds extension client
+- Verifies all prerequisites are ready
+
+**Step 10b: Docker Container Setup** (`docker-compose.yml`)
+- Uses Docker image with Node 20.11.1 and `vsce` 2.26.0
+- Mounts source directories as read-only volumes:
+  - Extension source → `/build/extension`
+  - Language server output → `/build/server-out`
+  - Language server dependencies → `/build/server-node-modules`
+  - Generated files → `/build/generated`
+- Mounts output directory as writable: `dist/` → `/build/out`
+
+**Step 10c: Container-Side Packaging** (`docker/package.sh`)
+1. **Create Working Copy**: Copies extension to writable directory `/build/work`
+2. **Copy Language Server**: 
+   - Copies `server-out/` → `server/out/`
+   - Copies `server-node-modules/` → `server/node_modules/`
+3. **Copy Generated Files**: Copies `generated/` directory (parser, rules, BIFs, TextMate grammar)
+4. **Install Dependencies**: Runs `npm install --production` in working copy
+5. **Flatten Dependencies**: Moves nested `node_modules` to root (ensures `vsce` includes all transitive dependencies)
+6. **Validate**: Runs `npm list --production` to verify dependency tree
+7. **Package**: Runs `vsce package` (without `--no-dependencies` flag) to create VSIX
+8. **Output**: VSIX written to `dist/helium-dsl.vsix` (mounted from host)
+
+**Why Docker?**
+- **Workspace Isolation**: Prevents npm workspace hoisting issues that break `vsce` validation
+- **Reproducible Builds**: Same Node version and tools every time
+- **Clean Dependencies**: Fresh environment ensures no cached artifacts interfere
+- **Proper Bundling**: Ensures all transitive dependencies are included (required by Cursor)
+
+#### 11. Publishing to Open VSX Registry
+
+**Prerequisites**:
+- Open VSX account at https://open-vsx.org/
+- `ovsx` CLI tool installed globally: `npm install -g ovsx`
+
+**Publishing**:
+```bash
+cd helium-dsl-vscode
+ovsx publish -p <your-access-token>
+```
+
+The VSIX file is uploaded to Open VSX Registry, making it available for installation via:
+```bash
+cursor --install-extension mezzanineware.helium-dsl-vscode
+```
+
+### Complete Build Workflow
+
+For a complete end-to-end build, use the validation script:
+
+```bash
+./validate-dsl.sh -d <dsl-commons-path> -p <sample-project-path>
+```
+
+This automates all steps:
+1. Extracts grammar from Java project
+2. Converts ANTLR3 → ANTLR4
+3. Validates grammar
+4. Generates TypeScript parser
+5. Extracts linting rules
+6. Generates BIF metadata
+7. Generates TextMate grammar
+8. Builds language server
+9. Builds extension
+10. Packages VSIX using Docker
+11. Validates against sample project
+12. Installs extension in Cursor
+
+### Manual Build Commands
+
+If you prefer to run steps individually:
+
+```bash
+# Extract and convert grammar
+npm run build:extract      # Extract ANTLR3 grammar
+npm run build:grammar      # Convert to ANTLR4
+npm run build:validate     # Validate grammar
+
+# Generate parser and metadata
+npm run build:parser       # Generate TypeScript parser
+npm run build:rules        # Extract linting rules
+npm run build:bifs         # Generate BIF metadata
+npm run build:textmate     # Generate TextMate grammar
+
+# Build components
+cd ../helium-dsl-language-server && npm run build
+cd ../helium-vscode-tooling/helium-dsl-vscode && npm run build
+
+# Package VSIX
+cd ../helium-vscode-tooling
+npm run package
+```
+
+### Generated Files
+
+All generated files are stored in `helium-vscode-tooling/generated/`:
+- `grammar/` - ANTLR3 and ANTLR4 grammar files
+- `parser/` - Generated TypeScript parser files
+- `rules/` - Linting rules metadata
+- `bifs/` - Built-in function metadata
+- `syntaxes/` - TextMate grammar for syntax highlighting
+
+These files are **not** committed to git and are regenerated during each build.
+
+### Updating the Extension
+
+When the Helium DSL grammar changes:
+
+1. **Extract Updated Grammar**: Run `npm run build:extract` to get the latest grammar
+2. **Review Changes**: Check `generated/grammar/MezDSL.g3.hash` to verify grammar was updated
+3. **Rebuild Everything**: Run `npm run build:all` or use the validation script
+4. **Test**: Validate against sample projects
+5. **Package**: Run `npm run package` to create new VSIX
+6. **Publish**: Upload to Open VSX Registry with updated version number
