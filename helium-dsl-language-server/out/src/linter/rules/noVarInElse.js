@@ -13,12 +13,14 @@ function applyNoVarInElse(ctx) {
         // Only flag plain "else" blocks, not "else if" blocks
         // The rule applies to: } else { but not } else if (...) {
         // Check for "else" that is NOT followed by "if"
+        // Pattern 1: } else { on the same line
         if (/}\s*else\s*{/.test(trimmed)) {
             // This is a plain else block
             inElse = true;
             braceDepth = (trimmed.match(/{/g) || []).length - (trimmed.match(/}/g) || []).length;
             return;
         }
+        // Pattern 2: } else at end of line (check next line for if)
         if (/}\s*else\s*$/.test(trimmed)) {
             // Check next line to see if it's "if" - if so, skip it
             const nextLine = idx + 1 < lines.length ? lines[idx + 1].trim() : '';
@@ -28,7 +30,30 @@ function applyNoVarInElse(ctx) {
                 return;
             }
         }
-        // Reset if we see "else if"
+        // Pattern 3: Line starts with "else {" - this is an else block (not "else if")
+        // This handles: } \n else { or if (...) { \n ... \n else {
+        if (/^else\s*{/.test(trimmed)) {
+            // Make sure it's not "else if" by checking what follows "else"
+            // The pattern already ensures it's "else {" not "else if", but double-check next line
+            const nextLine = idx + 1 < lines.length ? lines[idx + 1].trim() : '';
+            if (!nextLine.startsWith('if')) {
+                inElse = true;
+                braceDepth = (trimmed.match(/{/g) || []).length - (trimmed.match(/}/g) || []).length;
+                return;
+            }
+        }
+        // Pattern 4: Line starts with just "else" (not "else if")
+        // This handles: } \n else \n { or if (...) { \n ... \n else \n {
+        if (/^else\s*$/.test(trimmed)) {
+            // Check next line to make sure it's not "else if" and that it starts with {
+            const nextLine = idx + 1 < lines.length ? lines[idx + 1].trim() : '';
+            if (!nextLine.startsWith('if') && nextLine.startsWith('{')) {
+                inElse = true;
+                braceDepth = 0; // Will be adjusted when we process the next line with {
+                return;
+            }
+        }
+        // Reset if we see "else if" - this is not a plain else block
         if (/else\s+if\s*\(/.test(trimmed)) {
             inElse = false;
             return;
