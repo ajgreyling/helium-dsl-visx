@@ -219,19 +219,13 @@ async function main() {
     },
   });
 
-  // Add BIF function calls (e.g., Mez:now, sql:query, String:concat, Math:sqrt)
-  // Use standard support.function scope for cross-theme compatibility
-  // Must come before unit reference pattern so BIFs are matched first
-  patterns.push({
-    name: "support.function.helium",
-    match: `\\b(${bifNamespaces.join("|")}):[a-zA-Z_][a-zA-Z0-9_]*\\b`,
-  });
-
   // Add unit reference pattern (e.g., SomeUnit:someFunction)
-  // Matches user-defined units (PascalCase identifiers) followed by colon and function name
+  // Must come before BIF pattern but exclude BIF namespaces
+  // Matches PascalCase identifiers (units) followed by colon and function name
+  const bifNamespacesRegex = bifNamespaces.map(ns => ns.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
   patterns.push({
     name: "meta.unit.reference.helium",
-    match: `\\b([A-Z][A-Za-z0-9_]*):([a-zA-Z_][a-zA-Z0-9_]*)\\b`,
+    match: `\\b(?!(?:${bifNamespacesRegex}):)([A-Z][A-Za-z0-9_]*):([a-zA-Z_][a-zA-Z0-9_]*)\\b`,
     captures: {
       1: {
         name: "entity.name.type.namespace.helium", // Unit name
@@ -240,6 +234,14 @@ async function main() {
         name: "entity.name.function.helium", // Function name
       },
     },
+  });
+
+  // Add BIF function calls (e.g., Mez:now, sql:query, String:concat, Math:sqrt)
+  // Use standard support.function scope for cross-theme compatibility
+  // Must come after unit reference pattern so BIFs match when namespaces overlap
+  patterns.push({
+    name: "support.function.helium",
+    match: `\\b(${bifNamespaces.join("|")}):[a-zA-Z_][a-zA-Z0-9_]*\\b`,
   });
 
   // Add operators (must come after numbers and strings)
