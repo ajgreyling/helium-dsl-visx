@@ -2,15 +2,6 @@
     "folders": [
         {
             "path": "."
-        },
-        {
-            "path": "../munic-chat"
-        },
-        {
-            "path": "../vscode-java"
-        },
-        {
-            "path": "../vscode-extension-samples"
         }
     ]
 }
