@@ -475,12 +475,37 @@ echo -e "${GREEN}Version restored to: ${ORIGINAL_VERSION}${NC}"
 
 echo ""
 echo -e "${BLUE}=== Step 13: Run Validation Tests ===${NC}"
+STEP13_START=$(date +%s)
 cd "$SCRIPT_DIR/../helium-dsl-language-server"
 # Explicitly configure ts-node to use CommonJS to avoid module type warning
-TS_NODE_COMPILER_OPTIONS='{"module":"commonjs"}' npx mocha -r ts-node/register tests/**/*.test.ts generated/tests/**/*.test.ts
+# Export the environment variable first, then use stdbuf if available
+export TS_NODE_COMPILER_OPTIONS='{"module":"commonjs"}'
+# Use --exit flag to force mocha to exit after tests complete (prevents hanging on active timers)
+# Use stdbuf to disable output buffering if available (not available on macOS by default)
+if command -v stdbuf >/dev/null 2>&1; then
+    stdbuf -oL -eL npx mocha --exit -r ts-node/register tests/**/*.test.ts generated/tests/**/*.test.ts
+else
+    npx mocha --exit -r ts-node/register tests/**/*.test.ts generated/tests/**/*.test.ts
+fi
+MOCHA_EXIT_CODE=$?
+STEP13_END=$(date +%s)
+STEP13_DURATION=$((STEP13_END - STEP13_START))
 
-echo ""
-echo -e "${BLUE}=== Step 14: Install Extension in Cursor ===${NC}"
+# Ensure mocha/npx processes have fully terminated
+wait
+
+# Log timing diagnostics (to stderr for immediate output)
+echo "[DEBUG] Step 13 completed in ${STEP13_DURATION}s, exit code: $MOCHA_EXIT_CODE" >&2
+
+if [ $MOCHA_EXIT_CODE -ne 0 ]; then
+    echo -e "${RED}Error: Tests failed with exit code $MOCHA_EXIT_CODE${NC}"
+    exit $MOCHA_EXIT_CODE
+fi
+
+# Force output flush before proceeding to Step 14
+# Use printf instead of echo for immediate output (no buffering)
+printf "\n"
+printf "${BLUE}=== Step 14: Install Extension in Cursor ===${NC}\n"
 
 # VSIX file is created in dist/ directory by the Docker packaging script
 VSIX_FILE="$SCRIPT_DIR/dist/helium-dsl.vsix"

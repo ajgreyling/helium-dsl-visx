@@ -334,3 +334,42 @@ The rule detects `else` blocks in multiple formatting styles:
 - The rule uses pattern matching to detect `else` blocks and variable declarations
 - Brace depth tracking ensures accurate detection of block boundaries
 - The rule is applied during document validation and appears as diagnostics in the IDE
+
+### forbidden-operators Rule
+
+**Location**: `helium-dsl-language-server/src/linter/rules/forbiddenOperators.ts`
+
+**Purpose**: Prevents use of forbidden operators and enforces explicit boolean comparisons in if conditions.
+
+**Detection Capabilities**:
+
+The rule detects:
+- Compound assignment operators (`+=`, `-=`, `*=`, `/=`, `%=`)
+- Ternary operators (`condition ? value1 : value2`)
+- Negation operators (`!var` instead of `== false`)
+- Boolean variables in if conditions without explicit comparison (`if (flag)` instead of `if (flag == true)`)
+
+**Key Features**:
+- ✅ Skips processing lines inside multi-line string blocks (`/% ... %/`) to prevent timeouts
+- ✅ Tracks multi-line block state across lines (not just single-line detection)
+- ✅ Pre-computes string literal positions to avoid repeated scans
+- ✅ Skips very long lines (>10KB) to prevent regex catastrophic backtracking
+- ✅ Includes safety limits (max 100 matches per line) to prevent infinite loops
+- ✅ Handles string literal detection for single and double quotes
+- ✅ Respects SQL block markers (`/%` and `%/`)
+
+**Performance Optimizations**:
+- Multi-line string block tracking prevents processing hundreds of lines of JSON/text content
+- String literal position caching avoids repeated scans of the same line
+- Early returns for comments and very long lines reduce unnecessary processing
+- Safety limits prevent regex loops from hanging on problematic patterns
+
+**Rule Configuration**:
+- Defined in `helium-vscode-tooling/generated/rules/dsl-rules.json`
+- Severity: `error` (default)
+- Messages vary by operator type
+
+**Implementation Notes**:
+- The rule must track multi-line string blocks (`/% ... %/`) across lines, not just within a single line
+- Lines inside multi-line blocks should be skipped entirely to prevent timeouts on large JSON/text content
+- The `--exit` flag should be used with mocha to prevent hanging on active timers from timeout protection code

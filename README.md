@@ -124,7 +124,7 @@ This will:
 10. Update extension version with epoch-based build number
 11. Package the VSCode extension as a `.vsix` file
 12. Restore original version in package.json
-13. Run validation tests against your sample project
+13. Run validation tests against your sample project (with performance optimizations)
 14. Automatically install the extension in Cursor
 
 ### Manual Build Steps
@@ -284,6 +284,14 @@ If tests fail:
 1. Ensure paths are correct
 2. Run `npm run build:all` to regenerate everything
 3. Check the test output for specific file issues
+
+### Test Execution Delays
+
+If tests complete quickly but the script hangs before Step 14:
+1. Check that `mocha --exit` flag is being used (prevents hanging on active timers)
+2. Verify no background processes are still running: `ps aux | grep mocha`
+3. Check the debug output for timing information: `[DEBUG] Step 13 completed in Xs`
+4. If delays persist, ensure `stdbuf` is available or the fallback path is used correctly
 
 ### Extension Activation Errors
 
@@ -722,6 +730,36 @@ After making changes to TextMate grammar:
 5. Test with "Developer: Inspect Editor Tokens and Scopes" to verify scopes are applied correctly
 
 See `helium-vscode-tooling/TOKEN_MAPPINGS.md` for complete token scope reference.
+
+## Performance and Optimization Notes
+
+### Linting Performance
+
+**Multi-Line String Block Handling**:
+- The `forbidden-operators` linting rule tracks multi-line string blocks (`/% ... %/`) across lines to skip processing content inside these blocks
+- This prevents timeouts when processing files with large JSON/text content in multi-line strings
+- Lines containing `/%` or `%/` markers are skipped, and lines between them are also skipped when inside a block
+
+**Test Execution Performance**:
+- Mocha should use the `--exit` flag to prevent hanging on active timers from timeout protection code
+- Without `--exit`, mocha may wait for `setTimeout` timers to expire (e.g., 30-second timeout protection), causing 30+ second delays
+- The `validate-dsl.sh` script includes timing diagnostics to identify performance bottlenecks
+
+**Output Buffering**:
+- Use `stdbuf` (when available) to disable output buffering for immediate test output
+- Use `printf` instead of `echo` for immediate output when buffering is a concern
+- Export environment variables before using `stdbuf` (stdbuf doesn't handle inline variable assignments)
+
+### Common Performance Issues
+
+**Linting Timeouts**:
+- If linting times out on files with large multi-line strings, ensure the linting rule properly tracks multi-line block state
+- Check that string literal detection is working correctly and not processing content inside string blocks
+
+**Test Execution Delays**:
+- If tests complete quickly but the script hangs, check for active timers or event loop handles
+- Use `mocha --exit` to force immediate exit after tests complete
+- Add timing diagnostics to identify where delays occur
 
 ## Notes
 
