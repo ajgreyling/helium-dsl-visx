@@ -137,6 +137,7 @@ async function main() {
   // workspace's model folder without regenerating the grammar.
 
   // Add unit definition pattern (must come before enum patterns)
+  // Use support.class for unit definitions to match unit references
   patterns.push({
     name: "meta.unit.definition.helium",
     begin: "\\b(unit)\\s+",
@@ -153,7 +154,7 @@ async function main() {
     },
     patterns: [
       {
-        name: "entity.name.type",
+        name: "support.class", // Use support.class scope for units
         match: "\\b([A-Z][A-Za-z0-9_]*)\\b",
       },
     ],
@@ -223,16 +224,18 @@ async function main() {
   // Must come before BIF pattern but exclude BIF namespaces
   // Matches PascalCase identifiers (units) followed by colon and identifier (function or variable)
   // Uses lookahead to match even when followed by ( or other punctuation
+  // Use support.class for unit names (units are like classes/modules) - more widely supported
+  // Use support.function for methods in unit references - distinct from entity.name.function
   const bifNamespacesRegex = bifNamespaces.map(ns => ns.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
   patterns.push({
     name: "meta.unit.reference.helium",
     match: `\\b(?!(?:${bifNamespacesRegex}):)([A-Z][A-Za-z0-9_]*):([a-zA-Z_][a-zA-Z0-9_]*)(?=\\s*[;(,=)]|\\s*$|\\s*[^a-zA-Z0-9_])`,
     captures: {
       1: {
-        name: "entity.name.type", // Unit name
+        name: "support.class", // Unit name - use support.class for better theme support
       },
       2: {
-        name: "entity.name.function", // Function or variable name
+        name: "support.function", // Function or variable name - use support.function for better theme support
       },
     },
   });
