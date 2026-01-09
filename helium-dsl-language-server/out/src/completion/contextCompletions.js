@@ -111,8 +111,7 @@ function getObjectProperties(typeName, workspaceIndex) {
                         }
                     }
                     continue;
-                }
-                // Match regular properties: type propertyName;
+                } // Match regular properties: type propertyName;
                 // Pattern: <type> <propertyName> [;=]
                 const propertyMatch = trimmedLine.match(/^\s*(?:@\w+\s+)*\b(?:int|bool|string|decimal|uuid|json|jsonarray|date|datetime|bigint|blob|[A-Za-z_][A-Za-z0-9_]*(?:\[\])?)\s+([a-z][A-Za-z0-9_]*)\s*[;=]/);
                 if (propertyMatch && propertyMatch[1]) {

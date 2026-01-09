@@ -3,7 +3,7 @@ import fs from "fs-extra";
 import crypto from "node:crypto";
 
 const root = path.resolve(__dirname, "..");
-const sourceGrammar = "/Users/ajgreyling/code/appexec-dsl-commons/WebDSLParser-lib/src/main/antlr3/com/mezzanine/dsl/web/MezDSL.g";
+const sourceGrammar = "../../appexec-dsl-commons/WebDSLParser-lib/src/main/antlr3/com/mezzanine/dsl/web/MezDSL.g";
 const targetGrammar = path.join(root, "generated/grammar/MezDSL.g3");
 const hashFile = path.join(root, "generated/grammar/MezDSL.g3.hash");
 

@@ -17,7 +17,7 @@ function applyNoVarInElse(ctx) {
         if (/}\s*else\s*{/.test(trimmed)) {
             // This is a plain else block
             inElse = true;
-            braceDepth = (trimmed.match(/{/g) || []).length - (trimmed.match(/}/g) || []).length;
+            braceDepth = 1; // We're entering the else block (depth 1)
             return;
         }
         // Pattern 2: } else at end of line (check next line for if)
@@ -38,7 +38,7 @@ function applyNoVarInElse(ctx) {
             const nextLine = idx + 1 < lines.length ? lines[idx + 1].trim() : '';
             if (!nextLine.startsWith('if')) {
                 inElse = true;
-                braceDepth = (trimmed.match(/{/g) || []).length - (trimmed.match(/}/g) || []).length;
+                braceDepth = 1; // We're entering the else block (depth 1)
                 return;
             }
         }

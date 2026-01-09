@@ -265,7 +265,30 @@ cd "$SCRIPT_DIR/helium-dsl-vscode"
 npm run build
 
 echo ""
-echo -e "${BLUE}=== Step 10: Package VSCode Extension ===${NC}"
+echo -e "${BLUE}=== Step 10: Update Version with Epoch Build Number ===${NC}"
+cd "$SCRIPT_DIR/helium-dsl-vscode"
+PACKAGE_JSON="$SCRIPT_DIR/helium-dsl-vscode/package.json"
+EPOCH=$(date +%s)
+
+# Backup original version
+ORIGINAL_VERSION=$(node -p "require('$PACKAGE_JSON').version")
+
+# Extract major.minor from current version (e.g., "1.0.0" -> "1.0")
+MAJOR_MINOR=$(node -p "require('$PACKAGE_JSON').version.split('.').slice(0, 2).join('.')")
+
+# Update version to use epoch as build number (format: <major>.<minor>.<epoch>)
+NEW_VERSION="$MAJOR_MINOR.$EPOCH"
+node -e "
+const fs = require('fs');
+const pkg = JSON.parse(fs.readFileSync('$PACKAGE_JSON', 'utf8'));
+pkg.version = '$NEW_VERSION';
+fs.writeFileSync('$PACKAGE_JSON', JSON.stringify(pkg, null, 2) + '\n');
+"
+
+echo -e "${GREEN}Version updated: ${ORIGINAL_VERSION} -> ${NEW_VERSION}${NC}"
+
+echo ""
+echo -e "${BLUE}=== Step 11: Package VSCode Extension ===${NC}"
 cd "$SCRIPT_DIR/helium-dsl-vscode"
 npm run package
 
@@ -281,7 +304,7 @@ echo -e "${GREEN}✓ VSIX packaged: $VSIX_FILE${NC}"
 
 # Publish to Open VSX
 echo ""
-echo -e "${BLUE}=== Step 11: Publishing to Open VSX Registry ===${NC}"
+echo -e "${BLUE}=== Step 12: Publishing to Open VSX Registry ===${NC}"
 
 echo -e "${BLUE}Publishing extension: $EXTENSION_ID${NC}"
 echo -e "${BLUE}VSIX file: $VSIX_FILE${NC}"
@@ -301,6 +324,18 @@ else
     exit 1
 fi
 
+# Restore original version after publishing
+echo ""
+echo -e "${BLUE}=== Restoring Original Version ===${NC}"
+cd "$SCRIPT_DIR/helium-dsl-vscode"
+node -e "
+const fs = require('fs');
+const pkg = JSON.parse(fs.readFileSync('$PACKAGE_JSON', 'utf8'));
+pkg.version = '$ORIGINAL_VERSION';
+fs.writeFileSync('$PACKAGE_JSON', JSON.stringify(pkg, null, 2) + '\n');
+"
+echo -e "${GREEN}Version restored to: ${ORIGINAL_VERSION}${NC}"
+
 # Wait a moment for the registry to update
 echo ""
 echo -e "${BLUE}Waiting for registry to update...${NC}"
@@ -308,7 +343,7 @@ sleep 5
 
 # Install from Open VSX
 echo ""
-echo -e "${BLUE}=== Step 12: Installing Extension from Open VSX ===${NC}"
+echo -e "${BLUE}=== Step 13: Installing Extension from Open VSX ===${NC}"
 echo -e "${BLUE}Installing: $EXTENSION_ID${NC}"
 
 if command -v cursor &> /dev/null; then
@@ -334,8 +369,9 @@ echo -e "${GREEN}✓${NC} Parser generated"
 echo -e "${GREEN}✓${NC} Rules extracted"
 echo -e "${GREEN}✓${NC} Language server built"
 echo -e "${GREEN}✓${NC} VSCode extension built"
+echo -e "${GREEN}✓${NC} Version updated with epoch build number ($EPOCH)"
 echo -e "${GREEN}✓${NC} Extension packaged"
-echo -e "${GREEN}✓${NC} Extension published to Open VSX"
+echo -e "${GREEN}✓${NC} Extension published to Open VSX (version: $NEW_VERSION)"
 echo -e "${GREEN}✓${NC} Extension installed from Open VSX"
 echo ""
 echo -e "Extension available at: ${BLUE}https://open-vsx.org/extension/$PUBLISHER/$EXTENSION_NAME${NC}"

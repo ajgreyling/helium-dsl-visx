@@ -15,7 +15,7 @@ export function applyNoVarInElse(ctx: LintContext) {
     if (/}\s*else\s*{/.test(trimmed)) {
       // This is a plain else block
       inElse = true;
-      braceDepth = (trimmed.match(/{/g) || []).length - (trimmed.match(/}/g) || []).length;
+      braceDepth = 1; // We're entering the else block (depth 1)
       return;
     }
     
@@ -38,7 +38,7 @@ export function applyNoVarInElse(ctx: LintContext) {
       const nextLine = idx + 1 < lines.length ? lines[idx + 1].trim() : '';
       if (!nextLine.startsWith('if')) {
         inElse = true;
-        braceDepth = (trimmed.match(/{/g) || []).length - (trimmed.match(/}/g) || []).length;
+        braceDepth = 1; // We're entering the else block (depth 1)
         return;
       }
     }

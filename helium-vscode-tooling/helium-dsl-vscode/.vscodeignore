@@ -10,7 +10,8 @@ tsconfig.tsbuildinfo
 
 # Exclude development files
 scripts/**
-*.md
+# Note: README.md is explicitly included (required for marketplace display)
+# Other markdown files are excluded below
 .gitignore
 .cursorrules
 
