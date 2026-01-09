@@ -442,8 +442,11 @@ EPOCH=$(date +%s)
 # Backup original version
 ORIGINAL_VERSION=$(node -p "require('$PACKAGE_JSON').version")
 
-# Update version to use epoch as build number (format: 0.2.<epoch>)
-NEW_VERSION="0.2.$EPOCH"
+# Extract major.minor from current version (e.g., "1.0.0" -> "1.0")
+MAJOR_MINOR=$(node -p "require('$PACKAGE_JSON').version.split('.').slice(0, 2).join('.')")
+
+# Update version to use epoch as build number (format: <major>.<minor>.<epoch>)
+NEW_VERSION="$MAJOR_MINOR.$EPOCH"
 node -e "
 const fs = require('fs');
 const pkg = JSON.parse(fs.readFileSync('$PACKAGE_JSON', 'utf8'));

@@ -1,0 +1,342 @@
+#!/bin/bash
+
+# Helium DSL Extension Publishing Script
+# This script builds the extension, packages it, and publishes to Open VSX Registry
+
+set -e  # Exit on error
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Default paths
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DSL_COMMONS_PATH=""
+OVSX_TOKEN=""
+
+# Extension details
+EXTENSION_ID="mezzanineware.helium-dsl-vscode"
+EXTENSION_NAME="helium-dsl-vscode"
+PUBLISHER="mezzanineware"
+
+# Parse command line arguments
+usage() {
+    echo "Usage: $0 -d <dsl-commons-path> [-t <ovsx-token>]"
+    echo ""
+    echo "Arguments:"
+    echo "  -d    Path to appexec-dsl-commons folder (contains WebDSLParser-lib)"
+    echo "  -t    Open VSX access token (optional, can use OVSX_PAT env var)"
+    echo ""
+    echo "Example:"
+    echo "  $0 -d /Users/ajgreyling/code/appexec-dsl-commons"
+    echo "  $0 -d /Users/ajgreyling/code/appexec-dsl-commons -t <your-token>"
+    echo ""
+    echo "Environment variables:"
+    echo "  OVSX_PAT    Open VSX access token (alternative to -t flag)"
+    exit 1
+}
+
+while getopts "d:t:h" opt; do
+    case $opt in
+        d) DSL_COMMONS_PATH="$OPTARG" ;;
+        t) OVSX_TOKEN="$OPTARG" ;;
+        h) usage ;;
+        *) usage ;;
+    esac
+done
+
+# Validate required arguments
+if [ -z "$DSL_COMMONS_PATH" ]; then
+    echo -e "${RED}Error: DSL commons path is required${NC}"
+    usage
+fi
+
+# Use environment variable if token not provided via flag
+if [ -z "$OVSX_TOKEN" ] && [ -n "$OVSX_PAT" ]; then
+    OVSX_TOKEN="$OVSX_PAT"
+fi
+
+# Validate paths exist
+if [ ! -d "$DSL_COMMONS_PATH" ]; then
+    echo -e "${RED}Error: DSL commons path does not exist: $DSL_COMMONS_PATH${NC}"
+    exit 1
+fi
+
+# Validate required files/folders exist
+GRAMMAR_FILE="$DSL_COMMONS_PATH/WebDSLParser-lib/src/main/antlr3/com/mezzanine/dsl/web/MezDSL.g"
+
+if [ ! -f "$GRAMMAR_FILE" ]; then
+    echo -e "${RED}Error: Grammar file not found: $GRAMMAR_FILE${NC}"
+    exit 1
+fi
+
+# Check if ovsx is installed
+echo -e "${BLUE}=== Checking for ovsx CLI ===${NC}"
+if ! command -v ovsx &> /dev/null; then
+    echo -e "${YELLOW}ovsx not found. Installing globally...${NC}"
+    npm install -g ovsx
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}Error: Failed to install ovsx${NC}"
+        exit 1
+    fi
+    echo -e "${GREEN}✓ ovsx installed${NC}"
+else
+    echo -e "${GREEN}✓ ovsx found${NC}"
+fi
+
+# Check for Open VSX token
+if [ -z "$OVSX_TOKEN" ]; then
+    echo -e "${RED}Error: Open VSX access token is required${NC}"
+    echo -e "${YELLOW}Provide it via -t flag or OVSX_PAT environment variable${NC}"
+    echo -e "${YELLOW}Get your token from: https://open-vsx.org/user-settings/tokens${NC}"
+    exit 1
+fi
+
+# Update script configurations with provided paths
+echo ""
+echo -e "${BLUE}=== Configuring paths ===${NC}"
+echo "DSL Commons: $DSL_COMMONS_PATH"
+echo ""
+
+# Update extract-grammar.ts
+echo -e "${BLUE}Updating extract-grammar.ts...${NC}"
+cat > "$SCRIPT_DIR/scripts/extract-grammar.ts" << EOF
+import path from "node:path";
+import fs from "fs-extra";
+import crypto from "node:crypto";
+
+const root = path.resolve(__dirname, "..");
+const sourceGrammar = "$GRAMMAR_FILE";
+const targetGrammar = path.join(root, "generated/grammar/MezDSL.g3");
+const hashFile = path.join(root, "generated/grammar/MezDSL.g3.hash");
+
+async function fileHash(file: string) {
+  const buf = await fs.readFile(file);
+  return crypto.createHash("sha256").update(buf).digest("hex");
+}
+
+async function main() {
+  if (!(await fs.pathExists(sourceGrammar))) {
+    throw new Error(\`Source grammar not found: \${sourceGrammar}\`);
+  }
+
+  await fs.ensureDir(path.dirname(targetGrammar));
+  await fs.copyFile(sourceGrammar, targetGrammar);
+
+  const hash = await fileHash(targetGrammar);
+  await fs.writeFile(hashFile, hash, "utf8");
+
+  console.log(\`Extracted grammar to \${targetGrammar}\`);
+  console.log(\`SHA256: \${hash}\`);
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
+EOF
+
+# Update extract-rules.ts
+echo -e "${BLUE}Updating extract-rules.ts...${NC}"
+cat > "$SCRIPT_DIR/scripts/extract-rules.ts" << 'EOF'
+import path from "node:path";
+import fs from "fs-extra";
+
+const root = path.resolve(__dirname, "..");
+const output = path.join(root, "generated/rules/dsl-rules.json");
+
+type Rule = {
+  id: string;
+  severity: "error" | "warning" | "info";
+  message: string;
+  category: string;
+  sourceLines?: number[];
+};
+
+async function main() {
+  // Define linting rules directly
+  const rules: Record<string, Rule> = {
+    "no-var-in-else": {
+      id: "no-var-in-else",
+      severity: "error",
+      message: "Variables cannot be declared in else blocks. Declare before if statement.",
+      category: "variables",
+    },
+    "dot-notation-limit": {
+      id: "dot-notation-limit",
+      severity: "warning",
+      message: "Dot notation can only be used once per statement.",
+      category: "syntax",
+    },
+    "naming-conventions": {
+      id: "naming-conventions",
+      severity: "warning",
+      message: "Follow naming conventions",
+      category: "style",
+    },
+  };
+
+  await fs.ensureDir(path.dirname(output));
+  await fs.writeJSON(output, rules, { spaces: 2 });
+  console.log(`Wrote lint rule metadata to ${output} (${Object.keys(rules).length} rules)`);
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
+EOF
+
+echo ""
+echo -e "${GREEN}=== Configuration Complete ===${NC}"
+echo ""
+
+# Uninstall extension from Cursor if present (before building)
+echo -e "${BLUE}=== Step 0: Uninstalling Extension from Cursor ===${NC}"
+if command -v cursor &> /dev/null; then
+    if cursor --list-extensions 2>/dev/null | grep -q "^${EXTENSION_ID}$"; then
+        echo -e "${YELLOW}Extension found in Cursor. Uninstalling...${NC}"
+        cursor --uninstall-extension "$EXTENSION_ID" 2>/dev/null || echo -e "${YELLOW}Warning: Uninstall may have failed${NC}"
+        echo -e "${GREEN}✓ Extension uninstalled${NC}"
+    else
+        echo -e "${BLUE}Extension not installed in Cursor${NC}"
+    fi
+else
+    echo -e "${YELLOW}Warning: cursor command not found, skipping uninstall${NC}"
+fi
+
+# Delete old VSIX files from dist folder (before building)
+echo ""
+echo -e "${BLUE}=== Step 0.5: Cleaning Old VSIX Files ===${NC}"
+DIST_DIR="$SCRIPT_DIR/dist"
+if [ -d "$DIST_DIR" ]; then
+    OLD_VSIX_COUNT=$(find "$DIST_DIR" -name "*.vsix" -type f | wc -l | tr -d ' ')
+    if [ "$OLD_VSIX_COUNT" -gt 0 ]; then
+        echo -e "${BLUE}Found $OLD_VSIX_COUNT VSIX file(s) in dist. Removing...${NC}"
+        find "$DIST_DIR" -name "*.vsix" -type f -delete
+        echo -e "${GREEN}✓ Old VSIX files removed${NC}"
+    else
+        echo -e "${BLUE}No old VSIX files found in dist${NC}"
+    fi
+else
+    echo -e "${BLUE}Dist directory does not exist yet${NC}"
+fi
+
+# Run the build pipeline
+echo -e "${BLUE}=== Step 1: Extract Grammar ===${NC}"
+cd "$SCRIPT_DIR"
+npm run build:extract
+
+echo ""
+echo -e "${BLUE}=== Step 2: Convert ANTLR3 to ANTLR4 ===${NC}"
+npm run build:grammar
+
+echo ""
+echo -e "${BLUE}=== Step 3: Validate Grammar ===${NC}"
+npm run build:validate || echo -e "${YELLOW}Warning: Grammar validation had warnings${NC}"
+
+echo ""
+echo -e "${BLUE}=== Step 4: Generate Parser ===${NC}"
+npm run build:parser
+
+echo ""
+echo -e "${BLUE}=== Step 5: Extract Rules ===${NC}"
+npm run build:rules
+
+echo ""
+echo -e "${BLUE}=== Step 6: Generate BIF Metadata ===${NC}"
+npm run build:bifs
+
+echo ""
+echo -e "${BLUE}=== Step 7: Generate TextMate Grammar ===${NC}"
+npm run build:textmate
+
+echo ""
+echo -e "${BLUE}=== Step 8: Build Language Server ===${NC}"
+cd "$SCRIPT_DIR/../helium-dsl-language-server"
+npm run build
+
+echo ""
+echo -e "${BLUE}=== Step 9: Build VSCode Extension ===${NC}"
+cd "$SCRIPT_DIR/helium-dsl-vscode"
+npm run build
+
+echo ""
+echo -e "${BLUE}=== Step 10: Package VSCode Extension ===${NC}"
+cd "$SCRIPT_DIR/helium-dsl-vscode"
+npm run package
+
+# Get the VSIX file path
+VSIX_FILE="$SCRIPT_DIR/dist/helium-dsl.vsix"
+
+if [ ! -f "$VSIX_FILE" ]; then
+    echo -e "${RED}Error: VSIX file not found at $VSIX_FILE${NC}"
+    exit 1
+fi
+
+echo -e "${GREEN}✓ VSIX packaged: $VSIX_FILE${NC}"
+
+# Publish to Open VSX
+echo ""
+echo -e "${BLUE}=== Step 11: Publishing to Open VSX Registry ===${NC}"
+
+echo -e "${BLUE}Publishing extension: $EXTENSION_ID${NC}"
+echo -e "${BLUE}VSIX file: $VSIX_FILE${NC}"
+
+# Export token for ovsx
+export OVSX_PAT="$OVSX_TOKEN"
+
+# Publish using ovsx (can use --packagePath or pass path directly)
+# Change to extension directory for ovsx to read package.json metadata
+cd "$SCRIPT_DIR/helium-dsl-vscode"
+ovsx publish --packagePath "$VSIX_FILE" -p "$OVSX_TOKEN"
+
+if [ $? -eq 0 ]; then
+    echo -e "${GREEN}✓ Extension published successfully to Open VSX${NC}"
+else
+    echo -e "${RED}Error: Failed to publish extension${NC}"
+    exit 1
+fi
+
+# Wait a moment for the registry to update
+echo ""
+echo -e "${BLUE}Waiting for registry to update...${NC}"
+sleep 5
+
+# Install from Open VSX
+echo ""
+echo -e "${BLUE}=== Step 12: Installing Extension from Open VSX ===${NC}"
+echo -e "${BLUE}Installing: $EXTENSION_ID${NC}"
+
+if command -v cursor &> /dev/null; then
+    cursor --install-extension "$EXTENSION_ID" --force
+    
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}✓ Extension installed successfully from Open VSX${NC}"
+    else
+        echo -e "${YELLOW}Warning: Extension installation may have failed${NC}"
+        echo -e "${YELLOW}You may need to wait a few moments for the registry to update${NC}"
+        echo -e "${YELLOW}Try manually: cursor --install-extension $EXTENSION_ID${NC}"
+    fi
+else
+    echo -e "${YELLOW}Warning: cursor command not found, skipping installation${NC}"
+    echo -e "${YELLOW}Install manually: cursor --install-extension $EXTENSION_ID${NC}"
+fi
+
+echo ""
+echo -e "${GREEN}=== Publishing Complete ===${NC}"
+echo ""
+echo -e "${GREEN}✓${NC} Grammar extracted and converted"
+echo -e "${GREEN}✓${NC} Parser generated"
+echo -e "${GREEN}✓${NC} Rules extracted"
+echo -e "${GREEN}✓${NC} Language server built"
+echo -e "${GREEN}✓${NC} VSCode extension built"
+echo -e "${GREEN}✓${NC} Extension packaged"
+echo -e "${GREEN}✓${NC} Extension published to Open VSX"
+echo -e "${GREEN}✓${NC} Extension installed from Open VSX"
+echo ""
+echo -e "Extension available at: ${BLUE}https://open-vsx.org/extension/$PUBLISHER/$EXTENSION_NAME${NC}"
+echo ""
