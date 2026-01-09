@@ -219,7 +219,7 @@ async function main() {
     },
   });
 
-cur  // Add BIF function calls (e.g., Mez:now, sql:query, String:concat, Math:sqrt)
+  // Add BIF function calls (e.g., Mez:now, sql:query, String:concat, Math:sqrt)
   // Use standard support.function scope for cross-theme compatibility
   // Must come before unit reference pattern so BIFs are matched first
   patterns.push({
