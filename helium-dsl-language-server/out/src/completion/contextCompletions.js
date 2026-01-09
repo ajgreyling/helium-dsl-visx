@@ -93,8 +93,7 @@ function getObjectProperties(typeName, workspaceIndex) {
                 } // Skip empty lines
                 if (trimmedLine.length === 0) {
                     continue;
-                }
-                // Skip method/validator blocks (they start with a word followed by {)
+                } // Skip method/validator blocks (they start with a word followed by {)
                 if (/^\w+\s*\{/.test(trimmedLine)) {
                     // This is likely a method or validator block, skip until closing brace
                     let blockDepth = 0;

@@ -1054,8 +1054,8 @@ connection.onReferences((params: ReferenceParams): Location[] => {
 });
 
 connection.languages.semanticTokens.on((params: SemanticTokensParams) => {
-  console.error(`[SemanticTokens] ===== Request Received =====`);
-  console.error(`[SemanticTokens] URI: ${params.textDocument.uri}`);
+  logVerbose(`[SemanticTokens] ===== Request Received =====`);
+  logVerbose(`[SemanticTokens] URI: ${params.textDocument.uri}`);
   const doc = documents.get(params.textDocument.uri);
   const builder = new SemanticTokensBuilder();
   
@@ -1066,7 +1066,7 @@ connection.languages.semanticTokens.on((params: SemanticTokensParams) => {
   
   const text = doc.getText();
   const lines = text.split(/\r?\n/);
-  console.error(`[SemanticTokens] Processing document with ${lines.length} lines`);
+  logVerbose(`[SemanticTokens] Processing document with ${lines.length} lines`);
   
   // Build symbol table to identify local variables and parameters
   const symbolTable = buildSymbolTable(text);
@@ -1079,11 +1079,11 @@ connection.languages.semanticTokens.on((params: SemanticTokensParams) => {
       variableDeclarations.set(symbol.name, existing);
     }
   });
-  console.error(`[SemanticTokens] Found ${variableDeclarations.size} variable/parameter declarations`);
+  logVerbose(`[SemanticTokens] Found ${variableDeclarations.size} variable/parameter declarations`);
   
   // Log workspace index state
   const debugInfo = workspaceIndex.getDebugInfo();
-  console.error(`[SemanticTokens] Workspace index has ${debugInfo.objectCount} types`);
+  logVerbose(`[SemanticTokens] Workspace index has ${debugInfo.objectCount} types`);
 
   // Keywords that should not be highlighted as types
   const keywords = new Set([
@@ -1142,7 +1142,7 @@ connection.languages.semanticTokens.on((params: SemanticTokensParams) => {
       const varDeclLines = variableDeclarations.get(identifier);
       if (varDeclLines && varDeclLines.some(declLine => declLine <= lineIndex)) {
         // This is a local variable or parameter, skip type highlighting
-        console.error(`[SemanticTokens] Skipping "${identifier}" at line ${lineIndex + 1} - it's a local variable/parameter`);
+        logVerbose(`[SemanticTokens] Skipping "${identifier}" at line ${lineIndex + 1} - it's a local variable/parameter`);
         continue;
       }
 
@@ -1155,12 +1155,12 @@ connection.languages.semanticTokens.on((params: SemanticTokensParams) => {
         // Skip semantic tokens for unit references (UnitName:identifier) - let TextMate grammar handle them
         // TextMate grammar provides entity.name.type scope for unit names in references
         if (isUnitRef) {
-          console.error(`[SemanticTokens] Skipping unit reference "${identifier}" at line ${lineIndex + 1} - TextMate grammar handles it`);
+          logVerbose(`[SemanticTokens] Skipping unit reference "${identifier}" at line ${lineIndex + 1} - TextMate grammar handles it`);
           continue;
         }
         // Only highlight standalone unit names (not followed by ':') if they're not also types
         if (!workspaceIndex.isUserDefinedType(identifier)) {
-          console.error(`[SemanticTokens] ✓ Found standalone unit "${identifier}" at line ${lineIndex + 1}, char ${startChar}`);
+          logVerbose(`[SemanticTokens] ✓ Found standalone unit "${identifier}" at line ${lineIndex + 1}, char ${startChar}`);
           // Token type index 3 corresponds to "namespace" in our legend (units are like namespaces/modules)
           builder.push(lineIndex, startChar, length, 3, 0);
           continue;
@@ -1169,7 +1169,7 @@ connection.languages.semanticTokens.on((params: SemanticTokensParams) => {
 
       // Check if it's a user-defined type using workspace index
       if (workspaceIndex.isUserDefinedType(identifier)) {
-        console.error(`[SemanticTokens] ✓ Found user-defined type "${identifier}" at line ${lineIndex + 1}, char ${startChar}`);
+        logVerbose(`[SemanticTokens] ✓ Found user-defined type "${identifier}" at line ${lineIndex + 1}, char ${startChar}`);
         // Token type index 0 corresponds to "type" in our legend
         builder.push(lineIndex, startChar, length, 0, 0);
       }
@@ -1178,7 +1178,7 @@ connection.languages.semanticTokens.on((params: SemanticTokensParams) => {
 
   const result = builder.build();
   const tokenCount = result.data.length / 5;
-  console.error(`[SemanticTokens] ===== Returning ${tokenCount} tokens =====`);
+  logVerbose(`[SemanticTokens] ===== Returning ${tokenCount} tokens =====`);
   return result;
 });
 

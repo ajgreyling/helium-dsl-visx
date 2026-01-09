@@ -59,6 +59,7 @@ Configure linting rules in your settings (Command Palette → "Preferences: Open
 
 - **`heliumDsl.lint.noVarInElse`** - Controls whether variables can be declared in else blocks
   - Options: `"error"` (default), `"warning"`, `"info"`, `"off"`
+  - Detects variable declarations in `else` blocks regardless of formatting (same line or multi-line)
 
 - **`heliumDsl.lint.namingConventions`** - Enforces naming conventions (camelCase, PascalCase, etc.)
   - Options: `"warning"` (default), `"error"`, `"info"`, `"off"`
@@ -99,6 +100,10 @@ IntelliSense provides suggestions for:
 The extension includes several linting rules:
 
 1. **no-var-in-else** - Prevents variable declarations in else blocks (default: error)
+   - Detects variables declared in `else` blocks regardless of code formatting
+   - Works with `} else {`, `} else` followed by `{`, `else {` on its own line, etc.
+   - Correctly distinguishes between `else` blocks and `else if` blocks
+   - Variables should be declared before the if statement, not inside the else block
 2. **dot-notation-limit** - Limits dot notation usage per statement (default: warning)
 3. **naming-conventions** - Enforces naming conventions (default: warning)
 4. **forbidden-operators** - Detects use of forbidden operators

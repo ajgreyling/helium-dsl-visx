@@ -476,7 +476,8 @@ echo -e "${GREEN}Version restored to: ${ORIGINAL_VERSION}${NC}"
 echo ""
 echo -e "${BLUE}=== Step 13: Run Validation Tests ===${NC}"
 cd "$SCRIPT_DIR/../helium-dsl-language-server"
-npx mocha -r ts-node/register tests/**/*.test.ts generated/tests/**/*.test.ts
+# Explicitly configure ts-node to use CommonJS to avoid module type warning
+TS_NODE_COMPILER_OPTIONS='{"module":"commonjs"}' npx mocha -r ts-node/register tests/**/*.test.ts generated/tests/**/*.test.ts
 
 echo ""
 echo -e "${BLUE}=== Step 14: Install Extension in Cursor ===${NC}"

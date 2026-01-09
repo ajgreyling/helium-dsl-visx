@@ -6,18 +6,26 @@ import { applyForbiddenOperators } from "./rules/forbiddenOperators";
 import { applyDotNotationLimit } from "./rules/dotNotationLimit";
 
 export async function runLints(text: string): Promise<Diagnostic[]> {
+  console.warn("[Linter] Loading rules...");
   const rules = await loadRules();
+  console.warn("[Linter] Rules loaded, starting lint checks...");
   const diagnostics: Diagnostic[] = [];
 
   const ctx = { text, rules, diagnostics };
 
   // Only apply critical rules that are known to be accurate
   // Disable rules that cause false positives for valid code
+  console.warn("[Linter] Applying no-var-in-else rule...");
   applyNoVarInElse(ctx);
+  console.warn(`[Linter] no-var-in-else complete, found ${diagnostics.length} issues`);
+  
   // applyNamingConventions(ctx); // Disabled - causes false positives
-  // applyForbiddenOperators(ctx); // Disabled - causes false positives (flags SQL queries, regex patterns)
+  console.warn("[Linter] Applying forbidden-operators rule...");
+  applyForbiddenOperators(ctx); // Enabled - boolean comparison rule added
+  console.warn(`[Linter] forbidden-operators complete, found ${diagnostics.length} total issues`);
   // applyDotNotationLimit(ctx); // Disabled - causes false positives (flags valid nested attribute access)
 
+  console.warn(`[Linter] All rules complete, returning ${diagnostics.length} diagnostics`);
   return diagnostics;
 }
 

@@ -231,7 +231,12 @@ Controls the verbosity of language server logs in the Output channel ("Helium DS
 
 The linter currently implements the following rules:
 
-1. **no-var-in-else** (error): Variables cannot be declared in else blocks
+1. **no-var-in-else** (error): Variables cannot be declared in else blocks. This rule detects variable declarations in else blocks regardless of formatting:
+   - `} else {` (same line)
+   - `} else` followed by `{` on next line
+   - `else {` on its own line after a closing brace
+   - `else` on its own line followed by `{` on next line
+   - The rule correctly distinguishes between `else` blocks and `else if` blocks (only flags plain `else` blocks)
 2. **dot-notation-limit** (warning): Dot notation can only be used once per statement  
 3. **naming-conventions** (warning): Follow naming conventions (camelCase, PascalCase, etc.)
 

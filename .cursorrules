@@ -300,3 +300,37 @@ To enable verbose logging for debugging:
 - Trace level is passed from extension client to language server via `initializationOptions`
 - WorkspaceIndex uses `logVerbose()` for all debug logging
 - Server initialization logs use `logVerbose()` for verbose information
+
+## Linting Rules
+
+The extension implements several linting rules to catch errors and enforce best practices.
+
+### no-var-in-else Rule
+
+**Location**: `helium-dsl-language-server/src/linter/rules/noVarInElse.ts`
+
+**Purpose**: Prevents variable declarations in else blocks, which can lead to scope issues and code clarity problems.
+
+**Detection Capabilities**:
+
+The rule detects `else` blocks in multiple formatting styles:
+- `} else {` - else on same line as closing brace
+- `} else` followed by `{` on next line
+- `else {` - else on its own line after a closing brace
+- `else` on its own line followed by `{` on next line
+
+**Key Features**:
+- ✅ Correctly distinguishes between `else` blocks and `else if` blocks (only flags plain `else` blocks)
+- ✅ Tracks brace depth to accurately determine when the else block ends
+- ✅ Excludes variable declarations in `return` statements
+- ✅ Matches variable declarations using pattern: `type identifier =` or `type identifier;`
+
+**Rule Configuration**:
+- Defined in `helium-vscode-tooling/generated/rules/dsl-rules.json`
+- Severity: `error` (default)
+- Message: "Variables cannot be declared in else blocks. Declare before if statement."
+
+**Implementation Notes**:
+- The rule uses pattern matching to detect `else` blocks and variable declarations
+- Brace depth tracking ensures accurate detection of block boundaries
+- The rule is applied during document validation and appears as diagnostics in the IDE
