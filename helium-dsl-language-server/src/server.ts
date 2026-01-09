@@ -37,7 +37,7 @@ const workspaceIndex = new WorkspaceIndex();
 console.error("[Server] Connection and documents initialized");
 
 const semanticLegend: SemanticTokensLegend = {
-  tokenTypes: ["type", "function", "variable", "unit"],
+  tokenTypes: ["type", "function", "variable", "namespace"],
   tokenModifiers: [],
 };
 
@@ -1008,7 +1008,7 @@ connection.languages.semanticTokens.on((params: SemanticTokensParams) => {
         // Only highlight as unit if it's followed by ':' or is a standalone reference (not a type)
         if (isUnitRef || !workspaceIndex.isUserDefinedType(identifier)) {
           console.error(`[SemanticTokens] ✓ Found unit "${identifier}" at line ${lineIndex + 1}, char ${startChar}`);
-          // Token type index 3 corresponds to "unit" in our legend
+          // Token type index 3 corresponds to "namespace" in our legend (units are like namespaces/modules)
           builder.push(lineIndex, startChar, length, 3, 0);
           continue;
         }

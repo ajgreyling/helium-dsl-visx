@@ -51,7 +51,7 @@ const documents = new node_1.TextDocuments(vscode_languageserver_textdocument_1.
 const workspaceIndex = new workspaceIndex_1.WorkspaceIndex();
 console.error("[Server] Connection and documents initialized");
 const semanticLegend = {
-    tokenTypes: ["type", "function", "variable", "unit"],
+    tokenTypes: ["type", "function", "variable", "namespace"],
     tokenModifiers: [],
 };
 connection.onInitialize((params) => {
@@ -843,7 +843,7 @@ connection.languages.semanticTokens.on((params) => {
                 // Only highlight as unit if it's followed by ':' or is a standalone reference (not a type)
                 if (isUnitRef || !workspaceIndex.isUserDefinedType(identifier)) {
                     console.error(`[SemanticTokens] ✓ Found unit "${identifier}" at line ${lineIndex + 1}, char ${startChar}`);
-                    // Token type index 3 corresponds to "unit" in our legend
+                    // Token type index 3 corresponds to "namespace" in our legend (units are like namespaces/modules)
                     builder.push(lineIndex, startChar, length, 3, 0);
                     continue;
                 }

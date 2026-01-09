@@ -119,9 +119,7 @@ export function getObjectProperties(
         inObject = true;
         braceDepth = 1;
       }
-    }
-
-    return properties;
+    }    return properties;
   } catch (err) {
     console.error(`[Completion] Error reading object definition for ${typeName}:`, err);
     return [];
