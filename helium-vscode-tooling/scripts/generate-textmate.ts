@@ -71,14 +71,14 @@ async function main() {
     // Language constants (true, false, null) must come before keywords
     { include: "#language-constants" },
     {
-      name: "keyword.control.helium",
+      name: "keyword.control",
       match: `\\b(${Array.from(keywordSet).join("|")})\\b`,
     },
   ];
 
   // Add system types pattern
   patterns.push({
-    name: "storage.type.primitive.helium",
+    name: "storage.type",
     match: `\\b(${systemTypes.join("|")})\\b`,
   });
 
@@ -90,20 +90,20 @@ async function main() {
     end: "\\s*\\{",
     beginCaptures: {
       1: {
-        name: "storage.modifier.helium",
+        name: "storage.modifier",
       },
       2: {
-        name: "keyword.control.helium",
+        name: "keyword.control",
       },
     },
     endCaptures: {
       0: {
-        name: "punctuation.definition.block.begin.helium",
+        name: "punctuation.definition.block.begin",
       },
     },
     patterns: [
       {
-        name: "entity.name.type.class.helium",
+        name: "entity.name.type",
         match: "\\b([A-Za-z_][a-zA-Z0-9_]*)\\b",
       },
     ],
@@ -116,17 +116,17 @@ async function main() {
     end: "\\s*\\{",
     beginCaptures: {
       1: {
-        name: "keyword.control.helium",
+        name: "keyword.control",
       },
     },
     endCaptures: {
       0: {
-        name: "punctuation.definition.block.begin.helium",
+        name: "punctuation.definition.block.begin",
       },
     },
     patterns: [
       {
-        name: "entity.name.type.class.helium",
+        name: "entity.name.type",
         match: "\\b([A-Za-z_][a-zA-Z0-9_]*)\\b",
       },
     ],
@@ -143,17 +143,17 @@ async function main() {
     end: "\\s*;",
     beginCaptures: {
       1: {
-        name: "keyword.control.helium",
+        name: "keyword.control",
       },
     },
     endCaptures: {
       0: {
-        name: "punctuation.terminator.helium",
+        name: "punctuation.terminator",
       },
     },
     patterns: [
       {
-        name: "entity.name.type.namespace.helium",
+        name: "entity.name.type",
         match: "\\b([A-Z][A-Za-z0-9_]*)\\b",
       },
     ],
@@ -166,17 +166,17 @@ async function main() {
     end: "\\s*\\{",
     beginCaptures: {
       1: {
-        name: "keyword.control.helium",
+        name: "keyword.control",
       },
     },
     endCaptures: {
       0: {
-        name: "punctuation.definition.block.begin.helium",
+        name: "punctuation.definition.block.begin",
       },
     },
     patterns: [
       {
-        name: "entity.name.type.enum.helium",
+        name: "entity.name.type.enum",
         match: "\\b([A-Z_][A-Z0-9_]*)\\b",
       },
     ],
@@ -189,15 +189,15 @@ async function main() {
     end: "\\)\\s*\\{",
     beginCaptures: {
       1: {
-        name: "storage.type.primitive.helium",
+        name: "storage.type",
       },
       2: {
-        name: "entity.name.function.helium",
+        name: "entity.name.function",
       },
     },
     endCaptures: {
       0: {
-        name: "punctuation.definition.block.begin.helium",
+        name: "punctuation.definition.block.begin",
       },
     },
     patterns: [
@@ -211,36 +211,37 @@ async function main() {
     match: `\\b(${systemTypes.join("|")})\\s+([a-z_][a-zA-Z0-9_]*)\\b`,
     captures: {
       1: {
-        name: "storage.type.primitive.helium",
+        name: "storage.type",
       },
       2: {
-        name: "variable.other.helium",
+        name: "variable.other",
       },
     },
   });
 
-  // Add unit reference pattern (e.g., SomeUnit:someFunction)
+  // Add unit reference pattern (e.g., SomeUnit:someFunction() or SomeUnit:someVar)
   // Must come before BIF pattern but exclude BIF namespaces
-  // Matches PascalCase identifiers (units) followed by colon and function name
+  // Matches PascalCase identifiers (units) followed by colon and identifier (function or variable)
+  // Uses lookahead to match even when followed by ( or other punctuation
   const bifNamespacesRegex = bifNamespaces.map(ns => ns.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
   patterns.push({
     name: "meta.unit.reference.helium",
-    match: `\\b(?!(?:${bifNamespacesRegex}):)([A-Z][A-Za-z0-9_]*):([a-zA-Z_][a-zA-Z0-9_]*)\\b`,
+    match: `\\b(?!(?:${bifNamespacesRegex}):)([A-Z][A-Za-z0-9_]*):([a-zA-Z_][a-zA-Z0-9_]*)(?=\\s*[;(,=)]|\\s*$|\\s*[^a-zA-Z0-9_])`,
     captures: {
       1: {
-        name: "entity.name.type.namespace.helium", // Unit name
+        name: "entity.name.type", // Unit name
       },
       2: {
-        name: "entity.name.function.helium", // Function name
+        name: "entity.name.function", // Function or variable name
       },
     },
   });
 
   // Add BIF function calls (e.g., Mez:now, sql:query, String:concat, Math:sqrt)
-  // Use standard support.function scope for cross-theme compatibility
+  // Use standard support.function.builtin scope for cross-theme compatibility
   // Must come after unit reference pattern so BIFs match when namespaces overlap
   patterns.push({
-    name: "support.function.helium",
+    name: "support.function.builtin",
     match: `\\b(${bifNamespaces.join("|")}):[a-zA-Z_][a-zA-Z0-9_]*\\b`,
   });
 
@@ -258,61 +259,61 @@ async function main() {
     repository: {
       comments: {
         patterns: [
-          { name: "comment.line.double-slash.helium", match: "//.*$" },
-          { name: "comment.block.helium", begin: "/\\*", end: "\\*/" },
+          { name: "comment.line.double-slash", match: "//.*$" },
+          { name: "comment.block", begin: "/\\*", end: "\\*/" },
         ],
       },
       strings: {
         patterns: [
-          { name: "string.quoted.double.helium", begin: '"', end: '"', patterns: [{ include: "#escapes" }] },
-          { name: "string.quoted.block.helium", begin: "/%", end: "%/" },
+          { name: "string.quoted.double", begin: '"', end: '"', patterns: [{ include: "#escapes" }] },
+          { name: "string.quoted.block", begin: "/%", end: "%/" },
         ],
       },
       escapes: {
-        patterns: [{ name: "constant.character.escape.helium", match: "\\\\." }],
+        patterns: [{ name: "constant.character.escape", match: "\\\\." }],
       },
       numbers: {
         patterns: [
           // Decimal numbers (must come before integers)
-          { name: "constant.numeric.helium", match: "\\b\\d+\\.\\d+\\b" },
+          { name: "constant.numeric", match: "\\b\\d+\\.\\d+\\b" },
           // Integers
-          { name: "constant.numeric.helium", match: "\\b\\d+\\b" },
+          { name: "constant.numeric", match: "\\b\\d+\\b" },
         ],
       },
       "language-constants": {
         patterns: [
-          { name: "constant.language.helium", match: "\\b(true|false|null)\\b" },
+          { name: "constant.language", match: "\\b(true|false|null)\\b" },
         ],
       },
       operators: {
         patterns: [
           // Comparison operators (multi-character first)
-          { name: "keyword.operator.comparison.helium", match: "==|!=|>=|<=" },
-          { name: "keyword.operator.comparison.helium", match: "[><]" },
+          { name: "keyword.operator.comparison", match: "==|!=|>=|<=" },
+          { name: "keyword.operator.comparison", match: "[><]" },
           // Arithmetic operators
-          { name: "keyword.operator.arithmetic.helium", match: "[+\\-*/]" },
+          { name: "keyword.operator.arithmetic", match: "[+\\-*/]" },
           // Assignment operator
-          { name: "keyword.operator.assignment.helium", match: "=" },
+          { name: "keyword.operator.assignment", match: "=" },
         ],
       },
       punctuation: {
         patterns: [
           // Separators
-          { name: "punctuation.separator.helium", match: "," },
-          { name: "punctuation.terminator.helium", match: ";" },
+          { name: "punctuation.separator", match: "," },
+          { name: "punctuation.terminator", match: ";" },
           // Accessor (dot notation)
-          { name: "punctuation.accessor.helium", match: "\\." },
+          { name: "punctuation.accessor", match: "\\." },
         ],
       },
       "function-parameters": {
         patterns: [
           {
             // Match parameter declarations: type name
-            name: "variable.parameter.helium",
+            name: "variable.parameter",
             match: `\\b(${systemTypes.join("|")}|[A-Z_][A-Z0-9_]*)\\s+([a-z_][a-zA-Z0-9_]*)\\b`,
             captures: {
-              1: { name: "storage.type.helium" },
-              2: { name: "variable.parameter.helium" },
+              1: { name: "storage.type" },
+              2: { name: "variable.parameter" },
             },
           },
           { include: "#punctuation" },
