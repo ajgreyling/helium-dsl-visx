@@ -90,8 +90,7 @@ function getObjectProperties(typeName, workspaceIndex) {
                 // Skip comments
                 if (trimmedLine.startsWith("//") || trimmedLine.startsWith("/*")) {
                     continue;
-                }
-                // Skip empty lines
+                } // Skip empty lines
                 if (trimmedLine.length === 0) {
                     continue;
                 }
