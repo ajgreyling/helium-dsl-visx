@@ -261,13 +261,13 @@ npm run build
 
 echo ""
 echo -e "${BLUE}=== Step 9: Build VSCode Extension ===${NC}"
-cd "$SCRIPT_DIR/helium-dsl-vscode"
+cd "$SCRIPT_DIR/../helium-dsl-vscode"
 npm run build
 
 echo ""
 echo -e "${BLUE}=== Step 10: Update Version with Epoch Build Number ===${NC}"
-cd "$SCRIPT_DIR/helium-dsl-vscode"
-PACKAGE_JSON="$SCRIPT_DIR/helium-dsl-vscode/package.json"
+cd "$SCRIPT_DIR/../helium-dsl-vscode"
+PACKAGE_JSON="$SCRIPT_DIR/../helium-dsl-vscode/package.json"
 EPOCH=$(date +%s)
 
 # Backup original version
@@ -289,7 +289,7 @@ echo -e "${GREEN}Version updated: ${ORIGINAL_VERSION} -> ${NEW_VERSION}${NC}"
 
 echo ""
 echo -e "${BLUE}=== Step 11: Package VSCode Extension ===${NC}"
-cd "$SCRIPT_DIR/helium-dsl-vscode"
+cd "$SCRIPT_DIR/../helium-dsl-vscode"
 npm run package
 
 # Get the VSIX file path
@@ -314,7 +314,7 @@ export OVSX_PAT="$OVSX_TOKEN"
 
 # Publish using ovsx (can use --packagePath or pass path directly)
 # Change to extension directory for ovsx to read package.json metadata
-cd "$SCRIPT_DIR/helium-dsl-vscode"
+cd "$SCRIPT_DIR/../helium-dsl-vscode"
 ovsx publish --packagePath "$VSIX_FILE" -p "$OVSX_TOKEN"
 
 if [ $? -eq 0 ]; then
@@ -327,7 +327,7 @@ fi
 # Restore original version after publishing
 echo ""
 echo -e "${BLUE}=== Restoring Original Version ===${NC}"
-cd "$SCRIPT_DIR/helium-dsl-vscode"
+cd "$SCRIPT_DIR/../helium-dsl-vscode"
 node -e "
 const fs = require('fs');
 const pkg = JSON.parse(fs.readFileSync('$PACKAGE_JSON', 'utf8'));
@@ -336,29 +336,23 @@ fs.writeFileSync('$PACKAGE_JSON', JSON.stringify(pkg, null, 2) + '\n');
 "
 echo -e "${GREEN}Version restored to: ${ORIGINAL_VERSION}${NC}"
 
-# Wait a moment for the registry to update
+# Install from local VSIX file (Cursor doesn't support Open VSX registry directly)
 echo ""
-echo -e "${BLUE}Waiting for registry to update...${NC}"
-sleep 5
-
-# Install from Open VSX
-echo ""
-echo -e "${BLUE}=== Step 13: Installing Extension from Open VSX ===${NC}"
-echo -e "${BLUE}Installing: $EXTENSION_ID${NC}"
+echo -e "${BLUE}=== Step 13: Installing Extension from Local VSIX ===${NC}"
+echo -e "${BLUE}Installing from: $VSIX_FILE${NC}"
 
 if command -v cursor &> /dev/null; then
-    cursor --install-extension "$EXTENSION_ID" --force
+    cursor --install-extension "$VSIX_FILE" --force
     
     if [ $? -eq 0 ]; then
-        echo -e "${GREEN}✓ Extension installed successfully from Open VSX${NC}"
+        echo -e "${GREEN}✓ Extension installed successfully from local VSIX${NC}"
     else
         echo -e "${YELLOW}Warning: Extension installation may have failed${NC}"
-        echo -e "${YELLOW}You may need to wait a few moments for the registry to update${NC}"
-        echo -e "${YELLOW}Try manually: cursor --install-extension $EXTENSION_ID${NC}"
+        echo -e "${YELLOW}Try manually: cursor --install-extension $VSIX_FILE --force${NC}"
     fi
 else
     echo -e "${YELLOW}Warning: cursor command not found, skipping installation${NC}"
-    echo -e "${YELLOW}Install manually: cursor --install-extension $EXTENSION_ID${NC}"
+    echo -e "${YELLOW}Install manually: cursor --install-extension $VSIX_FILE --force${NC}"
 fi
 
 echo ""
@@ -372,7 +366,7 @@ echo -e "${GREEN}✓${NC} VSCode extension built"
 echo -e "${GREEN}✓${NC} Version updated with epoch build number ($EPOCH)"
 echo -e "${GREEN}✓${NC} Extension packaged"
 echo -e "${GREEN}✓${NC} Extension published to Open VSX (version: $NEW_VERSION)"
-echo -e "${GREEN}✓${NC} Extension installed from Open VSX"
+echo -e "${GREEN}✓${NC} Extension installed from local VSIX"
 echo ""
 echo -e "Extension available at: ${BLUE}https://open-vsx.org/extension/$PUBLISHER/$EXTENSION_NAME${NC}"
 echo ""

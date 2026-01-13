@@ -8,6 +8,39 @@ import { fileURLToPath } from "url";
 // Create require function for dynamic module loading in ES modules
 const require = createRequire(import.meta.url);
 
+// Register ts-node for require() calls if available (for TypeScript file loading in tests)
+// This allows require() to load TypeScript files when running tests with ts-node
+// Note: This registration happens after createRequire, but ts-node/register hooks into
+// Node's module system globally, so it will affect subsequent require() calls
+try {
+  // Only register if ts-node is available and we're in a development/test context
+  if (process.env.NODE_ENV !== "production" && !process.env.VSCODE_INJECTION) {
+    try {
+      // Try ts-node/register first (CommonJS style)
+      require("ts-node/register");
+    } catch {
+      // If that fails, try ts-node directly with ESM support
+      try {
+        const tsNode = require("ts-node");
+        if (tsNode && typeof tsNode.register === "function") {
+          tsNode.register({ 
+            esm: true,
+            transpileOnly: true,
+            compilerOptions: {
+              module: "ES2020",
+              moduleResolution: "node"
+            }
+          });
+        }
+      } catch {
+        // ts-node not available, that's okay - will fall back to compiled JS files
+      }
+    }
+  }
+} catch {
+  // Ignore errors - ts-node registration is optional
+}
+
 // Get __dirname equivalent for ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -15,58 +48,60 @@ const __dirname = path.dirname(__filename);
 function loadGenerated(name: string): any | undefined {
   const currentDir = __dirname;
   
+  // Helper function to try loading a module from a path
+  const tryLoad = (modulePath: string, withExtension?: string): any | undefined => {
+    const pathsToTry = withExtension 
+      ? [modulePath + withExtension, modulePath]
+      : [modulePath];
+    
+    for (const tryPath of pathsToTry) {
+      if (fs.existsSync(tryPath + ".ts") || fs.existsSync(tryPath + ".js") || fs.existsSync(tryPath)) {
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
+          const mod = require(tryPath);
+          if (mod) {
+            return mod[name] || mod;
+          }
+        } catch (e) {
+          // Continue to next path
+        }
+      }
+    }
+    return undefined;
+  };
+  
   // Try bundled path first (when packaged in extension)
   const bundledPath = path.resolve(currentDir, "../../generated/parser/generated/grammar", name);
-  if (fs.existsSync(bundledPath + ".ts") || fs.existsSync(bundledPath + ".js")) {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const mod = require(path.resolve(currentDir, "../../generated/parser/generated/grammar", name));
-      if (mod) {
-        return mod[name] || mod;
-      }
-    } catch (e) {
-      // Continue to next path
-    }
-  }
+  const bundledResult = tryLoad(bundledPath);
+  if (bundledResult) return bundledResult;
   
   // Fallback to development path
   const devPath = path.resolve(currentDir, "../../../generated/parser/generated/grammar", name);
-  if (fs.existsSync(devPath + ".ts") || fs.existsSync(devPath + ".js")) {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const mod = require(path.resolve(currentDir, "../../../generated/parser/generated/grammar", name));
-      return mod[name] || mod;
-    } catch (e2) {
-      // Continue to next path
-    }
-  }
+  const devResult = tryLoad(devPath);
+  if (devResult) return devResult;
   
   // Fallback to sibling directory path (helium-vscode-tooling)
   // From src/parser: ../../../helium-vscode-tooling/...
   // From out/src/parser: ../../../../helium-vscode-tooling/...
   // Try both paths to handle both ts-node (source) and compiled (out) contexts
+  
+  // Calculate absolute path to project root to ensure correct resolution
+  const projectRoot = path.resolve(currentDir, "../../../..");
+  const toolingPath = path.resolve(projectRoot, "helium-vscode-tooling/generated/parser/generated/grammar", name);
+  
+  // Try siblingPath1 first (correct path from TypeScript source: src/parser)
   const siblingPath1 = path.resolve(currentDir, "../../../helium-vscode-tooling/generated/parser/generated/grammar", name);
+  const sibling1Result = tryLoad(siblingPath1, ".ts");
+  if (sibling1Result) return sibling1Result;
+  
+  // Try siblingPath2 (correct path from compiled output: out/src/parser)
   const siblingPath2 = path.resolve(currentDir, "../../../../helium-vscode-tooling/generated/parser/generated/grammar", name);
+  const sibling2Result = tryLoad(siblingPath2, ".ts");
+  if (sibling2Result) return sibling2Result;
   
-  if (fs.existsSync(siblingPath1 + ".ts") || fs.existsSync(siblingPath1 + ".js")) {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const mod = require(siblingPath1);
-      return mod[name] || mod;
-    } catch (e3) {
-      // Continue to next path
-    }
-  }
-  
-  if (fs.existsSync(siblingPath2 + ".ts") || fs.existsSync(siblingPath2 + ".js")) {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const mod = require(siblingPath2);
-      return mod[name] || mod;
-    } catch (e4) {
-      return undefined;
-    }
-  }
+  // Try absolute path from project root (most reliable)
+  const absoluteResult = tryLoad(toolingPath, ".ts");
+  if (absoluteResult) return absoluteResult;
   
   return undefined;
 }

@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKSPACE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 echo "=========================================="
-echo "Helium DSL VSIX Packaging (Docker-based)"
+echo "Helium DSL VSIX Packaging (Local)"
 echo "=========================================="
 echo ""
 
@@ -36,7 +36,7 @@ echo ""
 
 # Step 2: Build extension
 echo "Step 2: Building extension..."
-cd "$WORKSPACE_ROOT/helium-dsl-vscode"
+cd "$WORKSPACE_ROOT/../helium-dsl-vscode"
 if [ ! -d "node_modules" ]; then
   echo "  Installing extension dependencies..."
   npm install
@@ -46,10 +46,10 @@ npm run build
 echo "  ✓ Extension built"
 echo ""
 
-# Step 3: Package VSIX using Docker
-echo "Step 3: Packaging VSIX using Docker..."
+# Step 3: Package VSIX using local script
+echo "Step 3: Packaging VSIX using local script..."
 cd "$WORKSPACE_ROOT"
-docker compose run --rm vsix
+bash "$SCRIPT_DIR/package-local.sh"
 echo ""
 
 # Step 4: Verify output

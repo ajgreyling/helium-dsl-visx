@@ -1,4 +1,4 @@
-import { pushDiagnostic, LintContext } from "../engine";
+import { pushDiagnostic, LintContext } from "../engine.js";
 
 export function applyDotNotationLimit(ctx: LintContext) {
   if (!ctx.rules["dot-notation-limit"]) return;

@@ -1,4 +1,4 @@
-import { pushDiagnostic, LintContext } from "../engine";
+import { pushDiagnostic, LintContext } from "../engine.js";
 
 export function applyNoVarInElse(ctx: LintContext) {
   if (!ctx.rules["no-var-in-else"]) return;

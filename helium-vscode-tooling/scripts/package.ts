@@ -3,7 +3,7 @@ import { execSync } from "node:child_process";
 import fs from "fs-extra";
 
 const root = path.resolve(__dirname, "..");
-const extensionDir = path.join(root, "helium-dsl-vscode");
+const extensionDir = path.join(root, "..", "helium-dsl-vscode");
 
 async function main() {
   console.log("🚀 Starting extension packaging process...\n");
@@ -28,9 +28,9 @@ async function main() {
     console.log(`   File: ${vsixPath}`);
     console.log(`   Size: ${sizeMB} MB`);
     console.log(`\n📥 To install locally:`);
-    console.log(`   code --install-extension ${vsixFile}`);
+    console.log(`   cursor --install-extension ${vsixFile}`);
     console.log(`\n📤 To publish to Open VSX:`);
-    console.log(`   cd helium-dsl-vscode`);
+    console.log(`   cd ../helium-dsl-vscode`);
     console.log(`   ovsx publish -p <your-access-token>`);
     console.log(`\n   Or set OVSX_PAT environment variable:`);
     console.log(`   export OVSX_PAT=<your-access-token>`);

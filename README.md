@@ -30,11 +30,8 @@ helium-vscode-tooling/
 │   ├── build.ts             # Main build orchestrator
 │   ├── watch.ts             # Watch for changes
 │   ├── version-check.ts     # Version tracking
-│   └── package-docker.sh    # Docker-based VSIX packaging orchestrator
-├── docker/               # Docker packaging infrastructure
-│   ├── Dockerfile.vsix   # Docker image definition (Node 20.11.1, vsce 2.26.0)
-│   └── package.sh        # Packaging script (runs inside Docker container)
-├── docker-compose.yml    # Docker Compose configuration (volume mounts, service definition)
+│   ├── package-docker.sh    # VSIX packaging orchestrator (uses local packaging)
+│   └── package-local.sh     # Local packaging script (runs in temporary directory)
 ├── helium-dsl-vscode/      # VSCode extension client
 ├── generated/              # Generated files (not in git)
 ├── dist/                   # VSIX output directory (not in git)
@@ -48,43 +45,29 @@ helium-vscode-tooling/
 **`scripts/package-docker.sh`** - Main packaging orchestrator (runs on host)
 - **Purpose**: Coordinates the complete packaging workflow
 - **Steps**:
-  1. Builds language server with local dependencies (`--no-workspaces`)
+  1. Builds language server with local dependencies
   2. Builds extension
-  3. Invokes Docker Compose to run packaging
+  3. Invokes local packaging script (`package-local.sh`)
   4. Verifies VSIX output
-- **Why separate**: Ensures prerequisites are built before Docker runs
+- **Why separate**: Ensures prerequisites are built before packaging
 
-**`docker/Dockerfile.vsix`** - Docker image definition
-- **Base**: `node:20.11.1-bookworm` (pinned Node version for reproducibility)
-- **Installs**: 
-  - `git` (required by `vsce`)
-  - `@vscode/vsce@2.26.0` (pinned version for consistency)
-- **Working directory**: `/build`
-
-**`docker/package.sh`** - Packaging script (runs inside Docker container)
-- **Purpose**: Assembles and packages the extension in isolation
+**`scripts/package-local.sh`** - Local packaging script
+- **Purpose**: Assembles and packages the extension in a temporary directory
 - **Key operations**:
-  - Creates writable working copy (source files are read-only mounts)
+  - Creates temporary working directory outside workspace
+  - Copies extension to temporary location
   - Copies language server output and dependencies
   - Copies generated files
   - Installs extension production dependencies
   - Flattens nested dependencies (critical for `vsce` to include all deps)
   - Validates dependency tree
-  - Runs `vsce package`
-- **Why in Docker**: Isolates from npm workspace, ensures clean dependency tree
-
-**`docker-compose.yml`** - Docker Compose configuration
-- **Service**: `vsix`
-- **Volumes**: Maps host directories to container paths
-  - Read-only mounts for source files (prevents accidental modifications)
-  - Writable mount for output (`dist/`)
-- **Command**: Executes `docker/package.sh` inside container
+  - Runs `vsce package` using `npx`
+- **Why temporary directory**: Isolates from npm workspace, ensures clean dependency tree without requiring Docker
 
 ## Prerequisites
 
 - Node.js >= 18
 - npm or pnpm
-- Docker and Docker Compose (for VSIX packaging)
 - Access to `appexec-dsl-commons` repository
 - Access to a sample DSL project for validation
 
@@ -122,7 +105,7 @@ This will:
 8. Build the language server
 9. Build the VSCode extension
 10. Update extension version with epoch-based build number
-11. Package the VSCode extension as a `.vsix` file
+11. Package the VSCode extension as a `.vsix` file using local packaging
 12. Restore original version in package.json
 13. Run validation tests against your sample project (with performance optimizations)
 14. Automatically install the extension in Cursor
@@ -296,7 +279,7 @@ If tests complete quickly but the script hangs before Step 14:
 ### Extension Activation Errors
 
 If the extension fails to activate with "Cannot find module" errors:
-1. Ensure you're using the VSIX from `dist/helium-dsl.vsix` (created by Docker packaging)
+1. Ensure you're using the VSIX from `dist/helium-dsl.vsix` (created by local packaging)
 2. Rebuild and repackage: `npm run package`
 3. Reinstall the extension: `cursor --install-extension dist/helium-dsl.vsix --force`
 4. Check Extension Host logs: Command Palette → "Developer: Show Extension Host Log"
@@ -314,71 +297,60 @@ This tooling is designed to be fully automated and repeatable:
 
 ## Packaging and Publishing
 
-### Docker-Based VSIX Packaging
+### Local VSIX Packaging
 
-The extension uses **Docker-based packaging** to ensure reproducible builds and proper dependency bundling. This approach:
+The extension uses **local packaging** with temporary directories to ensure reproducible builds and proper dependency bundling. This approach:
 
-- ✅ Isolates packaging from npm workspace context
+- ✅ Eliminates workspace hoisting issues by packaging in a temporary directory outside the workspace
 - ✅ Ensures all transitive dependencies are included (e.g., `minimatch`, `semver`, `brace-expansion`)
-- ✅ Provides reproducible builds across different environments
-- ✅ Eliminates workspace hoisting issues
+- ✅ Works without Docker, simplifying the build process
+- ✅ Uses temporary directories to isolate packaging from workspace context
 - ✅ Works correctly in Cursor IDE (primary target)
 
-**Why Docker?**
+**Why Local Packaging?**
 
-1. **Workspace Isolation**: npm workspaces hoist dependencies to the root, causing `vsce` validation to fail. Docker containers never see the workspace root, eliminating hoisting issues entirely.
+1. **Temporary Isolation**: Packaging happens in a temporary directory outside the workspace, ensuring no workspace artifacts interfere with dependency installation.
 
-2. **Reproducible Builds**: Same Docker image and Node version every time ensures consistent builds across different developer machines and CI environments.
+2. **Clean Dependency Tree**: Each packaging run starts with a fresh copy of the extension in a temporary directory, ensuring no cached dependencies or symlinks interfere.
 
-3. **Clean Dependency Tree**: Each Docker run starts with a fresh environment, ensuring no cached dependencies, symlinks, or workspace artifacts interfere with packaging.
+3. **Proper Dependency Bundling**: The packaging script installs dependencies in isolation, flattens nested dependencies, and ensures ALL transitive dependencies are included in the VSIX.
 
-4. **Proper Dependency Bundling**: Docker allows us to install dependencies in isolation, flatten nested dependencies, and ensure ALL transitive dependencies are included in the VSIX.
+4. **Cursor Compatibility**: Cursor requires all dependencies to be properly bundled. Local packaging ensures this without using the `--no-dependencies` flag.
 
-5. **Cursor Compatibility**: Cursor requires all dependencies to be properly bundled. Docker ensures this without hacks or workarounds.
+5. **Simplified Setup**: No Docker dependency required, making the build process more accessible and easier to debug.
 
 **Critical Principles:**
 
 - ❌ **NEVER use `--no-dependencies` flag**: Cursor requires dependencies to be bundled normally
 - ❌ **NO hoisting hacks**: Never rename `package.json`, remove symlinks, or disable workspaces
-- ✅ **Robust builds**: Use distinct steps, multiple containers if needed, explicit Node versions
+- ✅ **Robust builds**: Use distinct steps, temporary directories for isolation
 - ✅ **Target Cursor**: Always use `cursor --install-extension`, not `code --install-extension`
 
 **Architecture:**
 
-The packaging uses three main components:
+The packaging uses two main components:
 
-1. **`scripts/package-docker.sh`** - Host-side orchestrator script
+1. **`scripts/package-docker.sh`** - Orchestrator script (renamed from Docker-specific, but now uses local packaging)
    - Builds language server and extension
-   - Ensures dependencies are installed locally (not hoisted)
-   - Invokes Docker Compose
+   - Ensures dependencies are installed locally
+   - Invokes local packaging script
    - Verifies output
 
-2. **`docker-compose.yml`** - Docker configuration
-   - Defines volumes for extension, language server, generated files, and output
-   - Mounts source directories as read-only to prevent accidental modifications
-   - Volume mappings:
-     - `./helium-dsl-vscode` → `/build/extension` (read-only)
-     - `./helium-dsl-language-server/out` → `/build/server-out` (read-only)
-     - `./helium-dsl-language-server/node_modules` → `/build/server-node-modules` (read-only)
-     - `./generated` → `/build/generated` (read-only)
-     - `./dist` → `/build/out` (writable, for VSIX output)
-   - Runs `docker/package.sh` inside container
-
-3. **`docker/package.sh`** - Container-side packaging script
-   - Creates writable working copy at `/build/work`
-   - Assembles all required files (extension, server, generated files)
+2. **`scripts/package-local.sh`** - Local packaging script
+   - Creates temporary working directory outside workspace
+   - Copies extension, language server, and generated files
    - Installs and flattens dependencies
-   - Runs `vsce package`
+   - Runs `vsce package` using `npx`
 
 **Prerequisites for Packaging:**
 
-- Docker and Docker Compose must be installed and running
+- Node.js and npm must be installed
 - Language server and extension must be built first (handled automatically by `package-docker.sh`)
 
 **Design Principles:**
 
-- **No Hoisting Hacks**: Never rename `package.json`, remove symlinks, or disable workspaces. Docker's isolation solves these problems naturally.
-- **Robust Builds**: Use distinct, clear steps. Prefer multiple containers with correct Node versions if needed rather than complex workarounds.
+- **Temporary Directory Isolation**: Packaging happens in a temporary directory outside the workspace, eliminating hoisting issues naturally.
+- **Robust Builds**: Use distinct, clear steps with temporary directories for isolation.
 - **No `--no-dependencies`**: NEVER use `vsce package --no-dependencies`. Cursor requires all dependencies to be properly bundled for extraction.
 - **Cursor-First**: This extension targets Cursor IDE primarily. Always use `cursor --install-extension` commands, not `code --install-extension`.
 
@@ -397,7 +369,7 @@ Before publishing the extension to [Open VSX Registry](https://open-vsx.org/), y
 To create a `.vsix` package file:
 
 ```bash
-# From the root directory
+# From the helium-vscode-tooling directory
 npm run package
 ```
 
@@ -405,106 +377,94 @@ This runs `scripts/package-docker.sh`, which orchestrates the complete packaging
 
 #### Detailed Packaging Workflow
 
-**Step 1: Build Language Server** (`scripts/package-docker.sh` lines 12-30)
+**Step 1: Build Language Server** (`scripts/package-docker.sh`)
 - Changes to `helium-dsl-language-server/` directory
-- Installs dependencies locally using `npm install --no-workspaces` (bypasses workspace hoisting to ensure dependencies are in the language server directory)
+- Installs dependencies locally to ensure they're in the language server directory
 - Compiles TypeScript: `npm run build` → creates `out/` directory
-- Verifies `node_modules/` exists and contains packages (ensures dependencies are available for Docker)
+- Verifies `node_modules/` exists and contains packages
 
-**Step 2: Build Extension** (`scripts/package-docker.sh` lines 32-42)
+**Step 2: Build Extension** (`scripts/package-docker.sh`)
 - Changes to `helium-dsl-vscode/` directory
 - Installs dependencies if needed: `npm install`
 - Compiles TypeScript: `npm run build` → creates `out/extension.js`
 
-**Step 3: Docker-Based Packaging** (`scripts/package-docker.sh` lines 44-48)
-- Runs `docker compose run --rm vsix` which executes `docker/package.sh` inside a Docker container
+**Step 3: Local Packaging** (`scripts/package-local.sh`)
 
-**Inside Docker Container** (`docker/package.sh`):
+1. **Create Temporary Working Directory**
+   - Creates a temporary directory outside the workspace using `mktemp`
+   - This isolates packaging from any workspace context
+   - Directory is automatically cleaned up on exit
 
-1. **Create Working Copy** (lines 10-14)
-   - Creates writable directory `/build/work`
-   - Copies extension from read-only mount to working directory
+2. **Copy Extension**
+   - Copies the entire extension directory to the temporary location
    - This allows modifications without affecting source files
 
-2. **Copy Language Server** (lines 16-30)
+3. **Copy Language Server**
    - Copies compiled language server from `helium-dsl-language-server/out/` → `server/out/`
    - Copies language server dependencies from `helium-dsl-language-server/node_modules/` → `server/node_modules/`
    - These are required for the language server to run at runtime
 
-3. **Copy Generated Files** (lines 32-36)
+4. **Copy Generated Files**
    - Copies `generated/` directory (parser, BIF metadata, rules) into extension
    - These files are needed by the language server for parsing and linting
 
-4. **Install Extension Dependencies** (lines 38-41)
-   - Runs `npm install --production` in the working copy
+5. **Install Extension Dependencies**
+   - Runs `npm install --omit=dev` in the temporary working copy
    - Installs only production dependencies (e.g., `vscode-languageclient`)
    - Creates isolated dependency tree without workspace hoisting
 
-5. **Flatten Nested Dependencies** (lines 43-62)
+6. **Flatten Nested Dependencies**
    - Moves nested dependencies from `node_modules/vscode-languageclient/node_modules/` to root `node_modules/`
    - This ensures transitive dependencies like `minimatch`, `semver`, `brace-expansion` are accessible
-   - Removes all remaining nested `node_modules` directories to prevent duplicate file errors in VSIX
+   - Removes all remaining nested `node_modules` directories (except `server/node_modules/`) to prevent duplicate file errors in VSIX
 
-6. **Validate Dependencies** (lines 64-65)
-   - Runs `npm list --production` to verify dependency tree is valid
+7. **Validate Dependencies**
+   - Runs `npm list --omit=dev` to verify dependency tree is valid
    - Ensures `vsce` will pass its validation checks
 
-7. **Package VSIX** (lines 67-71)
-   - Runs `vsce package` to create the VSIX file
+8. **Package VSIX**
+   - Runs `npx @vscode/vsce package` to create the VSIX file
    - **Critical**: Does NOT use `--no-dependencies` flag (Cursor requires dependencies to be bundled)
-   - Outputs to `dist/helium-dsl.vsix` (mounted from host)
+   - Outputs to `helium-vscode-tooling/dist/helium-dsl.vsix`
 
-**Step 4: Verify Output** (`scripts/package-docker.sh` lines 50-62)
+**Step 4: Verify Output** (`scripts/package-docker.sh`)
 - Checks that VSIX file was created
 - Displays file location and size
 
 #### Complete Workflow Summary
 
 ```
-Host Machine                          Docker Container
-─────────────────                    ─────────────────
 1. package-docker.sh
-   ├─ Build language server          (on host)
-   │  └─ npm install --no-workspaces
-   ├─ Build extension                (on host)
-   │  └─ npm run build
-   └─ docker compose run vsix
-                                     2. docker/package.sh
-                                        ├─ Create working copy
-                                        ├─ Copy server/out/
-                                        ├─ Copy server/node_modules/
-                                        ├─ Copy generated/
-                                        ├─ npm install --production
-                                        ├─ Flatten nested deps
-                                        ├─ npm list (validate)
-                                        └─ vsce package
-                                     3. Output to /build/out/
-                                        └─ Mounted to dist/helium-dsl.vsix
-4. Verify VSIX created
+   ├─ Build language server (on host)
+   │  └─ npm install && npm run build
+   ├─ Build extension (on host)
+   │  └─ npm install && npm run build
+   └─ package-local.sh
+      ├─ Create temporary directory
+      ├─ Copy extension to temp
+      ├─ Copy server/out/ and server/node_modules/
+      ├─ Copy generated/
+      ├─ npm install --production
+      ├─ Flatten nested deps
+      ├─ npm list (validate)
+      └─ npx vsce package
+2. Output to dist/helium-dsl.vsix
+3. Verify VSIX created
 ```
 
-#### Why Docker?
+#### Why Local Packaging?
 
-The Docker-based approach solves several problems:
+The local packaging approach solves several problems:
 
-1. **Workspace Isolation**: npm workspaces hoist dependencies to the root, causing `vsce` validation to fail. Docker never sees the workspace root, eliminating hoisting issues entirely without hacks.
+1. **Temporary Isolation**: Packaging happens in a temporary directory outside the workspace, ensuring no workspace artifacts interfere with dependency installation.
 
-2. **Dependency Flattening**: npm may install transitive dependencies in nested `node_modules/`. Docker script flattens them so `vsce` includes all dependencies.
+2. **Dependency Flattening**: npm may install transitive dependencies in nested `node_modules/`. The script flattens them so `vsce` includes all dependencies.
 
-3. **Reproducibility**: Same Docker image and Node version every time ensures consistent builds across all environments.
+3. **Clean Environment**: Each build starts with a fresh copy of the extension in a temporary directory.
 
-4. **Clean Environment**: Each build starts fresh without workspace artifacts, symlinks, or cached dependencies.
+4. **No Docker Required**: Simplifies the build process by removing Docker as a dependency.
 
-5. **No Hacks Required**: Unlike workspace-based solutions that require renaming files or disabling workspaces, Docker naturally isolates the packaging process.
-
-6. **Cursor Compatibility**: Cursor requires all dependencies to be properly bundled. Docker ensures this without using `--no-dependencies` flag, which would break Cursor's dependency extraction.
-
-**If Multiple Node Versions Are Needed:**
-
-If different Node versions are required for different build steps, use multiple Docker containers rather than complex workarounds:
-- Create separate Dockerfiles for each Node version requirement
-- Use Docker Compose to orchestrate multi-stage builds
-- Keep each step distinct and verifiable
+5. **Cursor Compatibility**: Cursor requires all dependencies to be properly bundled. Local packaging ensures this without using the `--no-dependencies` flag.
 
 #### Alternative: Using Validation Script
 
@@ -518,7 +478,7 @@ This will:
 1. Build all prerequisites (grammar, parser, rules, BIFs)
 2. Build the language server
 3. Build the extension
-4. Run the Docker-based packaging workflow (same as `npm run package`)
+4. Run the local packaging workflow (same as `npm run package`)
 5. Output the VSIX to `dist/helium-dsl.vsix`
 
 The generated `.vsix` file includes all required dependencies and can be installed manually or published to a marketplace.
@@ -599,36 +559,26 @@ When packaged, the extension includes:
 
 ### Troubleshooting Packaging
 
-**Docker not running:**
-```bash
-# Start Docker Desktop or Docker daemon
-# Verify Docker is running:
-docker ps
-
-# Then retry packaging
-npm run package
-```
-
 **Language server dependencies missing:**
-- The script uses `npm install --no-workspaces` to ensure dependencies are in the language server directory
+- The script ensures dependencies are installed locally in the language server directory
 - If you see "Language server node_modules missing or empty" error:
   ```bash
   cd helium-dsl-language-server
-  npm install --no-workspaces
+  npm install
   npm run build
   ```
 
 **Missing dependencies in VSIX:**
-- The Docker-based packaging automatically includes all transitive dependencies
+- The local packaging automatically includes all transitive dependencies
 - If you see "Cannot find module" errors, ensure you're using the latest VSIX from `dist/helium-dsl.vsix`
 - Rebuild and repackage if needed: `npm run package`
 - Check Extension Host logs for specific missing modules
 
 **Packaging fails:**
-- Ensure Docker is running: `docker ps`
 - Check that language server builds successfully: `cd helium-dsl-language-server && npm run build`
 - Check that extension builds successfully: `cd helium-dsl-vscode && npm run build`
-- Check Docker logs: `docker compose logs vsix`
+- Check that Node.js and npm are installed: `node --version && npm --version`
+- Verify temporary directory creation works: `mktemp -d -t test-XXXXXX`
 
 **Language server fails to start:**
 - Ensure the VSIX includes `server/node_modules/` (check with `unzip -l dist/helium-dsl.vsix | grep "server/node_modules"`)
@@ -650,12 +600,7 @@ When the Helium DSL is updated:
 
 **`npm run package`** → `scripts/package-docker.sh`
 - Orchestrates complete packaging workflow
-- Builds prerequisites, then runs Docker packaging
-- Output: `dist/helium-dsl.vsix`
-
-**`docker compose run --rm vsix`**
-- Runs Docker container with packaging script
-- Requires Docker to be running
+- Builds prerequisites, then runs local packaging
 - Output: `dist/helium-dsl.vsix`
 
 ### Build Scripts
@@ -766,6 +711,6 @@ See `helium-vscode-tooling/TOKEN_MAPPINGS.md` for complete token scope reference
 - The generated parser may have warnings about unreachable tokens or duplicate names - these are from the original ANTLR3 grammar and can be safely ignored
 - Semantic actions containing `token()` calls are automatically removed during conversion
 - The parser is regenerated from scratch each time to ensure consistency
-- The Docker-based packaging ensures all dependencies are included, preventing "Cannot find module" errors at runtime
+- The local packaging ensures all dependencies are included, preventing "Cannot find module" errors at runtime
 
 

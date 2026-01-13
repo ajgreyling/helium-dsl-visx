@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
-set -euo pipefail
+# Docker-based packaging has been replaced with local packaging
+# See helium-vscode-tooling/scripts/package-local.sh for the new implementation
+#
+# This file is kept for reference but is no longer used in the build process.
 
-EXT_DIR=/build/extension
+# set -euo pipefail
+#
+# EXT_DIR=/build/extension
 SERVER_OUT=/build/server-out
 SERVER_NODE_MODULES=/build/server-node-modules
 GENERATED=/build/generated

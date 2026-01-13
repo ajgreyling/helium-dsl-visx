@@ -1,4 +1,4 @@
-import { pushDiagnostic, LintContext } from "../engine";
+import { pushDiagnostic, LintContext } from "../engine.js";
 
 const camel = /^[a-z][A-Za-z0-9_]*$/;
 const pascal = /^[A-Z][A-Za-z0-9_]*$/;

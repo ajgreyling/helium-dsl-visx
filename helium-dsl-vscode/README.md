@@ -257,43 +257,40 @@ The build process transforms the original ANTLR3 grammar from the Helium Java pr
 - **Build**: Compiles TypeScript extension code (`src/extension.ts`) to `out/extension.js`
 - **Output**: Compiled extension client code
 
-#### 10. Docker-Based VSIX Packaging (`npm run package`)
+#### 10. Local VSIX Packaging (`npm run package`)
 
-**Orchestrator**: `scripts/package-docker.sh`
+**Orchestrator**: `scripts/package-docker.sh` (uses local packaging)
 
-The packaging process uses Docker to ensure reproducible builds and proper dependency bundling:
+The packaging process uses local packaging with temporary directories to ensure reproducible builds and proper dependency bundling:
 
 **Step 10a: Host-Side Prerequisites** (runs on host machine)
 - Builds language server with local dependencies
 - Builds extension client
 - Verifies all prerequisites are ready
 
-**Step 10b: Docker Container Setup** (`docker-compose.yml`)
-- Uses Docker image with Node 20.11.1 and `vsce` 2.26.0
-- Mounts source directories as read-only volumes:
-  - Extension source → `/build/extension`
-  - Language server output → `/build/server-out`
-  - Language server dependencies → `/build/server-node-modules`
-  - Generated files → `/build/generated`
-- Mounts output directory as writable: `dist/` → `/build/out`
+**Step 10b: Local Packaging** (`scripts/package-local.sh`)
+- Creates temporary working directory outside workspace using `mktemp`
+- This isolates packaging from workspace context, eliminating hoisting issues
+- Directory is automatically cleaned up on exit
 
-**Step 10c: Container-Side Packaging** (`docker/package.sh`)
-1. **Create Working Copy**: Copies extension to writable directory `/build/work`
+**Step 10c: Packaging Steps**
+1. **Create Working Copy**: Copies extension to temporary directory
 2. **Copy Language Server**: 
-   - Copies `server-out/` → `server/out/`
-   - Copies `server-node-modules/` → `server/node_modules/`
+   - Copies `helium-dsl-language-server/out/` → `server/out/`
+   - Copies `helium-dsl-language-server/node_modules/` → `server/node_modules/`
 3. **Copy Generated Files**: Copies `generated/` directory (parser, rules, BIFs, TextMate grammar)
-4. **Install Dependencies**: Runs `npm install --production` in working copy
+4. **Install Dependencies**: Runs `npm install --omit=dev` in temporary working copy
 5. **Flatten Dependencies**: Moves nested `node_modules` to root (ensures `vsce` includes all transitive dependencies)
-6. **Validate**: Runs `npm list --production` to verify dependency tree
-7. **Package**: Runs `vsce package` (without `--no-dependencies` flag) to create VSIX
-8. **Output**: VSIX written to `dist/helium-dsl.vsix` (mounted from host)
+6. **Validate**: Runs `npm list --omit=dev` to verify dependency tree
+7. **Package**: Runs `npx @vscode/vsce package` (without `--no-dependencies` flag) to create VSIX
+8. **Output**: VSIX written to `dist/helium-dsl.vsix`
 
-**Why Docker?**
-- **Workspace Isolation**: Prevents npm workspace hoisting issues that break `vsce` validation
-- **Reproducible Builds**: Same Node version and tools every time
-- **Clean Dependencies**: Fresh environment ensures no cached artifacts interfere
+**Why Local Packaging?**
+- **Workspace Isolation**: Temporary directory prevents npm workspace hoisting issues that break `vsce` validation
+- **Reproducible Builds**: Consistent build process across environments
+- **Clean Dependencies**: Fresh copy in temporary directory ensures no cached artifacts interfere
 - **Proper Bundling**: Ensures all transitive dependencies are included (required by Cursor)
+- **Simplified Setup**: No Docker dependency required
 
 #### 11. Publishing to Open VSX Registry
 
@@ -330,7 +327,7 @@ This automates all steps:
 7. Generates TextMate grammar
 8. Builds language server
 9. Builds extension
-10. Packages VSIX using Docker
+10. Packages VSIX using local packaging
 11. Validates against sample project
 12. Installs extension in Cursor
 

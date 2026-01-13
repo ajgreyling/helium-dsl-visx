@@ -1,6 +1,6 @@
 # Helium DSL VSCode Extension Tooling - Cursor Rules
 
-This project builds a VSCode extension for the Helium DSL that works in **Cursor IDE**. The packaging process uses Docker to ensure robust, reproducible builds.
+This project builds a VSCode extension for the Helium DSL that works in **Cursor IDE**. The packaging process uses local packaging with temporary directories to ensure robust, reproducible builds.
 
 ## Project Structure
 
@@ -9,7 +9,6 @@ helium-dsl-visx/ (project root)
 ├── helium-dsl-language-server/  # LSP server implementation
 ├── helium-vscode-tooling/       # Tooling and packaging
 │   ├── scripts/                 # Build automation scripts
-│   ├── docker/                  # Docker packaging infrastructure
 │   ├── helium-dsl-vscode/       # VSCode extension client
 │   ├── generated/               # Generated files (not in git)
 │   └── dist/                    # VSIX output directory (not in git)
@@ -22,21 +21,23 @@ helium-dsl-visx/ (project root)
 - **Secondary Target**: VS Code (compatible but not primary focus)
 - **Installation Commands**: Always use `cursor --install-extension`, NOT `code --install-extension`
 
-## Docker-Based Packaging Rationale
+## Local Packaging Rationale
 
-### Why Docker?
+### Why Local Packaging?
 
-The extension uses **Docker-based packaging** for the following critical reasons:
+The extension uses **local packaging with temporary directories** for the following critical reasons:
 
-1. **Workspace Isolation**: npm workspaces hoist dependencies to the root, causing `vsce` validation to fail. Docker containers never see the workspace root, eliminating hoisting issues entirely.
+1. **Workspace Isolation**: Packaging happens in a temporary directory outside the workspace, eliminating npm workspace hoisting issues that cause `vsce` validation to fail.
 
-2. **Reproducible Builds**: Same Docker image and Node version every time ensures consistent builds across different developer machines and CI environments.
+2. **Reproducible Builds**: Consistent build process across different developer machines and CI environments without requiring Docker.
 
-3. **Clean Dependency Tree**: Each Docker run starts with a fresh environment, ensuring no cached dependencies, symlinks, or workspace artifacts interfere with packaging.
+3. **Clean Dependency Tree**: Each packaging run starts with a fresh copy of the extension in a temporary directory, ensuring no cached dependencies, symlinks, or workspace artifacts interfere with packaging.
 
-4. **Proper Dependency Bundling**: Docker allows us to install dependencies in isolation, flatten nested dependencies, and ensure ALL transitive dependencies are included in the VSIX.
+4. **Proper Dependency Bundling**: Local packaging installs dependencies in isolation, flattens nested dependencies, and ensures ALL transitive dependencies are included in the VSIX.
 
-5. **Cursor Compatibility**: Cursor requires all dependencies to be properly bundled. Docker ensures this without hacks or workarounds.
+5. **Cursor Compatibility**: Cursor requires all dependencies to be properly bundled. Local packaging ensures this without hacks or workarounds.
+
+6. **Simplified Setup**: No Docker dependency required, making the build process more accessible and easier to debug.
 
 ### Critical Rules
 
@@ -50,12 +51,12 @@ The extension uses **Docker-based packaging** for the following critical reasons
 - ❌ NEVER rename `package.json` to disable workspaces
 - ❌ NEVER use symlink removal hacks
 - ❌ NEVER use workspace-disabling scripts
-- ✅ Use Docker to naturally isolate from workspace context
-- ✅ Let Docker's isolation solve the problem, not hacks
+- ✅ Use temporary directories to naturally isolate from workspace context
+- ✅ Let temporary directory isolation solve the problem, not hacks
 
 **ROBUST BUILDS:**
 - ✅ Use distinct, clear steps for VSIX packaging
-- ✅ Prefer multiple containers with correct Node versions if needed
+- ✅ Use temporary directories for isolation
 - ✅ Each step should be explicit and verifiable
 - ✅ Builds should work consistently across environments
 - ✅ Fail fast with clear error messages
@@ -82,26 +83,24 @@ code --install-extension helium-vscode-tooling/dist/helium-dsl.vsix
 The packaging process follows these principles:
 
 1. **Build on Host**: Language server and extension are built on the host machine
-2. **Package in Docker**: VSIX packaging happens in isolated Docker container
-3. **No Workspace Context**: Docker container never sees workspace root
-4. **Clean Dependencies**: Fresh `npm install` in Docker ensures clean tree
+2. **Package Locally**: VSIX packaging happens in a temporary directory outside the workspace
+3. **No Workspace Context**: Temporary directory never sees workspace root, eliminating hoisting issues
+4. **Clean Dependencies**: Fresh `npm install` in temporary directory ensures clean tree
 5. **Flatten Dependencies**: Move nested dependencies to root before packaging
 6. **Validate**: Run `npm list --production` to verify dependency tree
 7. **Package**: Use `vsce package` (WITHOUT `--no-dependencies`)
 
 ## File Structure
 
-- `helium-vscode-tooling/scripts/package-docker.sh` - Orchestrates build and Docker packaging
-- `helium-vscode-tooling/docker/Dockerfile.vsix` - Docker image with Node 20.11.1 and vsce 2.26.0
-- `helium-vscode-tooling/docker/package.sh` - Runs inside Docker, assembles and packages extension
-- `helium-vscode-tooling/docker-compose.yml` - Defines volumes and service configuration
+- `helium-vscode-tooling/scripts/package-docker.sh` - Orchestrates build and local packaging (renamed from Docker-specific but now uses local packaging)
+- `helium-vscode-tooling/scripts/package-local.sh` - Local packaging script that runs in temporary directory
 
 ## When Modifying Packaging
 
 If you need to modify the packaging process:
 
 1. **Prefer More Steps**: Break complex operations into distinct, verifiable steps
-2. **Use Multiple Containers**: If different Node versions are needed, use separate containers
+2. **Use Temporary Directories**: Use temporary directories for isolation, ensuring clean builds
 3. **No Shortcuts**: Don't use flags or hacks to skip validation or dependency bundling
 4. **Test in Cursor**: Always verify the VSIX works in Cursor, not just VS Code
 5. **Document Changes**: Update README.md with any workflow changes
@@ -115,7 +114,7 @@ If you need to modify the packaging process:
 ❌ **DON'T**: Skip dependency validation
 ❌ **DON'T**: Assume VS Code compatibility means Cursor compatibility
 
-✅ **DO**: Use Docker for isolation
+✅ **DO**: Use temporary directories for isolation
 ✅ **DO**: Include all dependencies in VSIX
 ✅ **DO**: Use `cursor --install-extension`
 ✅ **DO**: Validate dependency tree
@@ -166,7 +165,7 @@ If you need to modify the packaging process:
 
 **helium-vscode-tooling/helium-dsl-vscode/server/** (Copied during packaging):
 - `out/**` - Language server compiled output (copied from helium-dsl-language-server/out/)
-- `node_modules/**` - Language server dependencies (copied during Docker packaging)
+- `node_modules/**` - Language server dependencies (copied during local packaging)
 
 ### How to Modify Generated Files
 

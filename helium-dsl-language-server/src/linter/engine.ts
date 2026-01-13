@@ -1,9 +1,9 @@
 import { Diagnostic } from "vscode-languageserver";
-import { loadRules, LoadedRule } from "./ruleLoader";
-import { applyNoVarInElse } from "./rules/noVarInElse";
-import { applyNamingConventions } from "./rules/namingConventions";
-import { applyForbiddenOperators } from "./rules/forbiddenOperators";
-import { applyDotNotationLimit } from "./rules/dotNotationLimit";
+import { loadRules, LoadedRule } from "./ruleLoader.js";
+import { applyNoVarInElse } from "./rules/noVarInElse.js";
+import { applyNamingConventions } from "./rules/namingConventions.js";
+import { applyForbiddenOperators } from "./rules/forbiddenOperators.js";
+import { applyDotNotationLimit } from "./rules/dotNotationLimit.js";
 
 export async function runLints(text: string): Promise<Diagnostic[]> {
   // console.warn("[Linter] Loading rules...");

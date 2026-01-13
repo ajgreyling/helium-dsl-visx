@@ -2,10 +2,7 @@
   "name": "helium-vscode-tooling",
   "private": true,
   "version": "0.1.0",
-  "description": "Workspace for Helium DSL VSCode extension and language server",
-  "workspaces": [
-    "helium-dsl-vscode"
-  ],
+  "description": "Build tooling for Helium DSL VSCode extension and language server",
   "scripts": {
     "build:all": "ts-node scripts/build.ts",
     "build:extract": "ts-node scripts/extract-grammar.ts",
@@ -18,7 +15,7 @@
     "version-check": "ts-node scripts/version-check.ts",
     "watch": "ts-node scripts/watch.ts",
     "lint": "echo \"No lint configured yet\"",
-    "test": "npm --workspaces run test",
+    "test": "echo \"No tests configured yet\"",
     "package": "bash scripts/package-docker.sh",
     "package:docker": "bash scripts/package-docker.sh",
     "package:all": "ts-node scripts/package.ts"

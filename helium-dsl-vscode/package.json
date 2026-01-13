@@ -1,7 +1,7 @@
 {
   "name": "helium-dsl-vscode",
   "displayName": "Helium DSL",
-  "version": "1.0.1767972655",
+  "version": "1.0.1768320599",
   "publisher": "mezzanineware",
   "readme": "./README.md",
   "repository": {
@@ -90,7 +90,7 @@
     "build": "tsc -b",
     "clean": "rimraf out",
     "watch": "tsc -b -w",
-    "package": "docker compose run --rm vsix",
+    "package": "bash ../helium-vscode-tooling/scripts/package-local.sh",
     "test": "echo \"No tests yet\""
   },
   "devDependencies": {

@@ -5,11 +5,11 @@ import {
   Position,
 } from "vscode-languageserver";
 import { TextDocument } from "vscode-languageserver-textdocument";
-import { keywords } from "./keywordCompletions";
-import { loadBifCompletions } from "./bifCompletions";
-import { buildContextCompletions, getObjectProperties } from "./contextCompletions";
-import { SymbolTable } from "../symbols/symbolTable";
-import { WorkspaceIndex } from "../symbols/workspaceIndex";
+import { keywords } from "./keywordCompletions.js";
+import { loadBifCompletions } from "./bifCompletions.js";
+import { buildContextCompletions, getObjectProperties } from "./contextCompletions.js";
+import { SymbolTable } from "../symbols/symbolTable.js";
+import { WorkspaceIndex } from "../symbols/workspaceIndex.js";
 
 /**
  * Get the type of a variable at a given position

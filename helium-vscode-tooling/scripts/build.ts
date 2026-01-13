@@ -44,7 +44,7 @@ async function main() {
 
   // 8. Build language server + extension
   run("npm run build", { cwd: path.join(root, "..", "helium-dsl-language-server") });
-  run("npm run build", { cwd: path.join(root, "helium-dsl-vscode") });
+  run("npm run build", { cwd: path.join(root, "..", "helium-dsl-vscode") });
 }
 
 main().catch((err) => {

@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import { URI } from "vscode-uri";
-import { SymbolTable } from "../symbols/symbolTable";
-import { WorkspaceIndex } from "../symbols/workspaceIndex";
+import { SymbolTable } from "../symbols/symbolTable.js";
+import { WorkspaceIndex } from "../symbols/workspaceIndex.js";
 
 export interface ContextCompletionItem {
   label: string;

@@ -430,13 +430,13 @@ npm run build
 
 echo ""
 echo -e "${BLUE}=== Step 9: Build VSCode Extension ===${NC}"
-cd "$SCRIPT_DIR/helium-dsl-vscode"
+cd "$SCRIPT_DIR/../helium-dsl-vscode"
 npm run build
 
 echo ""
 echo -e "${BLUE}=== Step 10: Update Version with Epoch Build Number ===${NC}"
-cd "$SCRIPT_DIR/helium-dsl-vscode"
-PACKAGE_JSON="$SCRIPT_DIR/helium-dsl-vscode/package.json"
+cd "$SCRIPT_DIR/../helium-dsl-vscode"
+PACKAGE_JSON="$SCRIPT_DIR/../helium-dsl-vscode/package.json"
 EPOCH=$(date +%s)
 
 # Backup original version
@@ -458,12 +458,12 @@ echo -e "${GREEN}Version updated: ${ORIGINAL_VERSION} -> ${NEW_VERSION}${NC}"
 
 echo ""
 echo -e "${BLUE}=== Step 11: Package VSCode Extension ===${NC}"
-cd "$SCRIPT_DIR/helium-dsl-vscode"
+cd "$SCRIPT_DIR/../helium-dsl-vscode"
 npm run package
 
 echo ""
 echo -e "${BLUE}=== Step 12: Restore Original Version ===${NC}"
-cd "$SCRIPT_DIR/helium-dsl-vscode"
+cd "$SCRIPT_DIR/../helium-dsl-vscode"
 # Restore original version
 node -e "
 const fs = require('fs');
@@ -479,13 +479,19 @@ STEP13_START=$(date +%s)
 cd "$SCRIPT_DIR/../helium-dsl-language-server"
 # Use --exit flag to force mocha to exit after tests complete (prevents hanging on active timers)
 # Use stdbuf to disable output buffering if available (not available on macOS by default)
-# Use ts-node/esm loader for ES module support via NODE_OPTIONS
+# Use NODE_OPTIONS with ts-node/esm loader for ESM support, and --require ts-node/register for require() calls
+# Filter out Node.js warnings about deprecated loader and fs.Stats
 if command -v stdbuf >/dev/null 2>&1; then
-    stdbuf -oL -eL NODE_OPTIONS='--loader ts-node/esm' npx mocha --exit tests/**/*.test.ts generated/tests/**/*.test.ts
+    # Use PIPESTATUS to capture exit code before grep filters warnings
+    # Register ts-node for require() calls AND use loader for import() calls
+    NODE_OPTIONS='--loader ts-node/esm' stdbuf -oL -eL npx mocha --exit --require ts-node/register tests/**/*.test.ts generated/tests/**/*.test.ts 2>&1 | grep -vE "(ExperimentalWarning|DeprecationWarning)" || true
+    MOCHA_EXIT_CODE=${PIPESTATUS[0]}
 else
-    NODE_OPTIONS='--loader ts-node/esm' npx mocha --exit tests/**/*.test.ts generated/tests/**/*.test.ts
+    # Use PIPESTATUS to capture exit code before grep filters warnings
+    # Register ts-node for require() calls AND use loader for import() calls
+    NODE_OPTIONS='--loader ts-node/esm' npx mocha --exit --require ts-node/register tests/**/*.test.ts generated/tests/**/*.test.ts 2>&1 | grep -vE "(ExperimentalWarning|DeprecationWarning)" || true
+    MOCHA_EXIT_CODE=${PIPESTATUS[0]}
 fi
-MOCHA_EXIT_CODE=$?
 STEP13_END=$(date +%s)
 STEP13_DURATION=$((STEP13_END - STEP13_START))
 
@@ -505,7 +511,7 @@ fi
 printf "\n"
 printf "${BLUE}=== Step 14: Install Extension in Cursor ===${NC}\n"
 
-# VSIX file is created in dist/ directory by the Docker packaging script
+# VSIX file is created in dist/ directory by the local packaging script
 VSIX_FILE="$SCRIPT_DIR/dist/helium-dsl.vsix"
 
 if [ ! -f "$VSIX_FILE" ]; then

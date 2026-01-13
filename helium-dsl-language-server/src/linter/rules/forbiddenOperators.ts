@@ -1,4 +1,4 @@
-import { pushDiagnostic, LintContext } from "../engine";
+import { pushDiagnostic, LintContext } from "../engine.js";
 
 export function applyForbiddenOperators(ctx: LintContext) {
   if (!ctx.rules["forbidden-operators"]) return;

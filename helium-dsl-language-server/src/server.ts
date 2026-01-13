@@ -20,12 +20,12 @@ import { TextDocument } from "vscode-languageserver-textdocument";
 import { URI } from "vscode-uri";
 import * as path from "path";
 import * as fs from "fs";
-import { createDiagnostics } from "./diagnostics";
-import { buildSymbolTable } from "./symbols/symbolTable";
-import { provideCompletions } from "./completion/completionProvider";
-import { runLints } from "./linter/engine";
-import { WorkspaceIndex } from "./symbols/workspaceIndex";
-import { initializeLogger, TraceLevel, logVerbose } from "./utils/logger";
+import { createDiagnostics } from "./diagnostics.js";
+import { buildSymbolTable } from "./symbols/symbolTable.js";
+import { provideCompletions } from "./completion/completionProvider.js";
+import { runLints } from "./linter/engine.js";
+import { WorkspaceIndex } from "./symbols/workspaceIndex.js";
+import { initializeLogger, TraceLevel, logVerbose } from "./utils/logger.js";
 
 // Log immediately when server module loads
 console.error("[Server] ===== Language Server Module Loading =====");

@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { URI } from "vscode-uri";
 import { Location } from "vscode-languageserver";
-import { logVerbose } from "../utils/logger";
+import { logVerbose } from "../utils/logger.js";
 
 export interface ObjectDefinition {
   name: string;
