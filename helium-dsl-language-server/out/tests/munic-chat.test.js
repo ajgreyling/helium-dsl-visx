@@ -1,44 +1,9 @@
-"use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
-Object.defineProperty(exports, "__esModule", { value: true });
-const mocha_1 = require("mocha");
-const chai_1 = require("chai");
-const fs = __importStar(require("fs"));
-const path = __importStar(require("path"));
-const index_1 = require("../src/parser/index");
-const engine_1 = require("../src/linter/engine");
+import { describe, it } from "mocha";
+import { expect } from "chai";
+import * as fs from "fs";
+import * as path from "path";
+import { parseText } from "../src/parser/index";
+import { runLints } from "../src/linter/engine";
 const SAMPLE_PROJECT_PATH = "/Users/ajgreyling/code/munic-chat";
 /**
  * Wrapper for parseText with timeout protection
@@ -51,7 +16,7 @@ function parseTextWithTimeout(text, timeoutMs = 30000) {
             // Run parser asynchronously so timeout can interrupt
             setImmediate(() => {
                 try {
-                    const result = (0, index_1.parseText)(text);
+                    const result = parseText(text);
                     resolve(result);
                 }
                 catch (err) {
@@ -62,8 +27,8 @@ function parseTextWithTimeout(text, timeoutMs = 30000) {
         new Promise((_, reject) => setTimeout(() => reject(new Error(`Parser timeout after ${timeoutMs}ms`)), timeoutMs))
     ]);
 }
-(0, mocha_1.describe)("Sample DSL Codebase Validation", () => {
-    (0, mocha_1.it)("should validate all .mez files in sample project", async function () {
+describe("Sample DSL Codebase Validation", () => {
+    it("should validate all .mez files in sample project", async function () {
         // Increase timeout significantly to allow for timeout handling per file
         // Each file has 30s timeout, so 73 files * 30s = ~36 minutes worst case
         // But most files should complete quickly, so 10 minutes should be sufficient
@@ -113,7 +78,7 @@ function parseTextWithTimeout(text, timeoutMs = 30000) {
                 let lintDiagnostics;
                 try {
                     lintDiagnostics = await Promise.race([
-                        (0, engine_1.runLints)(text),
+                        runLints(text),
                         new Promise((_, reject) => setTimeout(() => reject(new Error(`Linter timeout after 30000ms`)), 30000))
                     ]);
                     console.log(`  [${i + 1}/${mezFiles.length}] Linting complete`);
@@ -198,9 +163,9 @@ function parseTextWithTimeout(text, timeoutMs = 30000) {
             console.log(`  ✅ No issues found!`);
         }
         // Test passes regardless - this is a validation report
-        (0, chai_1.expect)(mezFiles.length).to.be.greaterThan(0);
+        expect(mezFiles.length).to.be.greaterThan(0);
     });
-    (0, mocha_1.it)("should not flag variables in else blocks in known-good code", async () => {
+    it("should not flag variables in else blocks in known-good code", async () => {
         // This is a representative test case
         const testCode = `
       if (x > 0) {
@@ -209,9 +174,9 @@ function parseTextWithTimeout(text, timeoutMs = 30000) {
         return false;
       }
     `;
-        const lintDiagnostics = await (0, engine_1.runLints)(testCode);
+        const lintDiagnostics = await runLints(testCode);
         const varInElseErrors = lintDiagnostics.filter((d) => d.message.includes("Variables cannot be declared in else blocks"));
         console.log(`    Found ${varInElseErrors.length} variable-in-else violations`);
-        (0, chai_1.expect)(varInElseErrors.length).to.equal(0);
+        expect(varInElseErrors.length).to.equal(0);
     });
 });

@@ -1,55 +1,20 @@
-"use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
-Object.defineProperty(exports, "__esModule", { value: true });
-const node_1 = require("vscode-languageserver/node");
-const vscode_languageserver_textdocument_1 = require("vscode-languageserver-textdocument");
-const vscode_uri_1 = require("vscode-uri");
-const path = __importStar(require("path"));
-const fs = __importStar(require("fs"));
-const diagnostics_1 = require("./diagnostics");
-const symbolTable_1 = require("./symbols/symbolTable");
-const completionProvider_1 = require("./completion/completionProvider");
-const engine_1 = require("./linter/engine");
-const workspaceIndex_1 = require("./symbols/workspaceIndex");
-const logger_1 = require("./utils/logger");
+import { createConnection, TextDocuments, TextDocumentSyncKind, SemanticTokensBuilder, } from "vscode-languageserver/node";
+import { TextDocument } from "vscode-languageserver-textdocument";
+import { URI } from "vscode-uri";
+import * as path from "path";
+import * as fs from "fs";
+import { createDiagnostics } from "./diagnostics";
+import { buildSymbolTable } from "./symbols/symbolTable";
+import { provideCompletions } from "./completion/completionProvider";
+import { runLints } from "./linter/engine";
+import { WorkspaceIndex } from "./symbols/workspaceIndex";
+import { initializeLogger, logVerbose } from "./utils/logger";
 // Log immediately when server module loads
 console.error("[Server] ===== Language Server Module Loading =====");
 console.error("[Server] Server process started");
-const connection = (0, node_1.createConnection)();
-const documents = new node_1.TextDocuments(vscode_languageserver_textdocument_1.TextDocument);
-const workspaceIndex = new workspaceIndex_1.WorkspaceIndex();
+const connection = createConnection();
+const documents = new TextDocuments(TextDocument);
+const workspaceIndex = new WorkspaceIndex();
 console.error("[Server] Connection and documents initialized");
 const semanticLegend = {
     tokenTypes: ["type", "function", "variable", "namespace"],
@@ -66,7 +31,7 @@ connection.onInitialize((params) => {
     const traceLevel = params.trace ||
         params.initializationOptions?.trace ||
         "off";
-    (0, logger_1.initializeLogger)(traceLevel);
+    initializeLogger(traceLevel);
     console.error(`[Server] Logger initialized with trace level: ${traceLevel}`);
     // Initialize workspace index with workspace folders
     console.error("[Server] Initializing workspace index...");
@@ -76,12 +41,12 @@ connection.onInitialize((params) => {
     try {
         const debug = workspaceIndex.getDebugInfo();
         const types = debug.objects || [];
-        (0, logger_1.logVerbose)(`[Server] ===== Sending User Types Notification =====`);
-        (0, logger_1.logVerbose)(`[Server] Found ${types.length} user-defined types`);
-        (0, logger_1.logVerbose)(`[Server] Types: ${JSON.stringify(types, null, 2)}`);
-        (0, logger_1.logVerbose)(`[Server] Workspace roots: ${JSON.stringify(debug.workspaceRoots, null, 2)}`);
+        logVerbose(`[Server] ===== Sending User Types Notification =====`);
+        logVerbose(`[Server] Found ${types.length} user-defined types`);
+        logVerbose(`[Server] Types: ${JSON.stringify(types, null, 2)}`);
+        logVerbose(`[Server] Workspace roots: ${JSON.stringify(debug.workspaceRoots, null, 2)}`);
         connection.sendNotification("helium/userTypes", types);
-        (0, logger_1.logVerbose)(`[Server] Notification sent successfully`);
+        logVerbose(`[Server] Notification sent successfully`);
     }
     catch (err) {
         console.error("[Server] ERROR sending userTypes notification:", err);
@@ -90,7 +55,7 @@ connection.onInitialize((params) => {
     // Note: File watcher registration moved to onInitialized callback
     const result = {
         capabilities: {
-            textDocumentSync: node_1.TextDocumentSyncKind.Incremental,
+            textDocumentSync: TextDocumentSyncKind.Incremental,
             completionProvider: {
                 resolveProvider: false,
                 triggerCharacters: ['.']
@@ -125,7 +90,7 @@ connection.onInitialize((params) => {
                 workspaceIndex.initialize(folders);
                 try {
                     const types = workspaceIndex.getDebugInfo().objects || [];
-                    (0, logger_1.logVerbose)(`[Server] Workspace folders changed - sending ${types.length} user-defined types to client`);
+                    logVerbose(`[Server] Workspace folders changed - sending ${types.length} user-defined types to client`);
                     connection.sendNotification("helium/userTypes", types);
                 }
                 catch (err) {
@@ -172,8 +137,8 @@ documents.onDidOpen((change) => {
 // });
 async function validateDocument(document) {
     const text = document.getText();
-    const syntaxDiagnostics = (0, diagnostics_1.createDiagnostics)(text);
-    const lintDiagnostics = await (0, engine_1.runLints)(text);
+    const syntaxDiagnostics = createDiagnostics(text);
+    const lintDiagnostics = await runLints(text);
     const diagnostics = [...syntaxDiagnostics, ...lintDiagnostics];
     connection.sendDiagnostics({ uri: document.uri, diagnostics });
 }
@@ -181,8 +146,8 @@ connection.onCompletion(async (params) => {
     const doc = documents.get(params.textDocument.uri);
     if (!doc)
         return [];
-    const table = (0, symbolTable_1.buildSymbolTable)(doc.getText());
-    return (0, completionProvider_1.provideCompletions)(params, table, doc, workspaceIndex);
+    const table = buildSymbolTable(doc.getText());
+    return provideCompletions(params, table, doc, workspaceIndex);
 });
 connection.onHover((_params) => {
     return null; // Placeholder; will be expanded with type info
@@ -357,7 +322,7 @@ connection.onDefinition((params) => {
                     else {
                         // Read from disk
                         try {
-                            const unitFilePath = vscode_uri_1.URI.parse(unitLocation.uri).fsPath;
+                            const unitFilePath = URI.parse(unitLocation.uri).fsPath;
                             unitFileContent = fs.readFileSync(unitFilePath, "utf8");
                             console.log(`[Definition] Read unit file from disk: ${unitFilePath}`);
                         }
@@ -387,7 +352,7 @@ connection.onDefinition((params) => {
     }
     // If not a type or unit-qualified function, check if it's a variable
     console.log(`[Definition] "${fullWord}" is not a user-defined type or unit-qualified function, checking for variable...`);
-    const symbolTable = (0, symbolTable_1.buildSymbolTable)(text);
+    const symbolTable = buildSymbolTable(text);
     // Find the most recent declaration of this variable before or at the cursor position
     const relevantSymbols = symbolTable.symbols
         .filter((s) => s.name === fullWord &&
@@ -600,7 +565,7 @@ function findReferencesInDocument(doc, typeName, excludeDefinition) {
     const lines = text.split(/\r?\n/);
     const uri = doc.uri;
     const references = [];
-    const symbolTable = (0, symbolTable_1.buildSymbolTable)(text);
+    const symbolTable = buildSymbolTable(text);
     // Get the definition location to exclude it if needed
     const definitionLocation = workspaceIndex.getObjectLocation(typeName);
     const definitionUri = definitionLocation?.uri;
@@ -723,14 +688,14 @@ function scanDirectoryForReferences(dir, typeName, excludeDefinition, openDocume
                 // Check if this file is in a model directory
                 const parts = fullPath.split(path.sep);
                 if (parts.includes("model")) {
-                    const uri = vscode_uri_1.URI.file(fullPath).toString();
+                    const uri = URI.file(fullPath).toString();
                     // Skip if already processed as an open document
                     if (openDocumentUris.has(uri)) {
                         continue;
                     }
                     try {
                         const content = fs.readFileSync(fullPath, "utf8");
-                        const doc = vscode_languageserver_textdocument_1.TextDocument.create(uri, "mez", 1, content);
+                        const doc = TextDocument.create(uri, "mez", 1, content);
                         const fileRefs = findReferencesInDocument(doc, typeName, excludeDefinition);
                         references.push(...fileRefs);
                     }
@@ -770,14 +735,14 @@ function scanDirectoryForUnitReferences(dir, unitName, excludeDefinition, openDo
                 // Check if this file is in a service directory
                 const parts = fullPath.split(path.sep);
                 if (parts.includes("services") || parts.includes("utilities") || parts.includes("web-app")) {
-                    const uri = vscode_uri_1.URI.file(fullPath).toString();
+                    const uri = URI.file(fullPath).toString();
                     // Skip if already processed as an open document
                     if (openDocumentUris.has(uri)) {
                         continue;
                     }
                     try {
                         const content = fs.readFileSync(fullPath, "utf8");
-                        const doc = vscode_languageserver_textdocument_1.TextDocument.create(uri, "mez", 1, content);
+                        const doc = TextDocument.create(uri, "mez", 1, content);
                         const fileRefs = findUnitReferencesInDocument(doc, unitName, excludeDefinition);
                         references.push(...fileRefs);
                     }
@@ -788,13 +753,13 @@ function scanDirectoryForUnitReferences(dir, unitName, excludeDefinition, openDo
                 }
                 // Also search in model directories for unit references (units can be referenced from anywhere)
                 else if (parts.includes("model")) {
-                    const uri = vscode_uri_1.URI.file(fullPath).toString();
+                    const uri = URI.file(fullPath).toString();
                     if (openDocumentUris.has(uri)) {
                         continue;
                     }
                     try {
                         const content = fs.readFileSync(fullPath, "utf8");
-                        const doc = vscode_languageserver_textdocument_1.TextDocument.create(uri, "mez", 1, content);
+                        const doc = TextDocument.create(uri, "mez", 1, content);
                         const fileRefs = findUnitReferencesInDocument(doc, unitName, excludeDefinition);
                         references.push(...fileRefs);
                     }
@@ -878,19 +843,19 @@ connection.onReferences((params) => {
     return references;
 });
 connection.languages.semanticTokens.on((params) => {
-    (0, logger_1.logVerbose)(`[SemanticTokens] ===== Request Received =====`);
-    (0, logger_1.logVerbose)(`[SemanticTokens] URI: ${params.textDocument.uri}`);
+    logVerbose(`[SemanticTokens] ===== Request Received =====`);
+    logVerbose(`[SemanticTokens] URI: ${params.textDocument.uri}`);
     const doc = documents.get(params.textDocument.uri);
-    const builder = new node_1.SemanticTokensBuilder();
+    const builder = new SemanticTokensBuilder();
     if (!doc) {
         console.error(`[SemanticTokens] ERROR: Document not found for ${params.textDocument.uri}`);
         return builder.build();
     }
     const text = doc.getText();
     const lines = text.split(/\r?\n/);
-    (0, logger_1.logVerbose)(`[SemanticTokens] Processing document with ${lines.length} lines`);
+    logVerbose(`[SemanticTokens] Processing document with ${lines.length} lines`);
     // Build symbol table to identify local variables and parameters
-    const symbolTable = (0, symbolTable_1.buildSymbolTable)(text);
+    const symbolTable = buildSymbolTable(text);
     // Create a map of variable names to their declaration lines for scoping checks
     const variableDeclarations = new Map();
     symbolTable.symbols.forEach(symbol => {
@@ -900,10 +865,10 @@ connection.languages.semanticTokens.on((params) => {
             variableDeclarations.set(symbol.name, existing);
         }
     });
-    (0, logger_1.logVerbose)(`[SemanticTokens] Found ${variableDeclarations.size} variable/parameter declarations`);
+    logVerbose(`[SemanticTokens] Found ${variableDeclarations.size} variable/parameter declarations`);
     // Log workspace index state
     const debugInfo = workspaceIndex.getDebugInfo();
-    (0, logger_1.logVerbose)(`[SemanticTokens] Workspace index has ${debugInfo.objectCount} types`);
+    logVerbose(`[SemanticTokens] Workspace index has ${debugInfo.objectCount} types`);
     // Keywords that should not be highlighted as types
     const keywords = new Set([
         "unit", "persistent", "object", "enum", "validator",
@@ -952,7 +917,7 @@ connection.languages.semanticTokens.on((params) => {
             const varDeclLines = variableDeclarations.get(identifier);
             if (varDeclLines && varDeclLines.some(declLine => declLine <= lineIndex)) {
                 // This is a local variable or parameter, skip type highlighting
-                (0, logger_1.logVerbose)(`[SemanticTokens] Skipping "${identifier}" at line ${lineIndex + 1} - it's a local variable/parameter`);
+                logVerbose(`[SemanticTokens] Skipping "${identifier}" at line ${lineIndex + 1} - it's a local variable/parameter`);
                 continue;
             }
             // Check if it's a unit first (units can have same names as types, but should be highlighted differently)
@@ -963,12 +928,12 @@ connection.languages.semanticTokens.on((params) => {
                 // Skip semantic tokens for unit references (UnitName:identifier) - let TextMate grammar handle them
                 // TextMate grammar provides entity.name.type scope for unit names in references
                 if (isUnitRef) {
-                    (0, logger_1.logVerbose)(`[SemanticTokens] Skipping unit reference "${identifier}" at line ${lineIndex + 1} - TextMate grammar handles it`);
+                    logVerbose(`[SemanticTokens] Skipping unit reference "${identifier}" at line ${lineIndex + 1} - TextMate grammar handles it`);
                     continue;
                 }
                 // Only highlight standalone unit names (not followed by ':') if they're not also types
                 if (!workspaceIndex.isUserDefinedType(identifier)) {
-                    (0, logger_1.logVerbose)(`[SemanticTokens] ✓ Found standalone unit "${identifier}" at line ${lineIndex + 1}, char ${startChar}`);
+                    logVerbose(`[SemanticTokens] ✓ Found standalone unit "${identifier}" at line ${lineIndex + 1}, char ${startChar}`);
                     // Token type index 3 corresponds to "namespace" in our legend (units are like namespaces/modules)
                     builder.push(lineIndex, startChar, length, 3, 0);
                     continue;
@@ -976,7 +941,7 @@ connection.languages.semanticTokens.on((params) => {
             }
             // Check if it's a user-defined type using workspace index
             if (workspaceIndex.isUserDefinedType(identifier)) {
-                (0, logger_1.logVerbose)(`[SemanticTokens] ✓ Found user-defined type "${identifier}" at line ${lineIndex + 1}, char ${startChar}`);
+                logVerbose(`[SemanticTokens] ✓ Found user-defined type "${identifier}" at line ${lineIndex + 1}, char ${startChar}`);
                 // Token type index 0 corresponds to "type" in our legend
                 builder.push(lineIndex, startChar, length, 0, 0);
             }
@@ -984,7 +949,7 @@ connection.languages.semanticTokens.on((params) => {
     }
     const result = builder.build();
     const tokenCount = result.data.length / 5;
-    (0, logger_1.logVerbose)(`[SemanticTokens] ===== Returning ${tokenCount} tokens =====`);
+    logVerbose(`[SemanticTokens] ===== Returning ${tokenCount} tokens =====`);
     return result;
 });
 // Note: Workspace folder change handler is now registered in onInitialized callback

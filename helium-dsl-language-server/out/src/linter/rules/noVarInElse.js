@@ -1,8 +1,5 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.applyNoVarInElse = applyNoVarInElse;
-const engine_1 = require("../engine");
-function applyNoVarInElse(ctx) {
+import { pushDiagnostic } from "../engine";
+export function applyNoVarInElse(ctx) {
     if (!ctx.rules["no-var-in-else"])
         return;
     const lines = ctx.text.split(/\r?\n/);
@@ -111,7 +108,7 @@ function applyNoVarInElse(ctx) {
                     const isInForLoopInit = forLoopInitRanges.some(range => varStart >= range.start && varEnd <= range.end);
                     if (!isInForLoopInit) {
                         // This variable declaration is not in a for loop initialization, flag it
-                        (0, engine_1.pushDiagnostic)(ctx, "no-var-in-else", idx, varStart, varMatch[0].length, ctx.rules["no-var-in-else"].message);
+                        pushDiagnostic(ctx, "no-var-in-else", idx, varStart, varMatch[0].length, ctx.rules["no-var-in-else"].message);
                     }
                 }
             }

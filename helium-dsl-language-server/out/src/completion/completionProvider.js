@@ -1,10 +1,7 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.provideCompletions = provideCompletions;
-const vscode_languageserver_1 = require("vscode-languageserver");
-const keywordCompletions_1 = require("./keywordCompletions");
-const bifCompletions_1 = require("./bifCompletions");
-const contextCompletions_1 = require("./contextCompletions");
+import { CompletionItemKind, } from "vscode-languageserver";
+import { keywords } from "./keywordCompletions";
+import { loadBifCompletions } from "./bifCompletions";
+import { buildContextCompletions, getObjectProperties } from "./contextCompletions";
 /**
  * Get the type of a variable at a given position
  */
@@ -30,7 +27,7 @@ function getVariableType(variableName, position, symbolTable, doc) {
     }
     return null;
 }
-async function provideCompletions(params, symbolTable, doc, workspaceIndex) {
+export async function provideCompletions(params, symbolTable, doc, workspaceIndex) {
     const items = [];
     const position = params.position;
     // Check if this is a dot-triggered completion
@@ -56,11 +53,11 @@ async function provideCompletions(params, symbolTable, doc, workspaceIndex) {
                     // Check if it's a user-defined type
                     if (workspaceIndex.isUserDefinedType(baseType)) {
                         // Get properties for this type
-                        const properties = (0, contextCompletions_1.getObjectProperties)(baseType, workspaceIndex);
+                        const properties = getObjectProperties(baseType, workspaceIndex);
                         properties.forEach((prop) => {
                             items.push({
                                 label: prop,
-                                kind: vscode_languageserver_1.CompletionItemKind.Property,
+                                kind: CompletionItemKind.Property,
                             });
                         });
                         // Return early with just the properties (don't show keywords/BIFs when dot-triggered)
@@ -72,17 +69,17 @@ async function provideCompletions(params, symbolTable, doc, workspaceIndex) {
     }
     // Default completions (keywords, BIFs, etc.) - only show when not dot-triggered
     if (!isDotTriggered) {
-        keywordCompletions_1.keywords.forEach((kw) => items.push({ label: kw, kind: vscode_languageserver_1.CompletionItemKind.Keyword }));
-        const bifs = await (0, bifCompletions_1.loadBifCompletions)();
+        keywords.forEach((kw) => items.push({ label: kw, kind: CompletionItemKind.Keyword }));
+        const bifs = await loadBifCompletions();
         bifs.forEach((b) => items.push({
             label: b.label,
-            kind: vscode_languageserver_1.CompletionItemKind.Function,
+            kind: CompletionItemKind.Function,
             detail: b.detail,
         }));
-        const contextItems = (0, contextCompletions_1.buildContextCompletions)(symbolTable);
+        const contextItems = buildContextCompletions(symbolTable);
         items.push(...contextItems.map((c) => ({
             label: c.label,
-            kind: vscode_languageserver_1.CompletionItemKind.Variable,
+            kind: CompletionItemKind.Variable,
         })));
     }
     return items;

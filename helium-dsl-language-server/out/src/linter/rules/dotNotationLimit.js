@@ -1,8 +1,5 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.applyDotNotationLimit = applyDotNotationLimit;
-const engine_1 = require("../engine");
-function applyDotNotationLimit(ctx) {
+import { pushDiagnostic } from "../engine";
+export function applyDotNotationLimit(ctx) {
     if (!ctx.rules["dot-notation-limit"])
         return;
     const lines = ctx.text.split(/\r?\n/);
@@ -27,7 +24,7 @@ function applyDotNotationLimit(ctx) {
             const dotNotationMatch = match[0].match(/\b[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*){2,}/);
             if (dotNotationMatch) {
                 const col = (match.index ?? 0) + match[0].indexOf(dotNotationMatch[0]);
-                (0, engine_1.pushDiagnostic)(ctx, "dot-notation-limit", idx, col, dotNotationMatch[0].length, ctx.rules["dot-notation-limit"].message);
+                pushDiagnostic(ctx, "dot-notation-limit", idx, col, dotNotationMatch[0].length, ctx.rules["dot-notation-limit"].message);
             }
         }
     });

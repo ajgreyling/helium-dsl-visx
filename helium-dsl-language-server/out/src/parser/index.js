@@ -1,42 +1,13 @@
-"use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.parseText = parseText;
-const antlr4ts_1 = require("antlr4ts");
-const path = __importStar(require("path"));
-const fs = __importStar(require("fs"));
+import { ANTLRInputStream, CommonTokenStream } from "antlr4ts";
+import * as path from "path";
+import * as fs from "fs";
+import { createRequire } from "module";
+import { fileURLToPath } from "url";
+// Create require function for dynamic module loading in ES modules
+const require = createRequire(import.meta.url);
+// Get __dirname equivalent for ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 function loadGenerated(name) {
     const currentDir = __dirname;
     // Try bundled path first (when packaged in extension)
@@ -220,7 +191,7 @@ class CollectingErrorListener {
         }
     }
 }
-function parseText(text) {
+export function parseText(text) {
     const MezDSLLexer = loadGenerated("MezDSLLexer");
     const MezDSLParser = loadGenerated("MezDSLParser");
     if (!MezDSLLexer || !MezDSLParser) {
@@ -238,9 +209,9 @@ function parseText(text) {
             ],
         };
     }
-    const input = new antlr4ts_1.ANTLRInputStream(text);
+    const input = new ANTLRInputStream(text);
     const lexer = new MezDSLLexer(input);
-    const tokens = new antlr4ts_1.CommonTokenStream(lexer);
+    const tokens = new CommonTokenStream(lexer);
     const parser = new MezDSLParser(tokens);
     const listener = new CollectingErrorListener(text);
     lexer.removeErrorListeners();

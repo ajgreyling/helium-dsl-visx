@@ -2,9 +2,15 @@ import { ANTLRInputStream, CommonTokenStream } from "antlr4ts";
 import { Diagnostic } from "vscode-languageserver";
 import * as path from "path";
 import * as fs from "fs";
+import { createRequire } from "module";
+import { fileURLToPath } from "url";
 
-// Declare __dirname for TypeScript (available at runtime in CommonJS)
-declare const __dirname: string;
+// Create require function for dynamic module loading in ES modules
+const require = createRequire(import.meta.url);
+
+// Get __dirname equivalent for ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 function loadGenerated(name: string): any | undefined {
   const currentDir = __dirname;

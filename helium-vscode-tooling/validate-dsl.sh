@@ -477,15 +477,13 @@ echo ""
 echo -e "${BLUE}=== Step 13: Run Validation Tests ===${NC}"
 STEP13_START=$(date +%s)
 cd "$SCRIPT_DIR/../helium-dsl-language-server"
-# Explicitly configure ts-node to use CommonJS to avoid module type warning
-# Export the environment variable first, then use stdbuf if available
-export TS_NODE_COMPILER_OPTIONS='{"module":"commonjs"}'
 # Use --exit flag to force mocha to exit after tests complete (prevents hanging on active timers)
 # Use stdbuf to disable output buffering if available (not available on macOS by default)
+# Use ts-node/esm loader for ES module support via NODE_OPTIONS
 if command -v stdbuf >/dev/null 2>&1; then
-    stdbuf -oL -eL npx mocha --exit -r ts-node/register tests/**/*.test.ts generated/tests/**/*.test.ts
+    stdbuf -oL -eL NODE_OPTIONS='--loader ts-node/esm' npx mocha --exit tests/**/*.test.ts generated/tests/**/*.test.ts
 else
-    npx mocha --exit -r ts-node/register tests/**/*.test.ts generated/tests/**/*.test.ts
+    NODE_OPTIONS='--loader ts-node/esm' npx mocha --exit tests/**/*.test.ts generated/tests/**/*.test.ts
 fi
 MOCHA_EXIT_CODE=$?
 STEP13_END=$(date +%s)

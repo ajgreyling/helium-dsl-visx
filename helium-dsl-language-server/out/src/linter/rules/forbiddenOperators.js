@@ -1,8 +1,5 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.applyForbiddenOperators = applyForbiddenOperators;
-const engine_1 = require("../engine");
-function applyForbiddenOperators(ctx) {
+import { pushDiagnostic } from "../engine";
+export function applyForbiddenOperators(ctx) {
     if (!ctx.rules["forbidden-operators"])
         return;
     const lines = ctx.text.split(/\r?\n/);
@@ -123,7 +120,7 @@ function applyForbiddenOperators(ctx) {
                 continue;
             }
             // This is a boolean variable without explicit comparison
-            (0, engine_1.pushDiagnostic)(ctx, "forbidden-operators", idx, ifMatch.index, ifMatch[0].length, "Boolean variables in if conditions must use explicit comparison. Use '== true' or '== false'.");
+            pushDiagnostic(ctx, "forbidden-operators", idx, ifMatch.index, ifMatch[0].length, "Boolean variables in if conditions must use explicit comparison. Use '== true' or '== false'.");
             // Prevent infinite loop on zero-length matches
             if (ifMatch[0].length === 0) {
                 ifBooleanPattern.lastIndex++;
@@ -162,7 +159,7 @@ function applyForbiddenOperators(ctx) {
                 if (checkString && inStringLiteral(match.index)) {
                     continue;
                 }
-                (0, engine_1.pushDiagnostic)(ctx, "forbidden-operators", idx, match.index, match[0].length, msg);
+                pushDiagnostic(ctx, "forbidden-operators", idx, match.index, match[0].length, msg);
                 // Prevent infinite loop on zero-length matches
                 if (match[0].length === 0) {
                     regex.lastIndex++;

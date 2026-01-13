@@ -1,20 +1,18 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.loadBifCompletions = loadBifCompletions;
-const node_path_1 = __importDefault(require("node:path"));
-const fs_extra_1 = __importDefault(require("fs-extra"));
-const root = node_path_1.default.resolve(__dirname, "..", "..");
+import path from "node:path";
+import fs from "fs-extra";
+import { fileURLToPath } from "url";
+// Get __dirname equivalent for ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const root = path.resolve(__dirname, "..", "..");
 function getBifPath() {
     // Try bundled path first (when packaged in extension)
-    const bundledPath = node_path_1.default.join(root, "..", "generated", "bifs", "bif-metadata.json");
+    const bundledPath = path.join(root, "..", "generated", "bifs", "bif-metadata.json");
     // Fallback to development path
-    const devPath = node_path_1.default.join(root, "..", "..", "generated", "bifs", "bif-metadata.json");
+    const devPath = path.join(root, "..", "..", "generated", "bifs", "bif-metadata.json");
     // Check which exists synchronously (for path resolution)
     try {
-        if (fs_extra_1.default.existsSync(bundledPath)) {
+        if (fs.existsSync(bundledPath)) {
             return bundledPath;
         }
     }
@@ -23,11 +21,11 @@ function getBifPath() {
     }
     return devPath;
 }
-async function loadBifCompletions() {
+export async function loadBifCompletions() {
     const bifPath = getBifPath();
-    if (!(await fs_extra_1.default.pathExists(bifPath)))
+    if (!(await fs.pathExists(bifPath)))
         return [];
-    const data = await fs_extra_1.default.readJson(bifPath);
+    const data = await fs.readJson(bifPath);
     const namespaces = data.namespaces || {};
     const completions = [];
     Object.entries(namespaces).forEach(([ns, entries]) => {

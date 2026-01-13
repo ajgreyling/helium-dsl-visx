@@ -1,8 +1,5 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.buildSymbolTable = buildSymbolTable;
 // Lightweight heuristic-based symbol extraction until full AST integration.
-function buildSymbolTable(text) {
+export function buildSymbolTable(text) {
     const symbols = [];
     const lines = text.split(/\r?\n/);
     lines.forEach((line, idx) => {

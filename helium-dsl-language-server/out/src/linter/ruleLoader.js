@@ -1,20 +1,18 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.loadRules = loadRules;
-const node_path_1 = __importDefault(require("node:path"));
-const fs_extra_1 = __importDefault(require("fs-extra"));
-const root = node_path_1.default.resolve(__dirname, "..", "..");
+import path from "node:path";
+import fs from "fs-extra";
+import { fileURLToPath } from "url";
+// Get __dirname equivalent for ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const root = path.resolve(__dirname, "..", "..");
 function getRulesPath() {
     // Try bundled path first (when packaged in extension)
-    const bundledPath = node_path_1.default.join(root, "..", "generated", "rules", "dsl-rules.json");
+    const bundledPath = path.join(root, "..", "generated", "rules", "dsl-rules.json");
     // Fallback to development path
-    const devPath = node_path_1.default.join(root, "..", "..", "generated", "rules", "dsl-rules.json");
+    const devPath = path.join(root, "..", "..", "generated", "rules", "dsl-rules.json");
     // Check which exists synchronously (for path resolution)
     try {
-        if (fs_extra_1.default.existsSync(bundledPath)) {
+        if (fs.existsSync(bundledPath)) {
             return bundledPath;
         }
     }
@@ -23,12 +21,12 @@ function getRulesPath() {
     }
     return devPath;
 }
-async function loadRules() {
+export async function loadRules() {
     const rulesPath = getRulesPath();
-    if (!(await fs_extra_1.default.pathExists(rulesPath))) {
+    if (!(await fs.pathExists(rulesPath))) {
         return defaultRules();
     }
-    const data = await fs_extra_1.default.readJson(rulesPath);
+    const data = await fs.readJson(rulesPath);
     const rules = data.rules || {};
     return Object.keys(rules).length ? rules : defaultRules();
 }
