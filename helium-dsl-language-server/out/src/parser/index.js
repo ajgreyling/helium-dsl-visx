@@ -1,24 +1,93 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.parseText = parseText;
 const antlr4ts_1 = require("antlr4ts");
+const path = __importStar(require("path"));
+const fs = __importStar(require("fs"));
 function loadGenerated(name) {
+    const currentDir = __dirname;
     // Try bundled path first (when packaged in extension)
-    try {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const mod = require(`../../generated/parser/generated/grammar/${name}`);
-        if (mod) {
-            return mod[name] || mod;
-        }
-    }
-    catch (e) {
-        // Fallback to development path
+    const bundledPath = path.resolve(currentDir, "../../generated/parser/generated/grammar", name);
+    if (fs.existsSync(bundledPath + ".ts") || fs.existsSync(bundledPath + ".js")) {
         try {
             // eslint-disable-next-line @typescript-eslint/no-var-requires
-            const mod = require(`../../../generated/parser/generated/grammar/${name}`);
+            const mod = require(path.resolve(currentDir, "../../generated/parser/generated/grammar", name));
+            if (mod) {
+                return mod[name] || mod;
+            }
+        }
+        catch (e) {
+            // Continue to next path
+        }
+    }
+    // Fallback to development path
+    const devPath = path.resolve(currentDir, "../../../generated/parser/generated/grammar", name);
+    if (fs.existsSync(devPath + ".ts") || fs.existsSync(devPath + ".js")) {
+        try {
+            // eslint-disable-next-line @typescript-eslint/no-var-requires
+            const mod = require(path.resolve(currentDir, "../../../generated/parser/generated/grammar", name));
             return mod[name] || mod;
         }
         catch (e2) {
+            // Continue to next path
+        }
+    }
+    // Fallback to sibling directory path (helium-vscode-tooling)
+    // From src/parser: ../../../helium-vscode-tooling/...
+    // From out/src/parser: ../../../../helium-vscode-tooling/...
+    // Try both paths to handle both ts-node (source) and compiled (out) contexts
+    const siblingPath1 = path.resolve(currentDir, "../../../helium-vscode-tooling/generated/parser/generated/grammar", name);
+    const siblingPath2 = path.resolve(currentDir, "../../../../helium-vscode-tooling/generated/parser/generated/grammar", name);
+    if (fs.existsSync(siblingPath1 + ".ts") || fs.existsSync(siblingPath1 + ".js")) {
+        try {
+            // eslint-disable-next-line @typescript-eslint/no-var-requires
+            const mod = require(siblingPath1);
+            return mod[name] || mod;
+        }
+        catch (e3) {
+            // Continue to next path
+        }
+    }
+    if (fs.existsSync(siblingPath2 + ".ts") || fs.existsSync(siblingPath2 + ".js")) {
+        try {
+            // eslint-disable-next-line @typescript-eslint/no-var-requires
+            const mod = require(siblingPath2);
+            return mod[name] || mod;
+        }
+        catch (e4) {
             return undefined;
         }
     }

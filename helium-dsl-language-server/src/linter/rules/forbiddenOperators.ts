@@ -3,7 +3,7 @@ import { pushDiagnostic, LintContext } from "../engine";
 export function applyForbiddenOperators(ctx: LintContext) {
   if (!ctx.rules["forbidden-operators"]) return;
   const lines = ctx.text.split(/\r?\n/);
-  console.warn(`[ForbiddenOperators] Processing ${lines.length} lines...`);
+  // console.warn(`[ForbiddenOperators] Processing ${lines.length} lines...`);
   
   // Pre-compute string literal positions for each line to avoid repeated scans
   const stringLiteralCache = new Map<number, Set<number>>();
@@ -13,16 +13,16 @@ export function applyForbiddenOperators(ctx: LintContext) {
   
   lines.forEach((line, idx) => {
     // Log progress every 100 lines
-    if (idx > 0 && idx % 100 === 0) {
-      console.warn(`[ForbiddenOperators] Processed ${idx}/${lines.length} lines...`);
-    }
+    // if (idx > 0 && idx % 100 === 0) {
+    //   console.warn(`[ForbiddenOperators] Processed ${idx}/${lines.length} lines...`);
+    // }
     
     // Skip very long lines to prevent regex catastrophic backtracking
     // Lines over 10KB are likely data/strings, not code patterns
     if (line.length > 10000) {
-      if (idx % 100 === 0) {
-        console.warn(`[ForbiddenOperators] Skipping very long line ${idx + 1} (${line.length} chars)`);
-      }
+      // if (idx % 100 === 0) {
+      //   console.warn(`[ForbiddenOperators] Skipping very long line ${idx + 1} (${line.length} chars)`);
+      // }
       return;
     }
     
@@ -116,7 +116,7 @@ export function applyForbiddenOperators(ctx: LintContext) {
       ifMatchCount++;
       // Safety: prevent infinite loops
       if (ifMatchCount > 100) {
-        console.warn(`[ForbiddenOperators] Breaking if-pattern loop on line ${idx + 1} after ${ifMatchCount} matches`);
+        // console.warn(`[ForbiddenOperators] Breaking if-pattern loop on line ${idx + 1} after ${ifMatchCount} matches`);
         break;
       }
       if (inStringLiteral(ifMatch.index!)) {
@@ -176,7 +176,7 @@ export function applyForbiddenOperators(ctx: LintContext) {
         matchCount++;
         // Safety: prevent infinite loops
         if (matchCount > 100) {
-          console.warn(`[ForbiddenOperators] Breaking regex loop on line ${idx + 1}, op ${opIdx} after ${matchCount} matches`);
+          // console.warn(`[ForbiddenOperators] Breaking regex loop on line ${idx + 1}, op ${opIdx} after ${matchCount} matches`);
           break;
         }
         if (checkString && inStringLiteral(match.index!)) {
@@ -188,7 +188,7 @@ export function applyForbiddenOperators(ctx: LintContext) {
           regex.lastIndex++;
           // Additional safety: if still zero length after increment, break
           if (regex.lastIndex === match.index) {
-            console.warn(`[ForbiddenOperators] Breaking zero-length match loop on line ${idx + 1}`);
+            // console.warn(`[ForbiddenOperators] Breaking zero-length match loop on line ${idx + 1}`);
             break;
           }
         }

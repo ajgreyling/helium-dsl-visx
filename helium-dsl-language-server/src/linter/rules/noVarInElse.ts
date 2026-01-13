@@ -68,17 +68,68 @@ export function applyNoVarInElse(ctx: LintContext) {
       // Pattern: type identifier = or type identifier;
       // Must not be preceded by "return" keyword
       if (!/\breturn\b/.test(trimmed)) {
-        const varDecl = line.match(/\b(?:int|bool|string|decimal|uuid|json|jsonarray|date|datetime|bigint|blob|[A-Z][A-Za-z0-9_]*)\s+[a-z_][A-Za-z0-9_]*\s*(=|;)/);
-        if (varDecl) {
-          const col = varDecl.index ?? 0;
-          pushDiagnostic(
-            ctx,
-            "no-var-in-else",
-            idx,
-            col,
-            varDecl[0].length,
-            ctx.rules["no-var-in-else"].message
+        // Check if line contains for loops and identify their initialization sections
+        // For loop format: for (int i = 0; i < length; i = i + 1)
+        // Initialization section is from "for (" to the first ";"
+        const forLoopInitRanges: Array<{ start: number; end: number }> = [];
+        const forPattern = /\bfor\s*\(/g;
+        let forMatch: RegExpExecArray | null;
+        
+        // Find all for loops on this line
+        while ((forMatch = forPattern.exec(line)) !== null) {
+          const forStart = forMatch.index;
+          let parenDepth = 1; // We're inside the opening paren of "for ("
+          let pos = forMatch.index + forMatch[0].length;
+          let initEnd = -1;
+          
+          // Find the first semicolon that's at the same paren depth (end of initialization)
+          while (pos < line.length) {
+            const char = line[pos];
+            if (char === '(') {
+              parenDepth++;
+            } else if (char === ')') {
+              parenDepth--;
+              if (parenDepth === 0) {
+                // Reached end of for loop without finding semicolon (unusual but possible)
+                break;
+              }
+            } else if (char === ';' && parenDepth === 1) {
+              // Found the first semicolon at the same depth as "for ("
+              initEnd = pos + 1; // Include the semicolon
+              break;
+            }
+            pos++;
+          }
+          
+          if (initEnd > 0) {
+            forLoopInitRanges.push({ start: forStart, end: initEnd });
+          }
+        }
+        
+        // Now check for variable declarations, excluding those in for loop initialization
+        const varDeclPattern = /\b(?:int|bool|string|decimal|uuid|json|jsonarray|date|datetime|bigint|blob|[A-Z][A-Za-z0-9_]*)\s+[a-z_][A-Za-z0-9_]*\s*(=|;)/g;
+        let varMatch: RegExpExecArray | null;
+        
+        while ((varMatch = varDeclPattern.exec(line)) !== null) {
+          const varStart = varMatch.index ?? 0;
+          const varEnd = varStart + varMatch[0].length;
+          
+          // Check if this variable declaration is within any for loop initialization section
+          const isInForLoopInit = forLoopInitRanges.some(
+            range => varStart >= range.start && varEnd <= range.end
           );
+          
+          if (!isInForLoopInit) {
+            // This variable declaration is not in a for loop initialization, flag it
+            pushDiagnostic(
+              ctx,
+              "no-var-in-else",
+              idx,
+              varStart,
+              varMatch[0].length,
+              ctx.rules["no-var-in-else"].message
+            );
+          }
         }
       }
       if (braceDepth <= 0) inElse = false;

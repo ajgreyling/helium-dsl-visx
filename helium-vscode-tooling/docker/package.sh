@@ -46,7 +46,7 @@ fi
 cd $WORK_DIR
 
 echo "Installing production dependencies..."
-npm install --production --no-audit --no-fund
+npm install --omit=dev --no-audit --no-fund
 
 # Move nested dependencies to root node_modules (vsce doesn't follow nested node_modules)
 echo "Moving nested dependencies to root node_modules..."
@@ -79,7 +79,7 @@ else
 fi
 
 echo "Validating dependency tree..."
-npm list --production
+npm list --omit=dev
 
 # Final verification before packaging
 echo "Verifying server dependencies before packaging..."

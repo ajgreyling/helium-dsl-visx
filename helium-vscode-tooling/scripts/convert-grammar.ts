@@ -17,8 +17,16 @@ async function convert() {
   converted = converted.replace(/superClass\s*=\s*MezBasicParser;?/g, "");
 
   // Fix tokens {} syntax: ANTLR3 uses semicolons, ANTLR4 uses commas
+  // Also remove SQL_EXECUTE and SQL_QUERY since they're defined as lexer rules
   converted = converted.replace(/tokens\s*\{([^}]*)\}/g, (match, content) => {
-    const tokens = content.replace(/;/g, ",");
+    let tokens = content.replace(/;/g, ",");
+    // Remove SQL_EXECUTE and SQL_QUERY from tokens block (they're lexer rules, not virtual tokens)
+    tokens = tokens.replace(/\s*SQL_EXECUTE\s*,?\s*/g, "");
+    tokens = tokens.replace(/\s*SQL_QUERY\s*,?\s*/g, "");
+    // Clean up any double commas or leading/trailing commas
+    tokens = tokens.replace(/,\s*,/g, ","); // Remove double commas
+    tokens = tokens.replace(/^\s*,\s*/, ""); // Remove leading comma
+    tokens = tokens.replace(/,\s*$/, ""); // Remove trailing comma
     return `tokens {${tokens}}`;
   });
 

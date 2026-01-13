@@ -1,24 +1,67 @@
 import { ANTLRInputStream, CommonTokenStream } from "antlr4ts";
 import { Diagnostic } from "vscode-languageserver";
+import * as path from "path";
+import * as fs from "fs";
+
+// Declare __dirname for TypeScript (available at runtime in CommonJS)
+declare const __dirname: string;
 
 function loadGenerated(name: string): any | undefined {
+  const currentDir = __dirname;
+  
   // Try bundled path first (when packaged in extension)
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const mod = require(`../../generated/parser/generated/grammar/${name}`);
-    if (mod) {
-      return mod[name] || mod;
-    }
-  } catch (e) {
-    // Fallback to development path
+  const bundledPath = path.resolve(currentDir, "../../generated/parser/generated/grammar", name);
+  if (fs.existsSync(bundledPath + ".ts") || fs.existsSync(bundledPath + ".js")) {
     try {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const mod = require(`../../../generated/parser/generated/grammar/${name}`);
+      const mod = require(path.resolve(currentDir, "../../generated/parser/generated/grammar", name));
+      if (mod) {
+        return mod[name] || mod;
+      }
+    } catch (e) {
+      // Continue to next path
+    }
+  }
+  
+  // Fallback to development path
+  const devPath = path.resolve(currentDir, "../../../generated/parser/generated/grammar", name);
+  if (fs.existsSync(devPath + ".ts") || fs.existsSync(devPath + ".js")) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const mod = require(path.resolve(currentDir, "../../../generated/parser/generated/grammar", name));
       return mod[name] || mod;
     } catch (e2) {
+      // Continue to next path
+    }
+  }
+  
+  // Fallback to sibling directory path (helium-vscode-tooling)
+  // From src/parser: ../../../helium-vscode-tooling/...
+  // From out/src/parser: ../../../../helium-vscode-tooling/...
+  // Try both paths to handle both ts-node (source) and compiled (out) contexts
+  const siblingPath1 = path.resolve(currentDir, "../../../helium-vscode-tooling/generated/parser/generated/grammar", name);
+  const siblingPath2 = path.resolve(currentDir, "../../../../helium-vscode-tooling/generated/parser/generated/grammar", name);
+  
+  if (fs.existsSync(siblingPath1 + ".ts") || fs.existsSync(siblingPath1 + ".js")) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const mod = require(siblingPath1);
+      return mod[name] || mod;
+    } catch (e3) {
+      // Continue to next path
+    }
+  }
+  
+  if (fs.existsSync(siblingPath2 + ".ts") || fs.existsSync(siblingPath2 + ".js")) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const mod = require(siblingPath2);
+      return mod[name] || mod;
+    } catch (e4) {
       return undefined;
     }
   }
+  
   return undefined;
 }
 
