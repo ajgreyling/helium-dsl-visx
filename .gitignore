@@ -2,5 +2,8 @@ run.log
 helium-dsl-vscode/node_modules/**
 helium-dsl-vscode/generated/**
 helium-dsl-language-server/out/**
-helium-dsl-language-server/lib/
-helium-dsl-language-server/generated/
+helium-dsl-language-server/lib/**
+helium-dsl-language-server/generated/**
+helium-dsl-vscode/server/out/** 
+helium-dsl-language-server/out/**
+
