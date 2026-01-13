@@ -85,7 +85,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
       textDocumentSync: TextDocumentSyncKind.Incremental,
       completionProvider: { 
         resolveProvider: false,
-        triggerCharacters: ['.']
+        triggerCharacters: ['.', ':']
       },
       hoverProvider: true,
       semanticTokensProvider: {
