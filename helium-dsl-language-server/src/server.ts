@@ -256,6 +256,110 @@ function findFunctionDefinitionInFile(
   return null;
 }
 
+/**
+ * Check if a method name is a Built-In Function (BIF) that operates on model types
+ * BIFs like :all(), :read(), :delete(), :new(), :equals() operate on persistent objects (models), not units
+ */
+function isModelBif(methodName: string): boolean {
+  const modelBifs = new Set([
+    // Basic CRUD operations
+    "all",
+    "new",
+    "read",
+    "delete",
+    // Query operations
+    "equals",
+    "empty",
+    "between",
+    "lessThanOrEqual",
+    "lessThan",
+    "greaterThan",
+    "attributeIn",
+    "relationshipIn",
+    "contains",
+    "beginsWith",
+    "endsWith",
+    // Negated queries
+    "notEquals",
+    "notEmpty",
+    "notBetween",
+    "notContains",
+    "notBeginWith",
+    "notEndsWith",
+    "notAttributeIn",
+    "notRelationshipIn",
+    // Set operations
+    "union",
+    "diff",
+    "intersect",
+    "and",
+  ]);
+  
+  return modelBifs.has(methodName);
+}
+
+/**
+ * Check if an identifier is in a type position (as opposed to a unit reference)
+ * Returns true if the identifier appears to be used as a type (e.g., TypeName[], TypeName variableName, TypeName functionName())
+ */
+function isTypePosition(
+  line: string,
+  wordStart: number,
+  wordEnd: number,
+  fullWord: string
+): boolean {
+  const charAfter = wordEnd < line.length ? line[wordEnd] : ' ';
+  const beforeWord = line.substring(0, wordStart).trimEnd();
+  
+  // Pattern 1: TypeName[] - array type declaration
+  if (charAfter === '[') {
+    // Check if followed by ']' (array type)
+    const afterBracket = wordEnd + 1 < line.length ? line.substring(wordEnd + 1) : '';
+    if (afterBracket.startsWith(']')) {
+      console.log(`[Definition] Detected array type pattern: "${fullWord}[]"`);
+      return true;
+    }
+  }
+  
+  // Pattern 2: TypeName variableName - variable declaration (variable names start with lowercase)
+  // Pattern 3: TypeName functionName() - function return type (function names start with lowercase)
+  // Check if followed by whitespace and then a lowercase identifier
+  const afterWord = line.substring(wordEnd).trimStart();
+  if (afterWord.length > 0 && /^[a-z][A-Za-z0-9_]*/.test(afterWord)) {
+    // Extract the next identifier
+    const nextIdentifierMatch = afterWord.match(/^([a-z][A-Za-z0-9_]*)/);
+    if (nextIdentifierMatch) {
+      const nextIdentifier = nextIdentifierMatch[1];
+      // Check if it's followed by '(', '=', ';', ',', or ')' (indicating variable/function declaration)
+      const afterNextId = afterWord.substring(nextIdentifier.length).trimStart();
+      if (/^[\(=;,)]/.test(afterNextId) || afterNextId.length === 0) {
+        console.log(`[Definition] Detected type position pattern: "${fullWord} ${nextIdentifier}"`);
+        return true;
+      }
+    }
+  }
+  
+  // Pattern 4: Check if it's in a function parameter list
+  // Look backwards for opening parenthesis, then check if there's a type-like pattern before
+  const beforeMatch = beforeWord;
+  const parenMatch = beforeMatch.match(/\(([^)]*)$/);
+  if (parenMatch) {
+    // We're inside a parameter list, check if this looks like a type
+    const paramPart = parenMatch[1].trim();
+    // If the parameter part ends with a type-like pattern (ends with our word), it's likely a type
+    if (paramPart.endsWith(fullWord) || paramPart === '') {
+      console.log(`[Definition] Detected type position in parameter list`);
+      return true;
+    }
+  }
+  
+  // Pattern 5: Check if it's a return type (before function name)
+  // Pattern: TypeName functionName() - function names start with lowercase
+  // This is similar to Pattern 2/3 but we already checked that above
+  
+  return false;
+}
+
 connection.onDefinition((params: DefinitionParams): Location | Location[] | null => {
   console.log(`[Definition] onDefinition called for ${params.textDocument.uri} at line ${params.position.line}, char ${params.position.character}`);
   const doc = documents.get(params.textDocument.uri);
@@ -323,24 +427,78 @@ connection.onDefinition((params: DefinitionParams): Location | Location[] | null
   
   console.log(`[Definition] Valid identifier word extracted: "${fullWord}"`);
 
-  // First check if it's a unit (check before types since units can have same names as types)
-  console.log(`[Definition] Checking if "${fullWord}" is a unit...`);
-  const isUnit = workspaceIndex.isUnit(fullWord);
-  console.log(`[Definition] isUnit("${fullWord}") = ${isUnit}`);
-  
-  if (isUnit) {
-    const location = workspaceIndex.getUnitLocation(fullWord);
-    console.log(`[Definition] SUCCESS: Found unit definition for "${fullWord}"`);
-    console.log(`[Definition] Location:`, JSON.stringify(location, null, 2));
-    if (location) {
-      console.log(`[Definition] Returning location: ${location.uri} at line ${location.range.start.line + 1}`);
-      return [location];
+  // Determine context: unit reference (followed by ':') vs type reference
+  const inTypePosition = isTypePosition(line, wordStart, wordEnd, fullWord);
+  console.log(`[Definition] Context analysis: looksLikeUnitRef=${looksLikeUnitRef}, inTypePosition=${inTypePosition}`);
+
+  // If explicitly a unit reference (followed by ':'), check if it's a BIF or unit method
+  if (looksLikeUnitRef) {
+    console.log(`[Definition] Detected unit reference pattern (followed by ':'), extracting method name...`);
+    
+    // Extract the method name after ':'
+    const afterColon = line.substring(wordEnd + 1).trimStart();
+    const methodMatch = afterColon.match(/^([a-z][A-Za-z0-9_]*)\s*\(/);
+    
+    if (methodMatch) {
+      const methodName = methodMatch[1];
+      console.log(`[Definition] Extracted method name: "${methodName}"`);
+      
+      // Check if it's a BIF (Built-In Function that operates on models)
+      if (isModelBif(methodName)) {
+        console.log(`[Definition] Method "${methodName}" is a BIF, resolving to model (type definition)...`);
+        // BIFs operate on model types, so resolve to type definition
+        const isUserDefined = workspaceIndex.isUserDefinedType(fullWord);
+        if (isUserDefined) {
+          const location = workspaceIndex.getObjectLocation(fullWord);
+          console.log(`[Definition] SUCCESS: Found type definition for "${fullWord}" (BIF target)`);
+          console.log(`[Definition] Location:`, JSON.stringify(location, null, 2));
+          if (location) {
+            console.log(`[Definition] Returning location: ${location.uri} at line ${location.range.start.line + 1}`);
+            return [location];
+          }
+        }
+        console.log(`[Definition] BIF target "${fullWord}" not found as user-defined type`);
+        return null;
+      } else {
+        console.log(`[Definition] Method "${methodName}" is NOT a BIF, resolving to unit definition...`);
+        // Not a BIF, so it's a unit method - resolve to unit
+        const isUnit = workspaceIndex.isUnit(fullWord);
+        if (isUnit) {
+          const location = workspaceIndex.getUnitLocation(fullWord);
+          console.log(`[Definition] SUCCESS: Found unit definition for "${fullWord}"`);
+          console.log(`[Definition] Location:`, JSON.stringify(location, null, 2));
+          if (location) {
+            console.log(`[Definition] Returning location: ${location.uri} at line ${location.range.start.line + 1}`);
+            return [location];
+          } else {
+            console.log(`[Definition] WARNING: isUnit returned true but getUnitLocation returned null`);
+          }
+        }
+        console.log(`[Definition] Unit reference "${fullWord}" not found in workspace index`);
+        return null;
+      }
     } else {
-      console.log(`[Definition] WARNING: isUnit returned true but getUnitLocation returned null`);
+      // Couldn't extract method name, fall back to unit resolution
+      console.log(`[Definition] Could not extract method name after ':', falling back to unit resolution...`);
+      const isUnit = workspaceIndex.isUnit(fullWord);
+      if (isUnit) {
+        const location = workspaceIndex.getUnitLocation(fullWord);
+        if (location) {
+          return [location];
+        }
+      }
+      return null;
     }
   }
 
-  // Then check if it's a user-defined type (preserve existing behavior)
+  // If in type position or ambiguous context, check type first, then unit as fallback
+  if (inTypePosition) {
+    console.log(`[Definition] Detected type position, checking for type definition first...`);
+  } else {
+    console.log(`[Definition] Ambiguous context, checking for type definition first...`);
+  }
+
+  // Check if it's a user-defined type
   console.log(`[Definition] Checking if "${fullWord}" is a user-defined type...`);
   const isUserDefined = workspaceIndex.isUserDefinedType(fullWord);
   console.log(`[Definition] isUserDefinedType("${fullWord}") = ${isUserDefined}`);
@@ -354,6 +512,23 @@ connection.onDefinition((params: DefinitionParams): Location | Location[] | null
       return [location];
     } else {
       console.log(`[Definition] WARNING: isUserDefinedType returned true but getObjectLocation returned null`);
+    }
+  }
+
+  // If type not found, check for unit as fallback (only if not explicitly a unit reference)
+  console.log(`[Definition] Type not found, checking for unit as fallback...`);
+  const isUnit = workspaceIndex.isUnit(fullWord);
+  console.log(`[Definition] isUnit("${fullWord}") = ${isUnit}`);
+  
+  if (isUnit) {
+    const location = workspaceIndex.getUnitLocation(fullWord);
+    console.log(`[Definition] SUCCESS: Found unit definition for "${fullWord}" (fallback)`);
+    console.log(`[Definition] Location:`, JSON.stringify(location, null, 2));
+    if (location) {
+      console.log(`[Definition] Returning location: ${location.uri} at line ${location.range.start.line + 1}`);
+      return [location];
+    } else {
+      console.log(`[Definition] WARNING: isUnit returned true but getUnitLocation returned null`);
     }
   }
 
@@ -1151,11 +1326,21 @@ connection.languages.semanticTokens.on((params: SemanticTokensParams) => {
       const charAfter = startChar + length < line.length ? line[startChar + length] : ' ';
       const isUnitRef = charAfter === ':';
       
+      // Check if identifier is in a type position (e.g., TypeName[], TypeName variableName)
+      const inTypePos = isTypePosition(line, startChar, startChar + length, identifier);
+      
       if (workspaceIndex.isUnit(identifier)) {
         // Skip semantic tokens for unit references (UnitName:identifier) - let TextMate grammar handle them
         // TextMate grammar provides entity.name.type scope for unit names in references
         if (isUnitRef) {
           logVerbose(`[SemanticTokens] Skipping unit reference "${identifier}" at line ${lineIndex + 1} - TextMate grammar handles it`);
+          continue;
+        }
+        // If it's in a type position, prioritize type highlighting over unit highlighting
+        if (inTypePos && workspaceIndex.isUserDefinedType(identifier)) {
+          logVerbose(`[SemanticTokens] ✓ Found type "${identifier}" in type position at line ${lineIndex + 1}, char ${startChar}`);
+          // Token type index 0 corresponds to "type" in our legend
+          builder.push(lineIndex, startChar, length, 0, 0);
           continue;
         }
         // Only highlight standalone unit names (not followed by ':') if they're not also types
