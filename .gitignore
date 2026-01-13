@@ -7,3 +7,5 @@ helium-dsl-language-server/generated/**
 helium-dsl-vscode/server/out/** 
 helium-dsl-language-server/out/**
 helium-dsl-language-server/out/**
+helium-dsl-vscode/out/**
+
