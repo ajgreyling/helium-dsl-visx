@@ -77,6 +77,13 @@
         "scopeName": "source.helium-dsl",
         "path": "./generated/syntaxes/helium-dsl.tmLanguage.json"
       }
+    ],
+    "iconThemes": [
+      {
+        "id": "helium-icons",
+        "label": "Helium Icons",
+        "path": "./helium-icons.json"
+      }
     ]
   },
   "scripts": {

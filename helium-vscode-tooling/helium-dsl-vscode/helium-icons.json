@@ -1,0 +1,59 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vscode/main/extensions/theme-seti/icons/vs-seti-icon-theme.json",
+  "iconDefinitions": {
+    "helium-mez": {
+      "iconPath": "./icons/file-code.svg"
+    },
+    "helium-vxml": {
+      "iconPath": "./icons/file-xml-box.svg"
+    },
+    "helium-model": {
+      "iconPath": "./icons/database.svg"
+    },
+    "helium-services": {
+      "iconPath": "./icons/server.svg"
+    },
+    "helium-presenters": {
+      "iconPath": "./icons/presentation.svg"
+    },
+    "helium-utilities": {
+      "iconPath": "./icons/wrench.svg"
+    },
+    "helium-web-app": {
+      "iconPath": "./icons/web.svg"
+    },
+    "helium-views": {
+      "iconPath": "./icons/eye.svg"
+    },
+    "helium-jasper-reports": {
+      "iconPath": "./icons/chart-bar.svg"
+    },
+    "helium-builtin-reports": {
+      "iconPath": "./icons/file-document-multiple.svg"
+    }
+  },
+  "fileExtensions": {
+    ".mez": "helium-mez",
+    ".vxml": "helium-vxml"
+  },
+  "folderNames": {
+    "model": "helium-model",
+    "services": "helium-services",
+    "presenters": "helium-presenters",
+    "utilities": "helium-utilities",
+    "web-app": "helium-web-app",
+    "views": "helium-views",
+    "jasper-reports": "helium-jasper-reports",
+    "builtin-reports": "helium-builtin-reports"
+  },
+  "folderNamesExpanded": {
+    "model": "helium-model",
+    "services": "helium-services",
+    "presenters": "helium-presenters",
+    "utilities": "helium-utilities",
+    "web-app": "helium-web-app",
+    "views": "helium-views",
+    "jasper-reports": "helium-jasper-reports",
+    "builtin-reports": "helium-builtin-reports"
+  }
+}

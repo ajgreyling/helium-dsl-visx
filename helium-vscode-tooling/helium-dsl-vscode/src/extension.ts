@@ -13,8 +13,41 @@ let client: LanguageClient | undefined;
 let userDefinedTypes: string[] = [];
 let outputChannel: vscode.OutputChannel | undefined;
 
+/**
+ * Automatically set the Helium Icons theme if the user hasn't configured a different icon theme.
+ * This respects user preferences by only setting it if they're using the default themes.
+ */
+async function setIconThemeIfNotConfigured(): Promise<void> {
+  try {
+    const workbenchConfig = vscode.workspace.getConfiguration("workbench");
+    const currentTheme = workbenchConfig.get<string>("iconTheme");
+    
+    // Default themes that indicate no user preference
+    const defaultThemes = ["vs-seti", "vs-minimal"];
+    
+    // Only set if theme is unset or set to a default theme
+    if (!currentTheme || defaultThemes.includes(currentTheme)) {
+      await workbenchConfig.update(
+        "iconTheme",
+        "helium-icons",
+        vscode.ConfigurationTarget.Global
+      );
+      console.log("[HeliumDSL] Set file icon theme to 'helium-icons'");
+    } else {
+      console.log(`[HeliumDSL] Icon theme already configured to '${currentTheme}', skipping auto-set`);
+    }
+  } catch (error) {
+    // Don't fail activation if setting icon theme fails
+    const errorMsg = `[HeliumDSL] Failed to set icon theme (non-fatal): ${error}`;
+    console.log(errorMsg);
+  }
+}
+
 export function activate(context: vscode.ExtensionContext) {
   console.log("[HeliumDSL] Activating extension...");
+  
+  // Set icon theme automatically if not already configured
+  setIconThemeIfNotConfigured();
   
   // The language server compiles to out/src/server.js (not out/server.js)
   const serverModule = context.asAbsolutePath(
