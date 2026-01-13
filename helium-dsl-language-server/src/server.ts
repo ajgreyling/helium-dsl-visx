@@ -257,6 +257,58 @@ function findFunctionDefinitionInFile(
 }
 
 /**
+ * Find the current unit context by scanning backwards from the cursor position
+ * Returns the unit name if we're inside a unit, or null if not
+ */
+function findCurrentUnitContext(
+  lines: string[],
+  cursorLine: number,
+  cursorCharacter: number
+): string | null {
+  let braceDepth = 0;
+  let foundUnit: string | null = null;
+  
+  // Scan backwards from cursor position
+  for (let lineIndex = cursorLine; lineIndex >= 0; lineIndex--) {
+    const line = lines[lineIndex];
+    
+    // On the cursor line, only count braces before the cursor position
+    // On previous lines, count all braces
+    const endIndex = lineIndex === cursorLine ? cursorCharacter : line.length;
+    const lineSegment = line.substring(0, endIndex);
+    
+    // Track brace depth
+    for (let i = 0; i < lineSegment.length; i++) {
+      if (lineSegment[i] === '{') {
+        braceDepth++;
+      } else if (lineSegment[i] === '}') {
+        braceDepth--;
+        // If brace depth goes negative, we've gone outside the unit scope
+        if (braceDepth < 0) {
+          return foundUnit;
+        }
+      }
+    }
+    
+    // Look for unit declaration: unit UnitName;
+    const unitMatch = line.match(/\bunit\s+([A-Za-z_][A-Za-z0-9_]*)\s*;/);
+    if (unitMatch) {
+      const unitName = unitMatch[1];
+      // If we found a unit and brace depth is >= 0, we're inside this unit
+      if (braceDepth >= 0) {
+        foundUnit = unitName;
+        console.log(`[Definition] Found unit context: "${unitName}" at line ${lineIndex + 1}, braceDepth=${braceDepth}`);
+        return unitName;
+      }
+      // If brace depth is negative, we've passed outside this unit's scope
+      return foundUnit;
+    }
+  }
+  
+  return foundUnit;
+}
+
+/**
  * Check if a method name is a Built-In Function (BIF) that operates on model types
  * BIFs like :all(), :read(), :delete(), :new(), :equals() operate on persistent objects (models), not units
  */
@@ -595,6 +647,31 @@ connection.onDefinition((params: DefinitionParams): Location | Location[] | null
         }
       } else {
         console.log(`[Definition] Unit "${unitName}" does not exist in workspace index`);
+      }
+    } else {
+      // No unit qualifier found, check if we're inside a unit context
+      console.log(`[Definition] No unit qualifier found, checking if we're inside a unit context...`);
+      const currentUnit = findCurrentUnitContext(lines, position.line, position.character);
+      
+      if (currentUnit) {
+        console.log(`[Definition] Inside unit "${currentUnit}", searching for function "${fullWord}" in current file...`);
+        
+        // Search for the function definition in the current file
+        const functionLocation = findFunctionDefinitionInFile(
+          fullWord,
+          text,
+          doc.uri
+        );
+        
+        if (functionLocation) {
+          console.log(`[Definition] SUCCESS: Found function "${fullWord}" in unit "${currentUnit}"`);
+          console.log(`[Definition] Location:`, JSON.stringify(functionLocation, null, 2));
+          return [functionLocation];
+        } else {
+          console.log(`[Definition] Function "${fullWord}" not found in unit "${currentUnit}"`);
+        }
+      } else {
+        console.log(`[Definition] Not inside a unit context`);
       }
     }
   }

@@ -210,6 +210,53 @@ Controls the verbosity of language server logs in the Output channel ("Helium DS
 
 **Note**: Error logs (`console.error`) always appear regardless of trace level. Only debug/informational logs are controlled by this setting.
 
+## Language Server Features
+
+### IntelliSense and Autocomplete
+
+The language server provides comprehensive IntelliSense support:
+
+- **Keywords** - Language keywords and control structures
+- **Built-in Functions** - All BIFs with namespace prefixes (`Mez:`, `sql:`, `String:`, etc.)
+- **Context-aware suggestions** - Variables and functions based on current scope
+
+#### Unit IntelliSense
+
+When typing `:` after a unit name (e.g., `SomeUnit:`), IntelliSense shows:
+- **Unit-level variables** - Top-level variables declared in the unit file (module scope)
+- **Unit functions** - All functions defined in the unit file
+
+Example:
+```mez
+// Typing "RoleDetails:" shows:
+// - Variables: rolePermissions, defaultAccess, etc.
+// - Functions: getPermissionsTable(), validateAccess(), etc.
+RoleDetails:getPermissionsTable()
+```
+
+#### Type IntelliSense
+
+When typing `:` after a user-defined type name (e.g., `SomeModel:`), IntelliSense shows all model Built-In Functions (BIFs):
+- **CRUD operations**: `all`, `new`, `read`, `delete`
+- **Query operations**: `equals`, `empty`, `between`, `lessThan`, `greaterThan`, `contains`, `beginsWith`, `endsWith`, `attributeIn`, `relationshipIn`
+- **Negated queries**: `notEquals`, `notEmpty`, `notBetween`, `notContains`, `notBeginWith`, `notEndsWith`, `notAttributeIn`, `notRelationshipIn`
+- **Set operations**: `union`, `diff`, `intersect`, `and`
+
+Example:
+```mez
+// Typing "Person:" shows all model BIFs:
+Person:all()
+Person:read(uuid)
+Person:new()
+Person:delete(uuid)
+Person:equals(...)
+// ... and all other model BIFs
+```
+
+### Property IntelliSense
+
+When typing `.` after a variable of a user-defined type, IntelliSense shows all properties of that type.
+
 ## Linting Rules
 
 The linter currently implements the following rules:

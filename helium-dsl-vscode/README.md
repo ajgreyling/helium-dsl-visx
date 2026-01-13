@@ -39,7 +39,7 @@ code --install-extension <path-to-vsix-file>
 
 The extension activates automatically when you open any `.mez` or `.vxml` file. Once active, you'll get:
 
-- **Autocomplete**: Press `Ctrl+Space` (or `Cmd+Space` on Mac) to see suggestions for keywords, built-in functions, and unit methods
+- **Autocomplete**: Press `Ctrl+Space` (or `Cmd+Space` on Mac) to see suggestions for keywords, built-in functions, and unit methods. Type `:` after a unit name (e.g., `SomeUnit:`) to see unit-level variables and functions, or after a type name (e.g., `SomeModel:`) to see model BIFs
 - **Syntax Errors**: Red squiggles indicate syntax errors detected by the parser
 - **Linting**: Yellow/orange squiggles show linting warnings and errors
 - **Hover**: Hover over code elements to see type information and documentation
@@ -94,6 +94,39 @@ IntelliSense provides suggestions for:
 - **Built-in Functions** - All BIFs with namespace prefixes (`Mez:`, `sql:`, `String:`, etc.)
 - **Unit Methods** - Methods from units referenced in your workspace
 - **Context-aware** - Suggestions based on your current code context
+
+#### Unit IntelliSense
+
+When typing `:` after a unit name (e.g., `SomeUnit:`), IntelliSense shows:
+- **Unit-level variables** - Top-level variables declared in the unit file (module scope)
+- **Unit functions** - All functions defined in the unit file
+
+Example:
+```mez
+// Typing "RoleDetails:" shows:
+// - Variables: rolePermissions, defaultAccess, etc.
+// - Functions: getPermissionsTable(), validateAccess(), etc.
+RoleDetails:getPermissionsTable()
+```
+
+#### Type IntelliSense
+
+When typing `:` after a user-defined type name (e.g., `SomeModel:`), IntelliSense shows all model Built-In Functions (BIFs):
+- **CRUD operations**: `all`, `new`, `read`, `delete`
+- **Query operations**: `equals`, `empty`, `between`, `lessThan`, `greaterThan`, `contains`, `beginsWith`, `endsWith`, `attributeIn`, `relationshipIn`
+- **Negated queries**: `notEquals`, `notEmpty`, `notBetween`, `notContains`, `notBeginWith`, `notEndsWith`, `notAttributeIn`, `notRelationshipIn`
+- **Set operations**: `union`, `diff`, `intersect`, `and`
+
+Example:
+```mez
+// Typing "Person:" shows all model BIFs:
+Person:all()
+Person:read(uuid)
+Person:new()
+Person:delete(uuid)
+Person:equals(...)
+// ... and all other model BIFs
+```
 
 ### Linting Rules
 
