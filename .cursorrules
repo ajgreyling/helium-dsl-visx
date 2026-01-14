@@ -258,6 +258,83 @@ If you need to change any of these files:
 
 **REFERENCE**: See `helium-vscode-tooling/TOKEN_MAPPINGS.md` for complete token scope documentation.
 
+## Icon Theme Guidelines
+
+The extension includes a custom icon theme (`helium-icons`) that provides icons for Helium DSL files and common file types.
+
+### Icon Theme Structure
+
+**Location**: `helium-dsl-vscode/helium-icons.json`
+
+**Key Components**:
+- `fonts` - Defines Seti UI font for common file type icons
+- `iconDefinitions` - Defines all icon mappings (SVG paths or font characters)
+- `fileExtensions` - Maps file extensions to icon definitions (extensions WITHOUT dot prefix)
+- `fileNames` - Maps specific filenames to icons (for exact matches)
+- `file` - Default fallback icon for undefined file types
+- `folderNames` - Maps folder names to folder icons
+- `folderNamesExpanded` - Maps expanded folder names to icons
+
+### File Extension Format
+
+**CRITICAL**: File extensions in `fileExtensions` must NOT include the dot prefix:
+- ✅ Correct: `"js": "javascript"`
+- ❌ Wrong: `".js": "javascript"`
+
+VS Code icon themes expect extensions without dots. This is different from language associations which may use dots.
+
+### Icon Types
+
+**SVG Icons** (for Helium-specific files):
+- Use `iconPath` property pointing to SVG file
+- Paths are relative to the JSON file location
+- Example: `"iconPath": "./icons/file-code-green.svg"`
+
+**Font Icons** (for Seti UI common file types):
+- Use `fontCharacter` with Unicode escape sequence
+- Use `fontColor` for icon color
+- Use `fontId` to reference font definition
+- Example: `"fontCharacter": "\\E051", "fontColor": "#cbcb41", "fontId": "seti"`
+
+### Adding New File Icons
+
+1. **For SVG icons**:
+   - Add SVG file to `helium-dsl-vscode/icons/` directory
+   - Add icon definition to `iconDefinitions` section
+   - Add file extension mapping (without dot) to `fileExtensions` section
+
+2. **For font icons** (using Seti UI):
+   - Add icon definition with `fontCharacter`, `fontColor`, and `fontId`
+   - Reference Seti UI font characters from VS Code Seti theme
+   - Add file extension mapping (without dot) to `fileExtensions` section
+
+### Folder-Based Icon Matching
+
+**LIMITATION**: VS Code icon themes do NOT support folder-based file matching. The icon theme JSON format only supports:
+- `fileExtensions` - matches by extension
+- `fileNames` - matches by exact filename
+- `file` - default fallback
+
+To implement folder-based icon matching (e.g., different icons for `.mez` files in `model/` vs `utilities/`):
+- Use file name patterns in `fileNames` if files follow naming conventions
+- Or implement dynamic file associations via extension code (more complex)
+
+### Seti UI Icons
+
+The extension includes Seti UI icons (MIT licensed) for common file types. When adding new Seti icons:
+- Download `seti.woff` font file (already included)
+- Reference font characters from VS Code's Seti theme configuration
+- Include MIT license attribution in README
+
+### Testing Icon Changes
+
+After modifying `helium-icons.json`:
+1. Rebuild extension: `npm run build` in `helium-dsl-vscode/`
+2. Repackage: `npm run package` in `helium-vscode-tooling/`
+3. Reinstall: `cursor --install-extension dist/helium-dsl.vsix --force`
+4. Reload window to pick up icon theme changes
+5. Verify icons display correctly in file explorer
+
 ## Logging and Debugging
 
 The extension provides configurable logging to control verbosity of language server logs in the Output channel.

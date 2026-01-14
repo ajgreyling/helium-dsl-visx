@@ -73,7 +73,36 @@ Configure linting rules in your settings (Command Palette → "Preferences: Open
 - **`.mez`** - Helium DSL source files
 - **`.vxml`** - Helium VXML files
 
-## Folder Icons
+## File and Folder Icons
+
+The extension provides custom icons for both files and folders to enhance visual navigation in your workspace.
+
+### File Icons
+
+**Helium DSL Files:**
+- **`.mez`** - Green code icon (Helium DSL source files)
+- **`.vxml`** - Green eye icon (Helium VXML view files)
+
+**Common File Types:**
+The extension includes Seti UI icons for common file types to preserve familiar VS Code icon appearance:
+- **`.js`, `.ts`** - JavaScript/TypeScript icons
+- **`.json`** - JSON icon (yellow braces)
+- **`.xml`** - XML icon
+- **`.sql`** - SQL/database icon
+- **`.sh`, `.bash`, `.zsh`** - Shell script icons (green dollar sign)
+- **`.py`** - Python icon
+- **`.html`, `.css`** - Web file icons
+- **`.md`** - Markdown icon
+- **`.yaml`, `.yml`** - YAML icon
+- **`.conf`, `.config`** - Configuration file icons
+- **`.env`** - Environment file icon
+- **`.gitignore`, `.gitattributes`** - Git file icons
+- **`.txt`** - Text file icon
+- **`.lang`** - Language file icon
+
+All file icons are automatically applied when the Helium Icons theme is active (set automatically on extension activation).
+
+### Folder Icons
 
 The extension provides custom folder icons for common Helium DSL project directories:
 
