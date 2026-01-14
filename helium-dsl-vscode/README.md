@@ -10,6 +10,7 @@ Language support for the Helium Rapid DSL in Cursor IDE and VS Code.
 - 📝 **Language Server Protocol** - Full LSP support for a modern editing experience
 - 🔎 **Symbol Navigation** - Navigate to definitions and find references across your workspace
 - 💡 **Hover Information** - Get helpful information by hovering over code elements
+- 📁 **Custom Folder Icons** - Distinctive icons for Helium DSL project folders (model, services, presenters, utilities, web-app, views, jasper-reports, builtin-reports, images, lang, sql-scripts)
 
 ## Installation
 
@@ -71,6 +72,24 @@ Configure linting rules in your settings (Command Palette → "Preferences: Open
 
 - **`.mez`** - Helium DSL source files
 - **`.vxml`** - Helium VXML files
+
+## Folder Icons
+
+The extension provides custom folder icons for common Helium DSL project directories:
+
+- **`model`** - Database icon (model definitions)
+- **`services`** - Server icon (service implementations)
+- **`presenters`** - Presentation icon (presenter logic)
+- **`utilities`** - Wrench icon (utility functions)
+- **`web-app`** - Web icon (web application files)
+- **`views`** - Eye icon (view definitions)
+- **`jasper-reports`** - Chart icon (Jasper report templates)
+- **`builtin-reports`** - Document icon (built-in reports)
+- **`images`** - Image icon (image assets)
+- **`lang`** - Translate icon (language/translation files)
+- **`sql-scripts`** - Script icon (SQL script files)
+
+Icons are automatically applied when the Helium Icons theme is active (set automatically on extension activation). The icons are optimized for visibility in both light and dark themes.
 
 ## Requirements
 
@@ -180,6 +199,17 @@ Found a bug or have a feature request? Please open an issue on [GitHub](https://
 ## License
 
 MIT License - see the [LICENSE](LICENSE) file for details.
+
+### Third-Party Licenses
+
+This extension includes file icons from the Seti UI icon theme, which is licensed under the MIT License:
+
+**Seti UI Icons**
+- Copyright (c) Jesse Weed
+- Licensed under the MIT License
+- Source: https://github.com/jesseweed/seti-ui
+
+The Seti UI icons are used for common file types (.js, .ts, .xml, .json, .sql, .sh, .py, .html, .css, .md, .yaml, .conf, .config, .env, .gitignore, .gitattributes, .txt, .lang) to provide a familiar and consistent icon experience.
 
 ## Links
 

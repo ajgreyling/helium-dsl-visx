@@ -1,11 +1,110 @@
 {
   "$schema": "https://raw.githubusercontent.com/microsoft/vscode/main/extensions/theme-seti/icons/vs-seti-icon-theme.json",
+  "fonts": [
+    {
+      "id": "seti",
+      "src": [
+        {
+          "path": "./icons/seti.woff",
+          "format": "woff"
+        }
+      ],
+      "weight": "normal",
+      "style": "normal",
+      "size": "150%"
+    }
+  ],
   "iconDefinitions": {
+    "file": {
+      "fontCharacter": "\\E023",
+      "fontColor": "#d4d7d6",
+      "fontId": "seti"
+    },
+    "javascript": {
+      "fontCharacter": "\\E051",
+      "fontColor": "#cbcb41",
+      "fontId": "seti"
+    },
+    "typescript": {
+      "fontCharacter": "\\E099",
+      "fontColor": "#519aba",
+      "fontId": "seti"
+    },
+    "json": {
+      "fontCharacter": "\\E055",
+      "fontColor": "#cbcb41",
+      "fontId": "seti"
+    },
+    "xml": {
+      "fontCharacter": "\\E0A5",
+      "fontColor": "#e37933",
+      "fontId": "seti"
+    },
+    "sql": {
+      "fontCharacter": "\\E022",
+      "fontColor": "#f55385",
+      "fontId": "seti"
+    },
+    "shell": {
+      "fontCharacter": "\\E089",
+      "fontColor": "#8dc149",
+      "fontId": "seti"
+    },
+    "python": {
+      "fontCharacter": "\\E07B",
+      "fontColor": "#519aba",
+      "fontId": "seti"
+    },
+    "html": {
+      "fontCharacter": "\\E048",
+      "fontColor": "#e37933",
+      "fontId": "seti"
+    },
+    "css": {
+      "fontCharacter": "\\E01D",
+      "fontColor": "#519aba",
+      "fontId": "seti"
+    },
+    "markdown": {
+      "fontCharacter": "\\E060",
+      "fontColor": "#519aba",
+      "fontId": "seti"
+    },
+    "yaml": {
+      "fontCharacter": "\\E0A7",
+      "fontColor": "#a074c4",
+      "fontId": "seti"
+    },
+    "config": {
+      "fontCharacter": "\\E019",
+      "fontColor": "#6d8086",
+      "fontId": "seti"
+    },
+    "git": {
+      "fontCharacter": "\\E034",
+      "fontColor": "#41535b",
+      "fontId": "seti"
+    },
+    "txt": {
+      "fontCharacter": "\\E023",
+      "fontColor": "#d4d7d6",
+      "fontId": "seti"
+    },
+    "env": {
+      "fontCharacter": "\\E019",
+      "fontColor": "#6d8086",
+      "fontId": "seti"
+    },
+    "lang": {
+      "fontCharacter": "\\E023",
+      "fontColor": "#d4d7d6",
+      "fontId": "seti"
+    },
     "helium-mez": {
-      "iconPath": "./icons/file-code.svg"
+      "iconPath": "./icons/file-code-green.svg"
     },
     "helium-vxml": {
-      "iconPath": "./icons/file-xml-box.svg"
+      "iconPath": "./icons/eye-green.svg"
     },
     "helium-model": {
       "iconPath": "./icons/database.svg",
@@ -85,9 +184,42 @@
       }
     }
   },
+  "file": "file",
   "fileExtensions": {
-    ".mez": "helium-mez",
-    ".vxml": "helium-vxml"
+    "mez": "helium-mez",
+    "vxml": "helium-vxml",
+    "js": "javascript",
+    "mjs": "javascript",
+    "cjs": "javascript",
+    "ts": "typescript",
+    "tsx": "typescript",
+    "json": "json",
+    "jsonc": "json",
+    "jsonl": "json",
+    "xml": "xml",
+    "sql": "sql",
+    "sh": "shell",
+    "bash": "shell",
+    "zsh": "shell",
+    "py": "python",
+    "pyw": "python",
+    "html": "html",
+    "htm": "html",
+    "css": "css",
+    "scss": "css",
+    "sass": "css",
+    "less": "css",
+    "md": "markdown",
+    "markdown": "markdown",
+    "yaml": "yaml",
+    "yml": "yaml",
+    "conf": "config",
+    "config": "config",
+    "env": "env",
+    "gitignore": "git",
+    "gitattributes": "git",
+    "txt": "txt",
+    "lang": "lang"
   },
   "folderNames": {
     "model": "helium-model",
