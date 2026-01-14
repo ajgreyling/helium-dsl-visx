@@ -8,28 +8,60 @@
       "iconPath": "./icons/file-xml-box.svg"
     },
     "helium-model": {
-      "iconPath": "./icons/database.svg"
+      "iconPath": "./icons/database.svg",
+      "fontColor": {
+        "light": "#333333",
+        "dark": "#CCCCCC"
+      }
     },
     "helium-services": {
-      "iconPath": "./icons/server.svg"
+      "iconPath": "./icons/server.svg",
+      "fontColor": {
+        "light": "#333333",
+        "dark": "#CCCCCC"
+      }
     },
     "helium-presenters": {
-      "iconPath": "./icons/presentation.svg"
+      "iconPath": "./icons/presentation.svg",
+      "fontColor": {
+        "light": "#333333",
+        "dark": "#CCCCCC"
+      }
     },
     "helium-utilities": {
-      "iconPath": "./icons/wrench.svg"
+      "iconPath": "./icons/wrench.svg",
+      "fontColor": {
+        "light": "#333333",
+        "dark": "#CCCCCC"
+      }
     },
     "helium-web-app": {
-      "iconPath": "./icons/web.svg"
+      "iconPath": "./icons/web.svg",
+      "fontColor": {
+        "light": "#333333",
+        "dark": "#CCCCCC"
+      }
     },
     "helium-views": {
-      "iconPath": "./icons/eye.svg"
+      "iconPath": "./icons/eye.svg",
+      "fontColor": {
+        "light": "#333333",
+        "dark": "#CCCCCC"
+      }
     },
     "helium-jasper-reports": {
-      "iconPath": "./icons/chart-bar.svg"
+      "iconPath": "./icons/chart-bar.svg",
+      "fontColor": {
+        "light": "#333333",
+        "dark": "#CCCCCC"
+      }
     },
     "helium-builtin-reports": {
-      "iconPath": "./icons/file-document-multiple.svg"
+      "iconPath": "./icons/file-document-multiple.svg",
+      "fontColor": {
+        "light": "#333333",
+        "dark": "#CCCCCC"
+      }
     }
   },
   "fileExtensions": {
