@@ -62,6 +62,27 @@
         "light": "#333333",
         "dark": "#CCCCCC"
       }
+    },
+    "helium-images": {
+      "iconPath": "./icons/image.svg",
+      "fontColor": {
+        "light": "#333333",
+        "dark": "#CCCCCC"
+      }
+    },
+    "helium-lang": {
+      "iconPath": "./icons/translate.svg",
+      "fontColor": {
+        "light": "#333333",
+        "dark": "#CCCCCC"
+      }
+    },
+    "helium-sql-scripts": {
+      "iconPath": "./icons/script-text.svg",
+      "fontColor": {
+        "light": "#333333",
+        "dark": "#CCCCCC"
+      }
     }
   },
   "fileExtensions": {
@@ -76,7 +97,10 @@
     "web-app": "helium-web-app",
     "views": "helium-views",
     "jasper-reports": "helium-jasper-reports",
-    "builtin-reports": "helium-builtin-reports"
+    "builtin-reports": "helium-builtin-reports",
+    "images": "helium-images",
+    "lang": "helium-lang",
+    "sql-scripts": "helium-sql-scripts"
   },
   "folderNamesExpanded": {
     "model": "helium-model",
@@ -86,6 +110,9 @@
     "web-app": "helium-web-app",
     "views": "helium-views",
     "jasper-reports": "helium-jasper-reports",
-    "builtin-reports": "helium-builtin-reports"
+    "builtin-reports": "helium-builtin-reports",
+    "images": "helium-images",
+    "lang": "helium-lang",
+    "sql-scripts": "helium-sql-scripts"
   }
 }
