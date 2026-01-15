@@ -1486,6 +1486,13 @@ connection.languages.inlayHint.on((params: InlayHintParams): InlayHint[] => {
   const lines = text.split(/\r?\n/);
   const hints: InlayHint[] = [];
 
+  // System/primitive types that indicate function definitions
+  const systemTypes = [
+    "int", "decimal", "bigint", "uuid", "blob", "bool",
+    "string", "void", "date", "datetime", "json", "jsonarray"
+  ];
+  const systemTypesRegex = new RegExp(`\\b(${systemTypes.join("|")})\\s+$`);
+
   // Find function calls and add parameter name hints
   for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
     const line = lines[lineIndex];
@@ -1497,6 +1504,22 @@ connection.languages.inlayHint.on((params: InlayHintParams): InlayHint[] => {
     while ((match = funcCallPattern.exec(line)) !== null) {
       const funcName = match[1];
       const openParenIndex = match.index + match[1].length;
+      const matchStart = match.index;
+
+      // Check if this is a function definition by looking for a type name before the function name
+      // Function definitions have the pattern: ReturnType functionName(
+      const textBeforeFunc = line.substring(0, matchStart);
+      
+      // Check if preceded by a system type or PascalCase identifier (user-defined type)
+      // Note: Check before trimming to catch trailing space after type name
+      const isFunctionDefinition = 
+        systemTypesRegex.test(textBeforeFunc) ||
+        /\b([A-Z][A-Za-z0-9_]*)\s+$/.test(textBeforeFunc);
+
+      // Skip function definitions - only add hints for function calls
+      if (isFunctionDefinition) {
+        continue;
+      }
 
       // Find function definition to get parameter names
       const symbolTable = buildSymbolTable(text);

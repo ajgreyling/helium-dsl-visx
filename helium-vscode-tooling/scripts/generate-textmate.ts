@@ -312,8 +312,9 @@ async function main() {
         patterns: [
           {
             // Match parameter declarations: type name
+            // Use negative lookbehind to prevent matching parameterName: TypeName patterns
             name: "variable.parameter",
-            match: `\\b(${systemTypes.join("|")}|[A-Z_][A-Z0-9_]*)\\s+([a-z_][a-zA-Z0-9_]*)\\b`,
+            match: `(?<!:)\\b(${systemTypes.join("|")}|[A-Z_][A-Z0-9_]*)\\s+([a-z_][a-zA-Z0-9_]*)\\b`,
             captures: {
               1: { name: "storage.type" },
               2: { name: "variable.parameter" },
