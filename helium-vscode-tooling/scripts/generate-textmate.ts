@@ -220,8 +220,16 @@ async function main() {
     },
   });
 
+  // Add BIF function calls (e.g., Mez:now, sql:query, String:concat, Math:sqrt)
+  // Use standard support.function.builtin scope for cross-theme compatibility
+  // Must come before unit reference pattern so BIFs are matched first (TextMate uses first-match wins)
+  patterns.push({
+    name: "support.function.builtin",
+    match: `\\b(${bifNamespaces.join("|")}):[a-zA-Z_][a-zA-Z0-9_]*\\b`,
+  });
+
   // Add unit reference pattern (e.g., SomeUnit:someFunction() or SomeUnit:someVar)
-  // Must come before BIF pattern but exclude BIF namespaces
+  // Must come after BIF pattern but exclude BIF namespaces via negative lookahead
   // Matches PascalCase identifiers (units) followed by colon and identifier (function or variable)
   // Uses lookahead to match even when followed by ( or other punctuation
   // Use support.class for unit names (units are like classes/modules) - more widely supported
@@ -238,14 +246,6 @@ async function main() {
         name: "support.function", // Function or variable name - use support.function for better theme support
       },
     },
-  });
-
-  // Add BIF function calls (e.g., Mez:now, sql:query, String:concat, Math:sqrt)
-  // Use standard support.function.builtin scope for cross-theme compatibility
-  // Must come after unit reference pattern so BIFs match when namespaces overlap
-  patterns.push({
-    name: "support.function.builtin",
-    match: `\\b(${bifNamespaces.join("|")}):[a-zA-Z_][a-zA-Z0-9_]*\\b`,
   });
 
   // Add operators (must come after numbers and strings)
