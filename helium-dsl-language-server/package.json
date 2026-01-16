@@ -5,6 +5,15 @@
   "type": "module",
   "main": "out/server.js",
   "types": "out/server.d.ts",
+  "exports": {
+    ".": {
+      "types": "./out/server.d.ts",
+      "default": "./out/src/server.js"
+    },
+    "./api": {
+      "default": "./out/src/api.js"
+    }
+  },
   "scripts": {
     "build": "tsc -b",
     "clean": "rimraf out",

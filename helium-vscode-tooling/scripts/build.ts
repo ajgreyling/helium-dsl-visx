@@ -15,6 +15,7 @@ async function ensureGenerated() {
   await fs.ensureDir(path.join(generated, "parser"));
   await fs.ensureDir(path.join(generated, "rules"));
   await fs.ensureDir(path.join(generated, "bifs"));
+  await fs.ensureDir(path.join(generated, "language"));
   await fs.ensureDir(path.join(generated, "syntaxes"));
 }
 
@@ -39,10 +40,13 @@ async function main() {
   // 6. Generate BIF metadata
   run("ts-node scripts/generate-bif-metadata.ts");
 
-  // 7. Generate TextMate grammar
+  // 7. Generate language metadata
+  run("ts-node scripts/generate-language-metadata.ts");
+
+  // 8. Generate TextMate grammar
   run("ts-node scripts/generate-textmate.ts");
 
-  // 8. Build language server + extension
+  // 9. Build language server + extension
   run("npm run build", { cwd: path.join(root, "..", "helium-dsl-language-server") });
   run("npm run build", { cwd: path.join(root, "..", "helium-dsl-vscode") });
 }

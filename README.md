@@ -16,6 +16,7 @@ helium-dsl-visx/ (project root)
 ├── dsl-visx.code-workspace
 ├── README.md
 ├── helium-dsl-language-server/  # LSP server implementation
+├── helium-rapid-dsl-mcp/        # MCP server for Cursor agents (.mez/.vxml)
 ├── helium-vscode-tooling/       # Tooling and packaging (see below)
 └── .DS_Store
 
@@ -78,17 +79,35 @@ cd /Users/ajgreyling/code/helium-dsl-visx
 npm install
 ```
 
+## MCP Server (Cursor)
+
+This repo includes a TypeScript MCP server for Cursor agents that can analyze and validate `.mez` and `.vxml` files using the existing language-server AST/index.
+
+Quick start:
+
+```bash
+cd /Users/ajgreyling/code/helium-dsl-visx/helium-rapid-dsl-mcp
+npm install
+npm run build
+node out/index.js
+```
+
+See `helium-rapid-dsl-mcp/README.md` for Cursor configuration details and tool descriptions.
+
 ## Usage
 
 ### Quick Start: Run Full Validation Pipeline
 
-The `validate-dsl.sh` script automates the entire process:
+The validation pipeline is driven by `helium-vscode-tooling/validate-dsl.sh` (or the repo-root `run.sh` wrapper).
 
 ```bash
-# Make script executable (first time only)
-chmod +x validate-dsl.sh
+# Recommended: run from repo root
+cd /Users/ajgreyling/code/helium-dsl-visx
+./run.sh
 
-# Run validation
+# Or run the pipeline directly
+cd /Users/ajgreyling/code/helium-dsl-visx/helium-vscode-tooling
+chmod +x validate-dsl.sh
 ./validate-dsl.sh \
   -d /Users/ajgreyling/code/appexec-dsl-commons \
   -p /Users/ajgreyling/code/munic-chat
@@ -101,20 +120,23 @@ This will:
 4. Generate the TypeScript parser
 5. Generate linting rules
 6. Generate BIF metadata
-7. Generate TextMate grammar for syntax highlighting
-8. Build the language server
-9. Build the VSCode extension
-10. Update extension version with epoch-based build number
-11. Package the VSCode extension as a `.vsix` file using local packaging
-12. Restore original version in package.json
-13. Run validation tests against your sample project (with performance optimizations)
-14. Automatically install the extension in Cursor
+7. Generate language metadata (keywords, primitive types, model BIFs) from grammar
+8. Generate TextMate grammar for syntax highlighting
+9. Build the language server
+10. Build the VSCode extension
+11. Update extension version with epoch-based build number
+12. Package the VSCode extension as a `.vsix` file using local packaging
+13. Restore original version in package.json
+14. Run validation tests against your sample project (including AST/index checks)
+15. Automatically install the extension in Cursor
 
 ### Manual Build Steps
 
 If you prefer to run steps individually:
 
 ```bash
+# From helium-vscode-tooling/
+
 # Extract grammar from appexec-dsl-commons
 npm run build:extract
 
@@ -132,6 +154,9 @@ npm run build:rules
 
 # Generate BIF metadata
 npm run build:bifs
+
+# Generate language metadata (keywords/types/model-BIFs)
+npm run build:language
 
 # Generate TextMate grammar
 npm run build:textmate
@@ -183,18 +208,16 @@ Controls the verbosity of language server logs in the Output channel ("Helium DS
 **Options**:
 - `off` (default): Minimal logging - only errors and critical messages
 - `messages`: LSP protocol messages only - useful for debugging protocol communication
-- `verbose`: Full debug logging including WorkspaceIndex operations and type discovery
+- `verbose`: Full debug logging including project discovery and indexing operations
 
 **What's logged at each level**:
 
 - **`off`**: Only error messages and critical server events
 - **`messages`**: LSP protocol messages (requests/responses between client and server)
 - **`verbose`**: All logs including:
-  - WorkspaceIndex workspace scanning operations
-  - Object and unit discovery logs
-  - File update operations
-  - User-defined types list and workspace roots
-  - Type checking operations
+  - Project discovery (Helium Rapid project roots: `model/` + `web-app/`)
+  - AST/project index builds and incremental updates
+  - Object/unit discovery and type lists
   - Server initialization details
 
 **To enable verbose logging**:
@@ -236,7 +259,9 @@ RoleDetails:getPermissionsTable()
 
 #### Type IntelliSense
 
-When typing `:` after a user-defined type name (e.g., `SomeModel:`), IntelliSense shows all model Built-In Functions (BIFs):
+When typing `:` after a user-defined type name (e.g., `SomeModel:`), IntelliSense shows model Built-In Functions (BIFs).
+
+Important: the **model BIF list is not hardcoded** in the language server; it is derived from the grammar and written to `helium-vscode-tooling/generated/language/helium-language-metadata.json` during the build pipeline.
 - **CRUD operations**: `all`, `new`, `read`, `delete`
 - **Query operations**: `equals`, `empty`, `between`, `lessThan`, `greaterThan`, `contains`, `beginsWith`, `endsWith`, `attributeIn`, `relationshipIn`
 - **Negated queries**: `notEquals`, `notEmpty`, `notBetween`, `notContains`, `notBeginWith`, `notEndsWith`, `notAttributeIn`, `notRelationshipIn`

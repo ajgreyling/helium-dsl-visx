@@ -51,22 +51,22 @@ import {
   ColorInformation,
   ColorPresentationParams,
   Color,
-} from "vscode-languageserver/node";
+} from "vscode-languageserver/node.js";
 import { TextDocument } from "vscode-languageserver-textdocument";
 import { URI } from "vscode-uri";
 import * as path from "path";
 import * as fs from "fs";
 import { createDiagnostics } from "./diagnostics.js";
 import { buildSymbolTable } from "./symbols/symbolTable.js";
-import { provideCompletions } from "./completion/completionProvider.js";
 import { runLints } from "./linter/engine.js";
-import { WorkspaceIndex } from "./symbols/workspaceIndex.js";
+import { ProjectManager } from "./index/projectManager.js";
 import { initializeLogger, TraceLevel, logVerbose } from "./utils/logger.js";
 import {
   createNoVarInElseFix,
   createNamingConventionFix,
   createForbiddenOperatorFix,
 } from "./codeActions/quickFixes.js";
+import { getLanguageMetadataSync } from "./language/metadata.js";
 import { formatDocument, formatOnType } from "./formatting/formatter.js";
 import {
   findFunctionCalls,
@@ -79,7 +79,7 @@ console.error("[Server] Server process started");
 
 const connection = createConnection();
 const documents = new TextDocuments<TextDocument>(TextDocument);
-const workspaceIndex = new WorkspaceIndex();
+const projectManager = new ProjectManager();
 
 console.error("[Server] Connection and documents initialized");
 
@@ -104,19 +104,18 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
   initializeLogger(traceLevel);
   console.error(`[Server] Logger initialized with trace level: ${traceLevel}`);
   
-  // Initialize workspace index with workspace folders
-  console.error("[Server] Initializing workspace index...");
-  workspaceIndex.initialize(params.workspaceFolders || null);
-  console.error("[Server] Workspace index initialized");
+  // Initialize project manager with workspace folders
+  console.error("[Server] Initializing project manager...");
+  projectManager.initialize(params.workspaceFolders || null);
+  console.error("[Server] Project manager initialized");
 
   // After initializing the index, send a notification with all discovered user-defined types
   try {
-    const debug = workspaceIndex.getDebugInfo();
-    const types = debug.objects || [];
+    const types = projectManager.getUserTypes();
     logVerbose(`[Server] ===== Sending User Types Notification =====`);
     logVerbose(`[Server] Found ${types.length} user-defined types`);
     logVerbose(`[Server] Types: ${JSON.stringify(types, null, 2)}`);
-    logVerbose(`[Server] Workspace roots: ${JSON.stringify(debug.workspaceRoots, null, 2)}`);
+    logVerbose(`[Server] Project roots: ${JSON.stringify(projectManager.getProjectRoots(), null, 2)}`);
     connection.sendNotification("helium/userTypes", types);
     logVerbose(`[Server] Notification sent successfully`);
   } catch (err) {
@@ -187,13 +186,14 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
     console.error("[Server] ===== onInitialized Called =====");
     // Now it's safe to register workspace folder change handler
     connection.workspace.onDidChangeWorkspaceFolders((_event) => {
-      console.error("[Server] Workspace folders changed, re-initializing index...");
-      // Re-initialize workspace index when folders change
+      console.error("[Server] Workspace folders changed, re-initializing project manager...");
       connection.workspace.getWorkspaceFolders().then((folders) => {
-        workspaceIndex.initialize(folders);
+        projectManager.initialize(folders);
         try {
-          const types = workspaceIndex.getDebugInfo().objects || [];
-          logVerbose(`[Server] Workspace folders changed - sending ${types.length} user-defined types to client`);
+          const types = projectManager.getUserTypes();
+          logVerbose(
+            `[Server] Workspace folders changed - sending ${types.length} user-defined types to client`
+          );
           connection.sendNotification("helium/userTypes", types);
         } catch (err) {
           console.error("[Server] Error sending userTypes after workspace folder change:", err);
@@ -208,14 +208,12 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 
 documents.onDidChangeContent((change) => {
   validateDocument(change.document);
-  // Update workspace index when model files change
-  workspaceIndex.updateFile(change.document.uri);
+  projectManager.updateDocument(change.document);
 });
 
 documents.onDidOpen((change) => {
   validateDocument(change.document);
-  // Update workspace index when model files are opened
-  workspaceIndex.updateFile(change.document.uri);
+  projectManager.updateDocument(change.document);
 });
 
 // Listen for watched file changes (add/remove) and refresh index as needed
@@ -253,8 +251,7 @@ async function validateDocument(document: TextDocument) {
 connection.onCompletion(async (params): Promise<CompletionItem[]> => {
   const doc = documents.get(params.textDocument.uri);
   if (!doc) return [];
-  const table = buildSymbolTable(doc.getText());
-  return provideCompletions(params, table, doc, workspaceIndex);
+  return projectManager.getCompletions(params, doc);
 });
 
 connection.onCompletionResolve(async (item: CompletionItem): Promise<CompletionItem> => {
@@ -433,16 +430,16 @@ connection.onHover((params: HoverParams): Hover | null => {
       
       if (isModelBif(methodName)) {
         // BIF on model type
-        if (workspaceIndex.isUserDefinedType(fullWord)) {
-          const location = workspaceIndex.getObjectLocation(fullWord);
+        if (projectManager.isUserDefinedType(fullWord)) {
+          const location = projectManager.getObjectLocation(fullWord);
           content.push(`**Type**: \`${fullWord}\``);
           content.push(`**BIF**: \`${methodName}()\``);
           content.push(`\nModel Built-In Function for type \`${fullWord}\`.`);
         }
       } else {
         // Unit method
-        if (workspaceIndex.isUnit(fullWord)) {
-          const unitLocation = workspaceIndex.getUnitLocation(fullWord);
+        if (projectManager.isUnit(fullWord)) {
+          const unitLocation = projectManager.getUnitLocation(fullWord);
           if (unitLocation) {
             try {
               const unitFilePath = URI.parse(unitLocation.uri).fsPath;
@@ -464,8 +461,8 @@ connection.onHover((params: HoverParams): Hover | null => {
       }
     } else {
       // Just unit name
-      if (workspaceIndex.isUnit(fullWord)) {
-        const unitLocation = workspaceIndex.getUnitLocation(fullWord);
+      if (projectManager.isUnit(fullWord)) {
+        const unitLocation = projectManager.getUnitLocation(fullWord);
         content.push(`**Unit**: \`${fullWord}\``);
         if (unitLocation) {
           content.push(`\nDefined at line ${unitLocation.range.start.line + 1}.`);
@@ -474,14 +471,14 @@ connection.onHover((params: HoverParams): Hover | null => {
     }
   } else {
     // Check if it's a user-defined type
-    if (workspaceIndex.isUserDefinedType(fullWord)) {
-      const location = workspaceIndex.getObjectLocation(fullWord);
+    if (projectManager.isUserDefinedType(fullWord)) {
+      const location = projectManager.getObjectLocation(fullWord);
       content.push(`**Type**: \`${fullWord}\``);
       if (location) {
         content.push(`\nDefined at line ${location.range.start.line + 1}.`);
       }
-    } else if (workspaceIndex.isUnit(fullWord)) {
-      const unitLocation = workspaceIndex.getUnitLocation(fullWord);
+    } else if (projectManager.isUnit(fullWord)) {
+      const unitLocation = projectManager.getUnitLocation(fullWord);
       content.push(`**Unit**: \`${fullWord}\``);
       if (unitLocation) {
         content.push(`\nDefined at line ${unitLocation.range.start.line + 1}.`);
@@ -627,119 +624,7 @@ connection.onDocumentOnTypeFormatting((params: DocumentOnTypeFormattingParams): 
 });
 
 connection.onRenameRequest((params: RenameParams): WorkspaceEdit | null => {
-  const doc = documents.get(params.textDocument.uri);
-  if (!doc) {
-    return null;
-  }
-
-  const position = params.position;
-  const newName = params.newName;
-
-  // Validate new name
-  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(newName)) {
-    return null;
-  }
-
-  // Extract current name using existing helper
-  const oldName = extractTypeNameAtPosition(doc, position);
-  if (!oldName) {
-    return null;
-  }
-
-  // Check if it's a keyword or BIF (not renameable)
-  const keywords = new Set([
-    "unit", "persistent", "object", "enum", "validator",
-    "if", "else", "for", "foreach", "return", "int", "void", "bool",
-    "string", "decimal", "uuid", "json", "jsonarray", "date", "datetime",
-    "bigint", "blob", "mez", "sql", "string"
-  ]);
-
-  if (keywords.has(oldName.toLowerCase())) {
-    return null;
-  }
-
-  // Find all references using helper functions
-  const references: Location[] = [];
-  const excludeDefinition = false;
-  const openDocumentUris = new Set<string>();
-  documents.all().forEach((d) => openDocumentUris.add(d.uri));
-
-  // Check if it's a unit or type
-  if (workspaceIndex.isUnit(oldName)) {
-    // Search for unit references
-    documents.all().forEach((document) => {
-      const docRefs = findUnitReferencesInDocument(document, oldName, excludeDefinition);
-      references.push(...docRefs);
-    });
-
-    const debugInfo = workspaceIndex.getDebugInfo();
-    for (const root of debugInfo.workspaceRoots) {
-      const workspaceRefs = scanDirectoryForUnitReferences(
-        root,
-        oldName,
-        excludeDefinition,
-        openDocumentUris
-      );
-      references.push(...workspaceRefs);
-    }
-  } else if (workspaceIndex.isUserDefinedType(oldName)) {
-    // Search for type references
-    documents.all().forEach((document) => {
-      const docRefs = findReferencesInDocument(document, oldName, excludeDefinition);
-      references.push(...docRefs);
-    });
-
-    const debugInfo = workspaceIndex.getDebugInfo();
-    for (const root of debugInfo.workspaceRoots) {
-      const workspaceRefs = scanDirectoryForReferences(
-        root,
-        oldName,
-        excludeDefinition,
-        openDocumentUris
-      );
-      references.push(...workspaceRefs);
-    }
-  } else {
-    // Check if it's a variable or function in current document
-    const symbolTable = buildSymbolTable(doc.getText());
-    const symbol = symbolTable.symbols.find(
-      (s) =>
-        s.name === oldName &&
-        s.location &&
-        s.location.line === position.line &&
-        s.location.character <= position.character
-    );
-
-    if (symbol) {
-      // Find all references in current document only
-      const docRefs = findReferencesInDocument(doc, oldName, excludeDefinition);
-      references.push(...docRefs);
-    } else {
-      return null;
-    }
-  }
-
-  if (references.length === 0) {
-    return null;
-  }
-
-  // Create workspace edit with all references
-  const changes: { [uri: string]: TextEdit[] } = {};
-
-  for (const ref of references) {
-    if (!changes[ref.uri]) {
-      changes[ref.uri] = [];
-    }
-
-    changes[ref.uri].push({
-      range: ref.range,
-      newText: newName,
-    });
-  }
-
-  return {
-    changes,
-  };
+  return projectManager.getRenameEdits(params);
 });
 
 connection.onDocumentSymbol((params: DocumentSymbolParams): DocumentSymbol[] => {
@@ -747,191 +632,7 @@ connection.onDocumentSymbol((params: DocumentSymbolParams): DocumentSymbol[] => 
   if (!doc) {
     return [];
   }
-
-  const text = doc.getText();
-  const symbolTable = buildSymbolTable(text);
-  const lines = text.split(/\r?\n/);
-  const symbols: DocumentSymbol[] = [];
-
-  // Build hierarchy: units contain functions and variables
-  const unitSymbols = new Map<string, DocumentSymbol>();
-  const functionSymbols: DocumentSymbol[] = [];
-  const variableSymbols: DocumentSymbol[] = [];
-  const objectSymbols: DocumentSymbol[] = [];
-
-  // First pass: create symbols for units, objects, functions, and variables
-  for (const symbol of symbolTable.symbols) {
-    if (!symbol.location) continue;
-
-    const line = lines[symbol.location.line] || "";
-    const nameStart = symbol.location.character;
-    const nameEnd = nameStart + symbol.name.length;
-
-    // selectionRange is just the name (what user selects when clicking)
-    const selectionRange: Range = {
-      start: {
-        line: symbol.location.line,
-        character: nameStart,
-      },
-      end: {
-        line: symbol.location.line,
-        character: nameEnd,
-      },
-    };
-
-    // range covers the full definition (must contain selectionRange)
-    let range: Range = selectionRange;
-    if (symbol.kind === "function") {
-      // Find the end of the function signature
-      const funcMatch = line.match(new RegExp(`\\b${symbol.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\([^)]*\\)`));
-      if (funcMatch && funcMatch.index !== undefined) {
-        range = {
-          start: {
-            line: symbol.location.line,
-            character: Math.min(nameStart, funcMatch.index),
-          },
-          end: {
-            line: symbol.location.line,
-            character: Math.max(nameEnd, funcMatch.index + funcMatch[0].length),
-          },
-        };
-      }
-    } else if (symbol.kind === "variable") {
-      // For variables, try to include the type and assignment if present
-      const varMatch = line.match(new RegExp(`\\b(?:int|bool|string|decimal|uuid|json|jsonarray|date|datetime|bigint|blob|[A-Za-z_][A-Za-z0-9_]*(?:\\[\\])?)\\s+${symbol.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*[=;]`));
-      if (varMatch && varMatch.index !== undefined) {
-        const varEnd = nameEnd;
-        const lineEnd = line.length;
-        range = {
-          start: {
-            line: symbol.location.line,
-            character: Math.min(nameStart, varMatch.index),
-          },
-          end: {
-            line: symbol.location.line,
-            character: Math.min(lineEnd, Math.max(nameEnd, varMatch.index + varMatch[0].length)),
-          },
-        };
-      }
-    }
-
-    // Ensure selectionRange is contained in range
-    if (selectionRange.start.line < range.start.line ||
-        (selectionRange.start.line === range.start.line && selectionRange.start.character < range.start.character) ||
-        selectionRange.end.line > range.end.line ||
-        (selectionRange.end.line === range.end.line && selectionRange.end.character > range.end.character)) {
-      // If selectionRange extends beyond range, make range contain it
-      range = {
-        start: {
-          line: Math.min(selectionRange.start.line, range.start.line),
-          character: Math.min(selectionRange.start.character, range.start.character),
-        },
-        end: {
-          line: Math.max(selectionRange.end.line, range.end.line),
-          character: Math.max(selectionRange.end.character, range.end.character),
-        },
-      };
-    }
-
-    const docSymbol: DocumentSymbol = {
-      name: symbol.name,
-      kind: mapSymbolKind(symbol.kind),
-      range: range,
-      selectionRange: selectionRange,
-      children: [],
-    };
-
-    if (symbol.kind === "unit") {
-      unitSymbols.set(symbol.name, docSymbol);
-    } else if (symbol.kind === "function") {
-      functionSymbols.push(docSymbol);
-    } else if (symbol.kind === "variable") {
-      variableSymbols.push(docSymbol);
-    } else if (symbol.kind === "object") {
-      objectSymbols.push(docSymbol);
-    }
-  }
-
-  // Second pass: build hierarchy
-  // Find which unit each function/variable belongs to based on scope
-  let currentUnit: string | null = null;
-  let braceDepth = 0;
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i] || "";
-
-    // Track unit declarations
-    const unitMatch = line.match(/\bunit\s+([A-Za-z_][A-Za-z0-9_]*)\s*;/);
-    if (unitMatch) {
-      currentUnit = unitMatch[1];
-      braceDepth = 0;
-      continue;
-    }
-
-    // Track brace depth
-    for (const char of line) {
-      if (char === "{") braceDepth++;
-      if (char === "}") braceDepth--;
-    }
-
-    // Assign functions and variables to current unit if at top level (braceDepth <= 1)
-    if (currentUnit && braceDepth <= 1) {
-      const unitSymbol = unitSymbols.get(currentUnit);
-      if (unitSymbol) {
-        // Check if any function/variable is on this line
-        for (const funcSymbol of functionSymbols) {
-          if (funcSymbol.range.start.line === i && !isInUnit(funcSymbol, unitSymbols)) {
-            if (!unitSymbol.children) {
-              unitSymbol.children = [];
-            }
-            unitSymbol.children.push(funcSymbol);
-          }
-        }
-        for (const varSymbol of variableSymbols) {
-          if (varSymbol.range.start.line === i && !isInUnit(varSymbol, unitSymbols)) {
-            if (!unitSymbol.children) {
-              unitSymbol.children = [];
-            }
-            unitSymbol.children.push(varSymbol);
-          }
-        }
-      }
-    }
-  }
-
-  // Track which symbols are in units
-  const symbolsInUnits = new Set<DocumentSymbol>();
-  for (const unitSymbol of unitSymbols.values()) {
-    if (unitSymbol.children) {
-      for (const child of unitSymbol.children) {
-        symbolsInUnits.add(child);
-      }
-    }
-  }
-
-  // Add all symbols to result (units with children, standalone functions/variables/objects)
-  for (const unitSymbol of unitSymbols.values()) {
-    symbols.push(unitSymbol);
-  }
-
-  // Add standalone functions and variables (not in a unit)
-  for (const funcSymbol of functionSymbols) {
-    if (!symbolsInUnits.has(funcSymbol)) {
-      symbols.push(funcSymbol);
-    }
-  }
-
-  for (const varSymbol of variableSymbols) {
-    if (!symbolsInUnits.has(varSymbol)) {
-      symbols.push(varSymbol);
-    }
-  }
-
-  for (const objSymbol of objectSymbols) {
-    symbols.push(objSymbol);
-  }
-
-  return symbols;
+  return projectManager.getDocumentSymbols(doc);
 });
 
 /**
@@ -969,141 +670,7 @@ function mapSymbolKind(kind: string): SymbolKind {
 }
 
 connection.onWorkspaceSymbol((params: WorkspaceSymbolParams): SymbolInformation[] => {
-  const query = params.query.toLowerCase();
-  const symbols: SymbolInformation[] = [];
-
-  // Search workspace index for types and units
-  const debugInfo = workspaceIndex.getDebugInfo();
-  
-  // Search types
-  for (const typeName of debugInfo.objects || []) {
-    if (typeName.toLowerCase().includes(query)) {
-      const location = workspaceIndex.getObjectLocation(typeName);
-      if (location) {
-        symbols.push({
-          name: typeName,
-          kind: SymbolKind.Class,
-          location: location,
-        });
-      }
-    }
-  }
-
-  // Search units
-  for (const unitName of debugInfo.units || []) {
-    if (unitName.toLowerCase().includes(query)) {
-      const location = workspaceIndex.getUnitLocation(unitName);
-      if (location) {
-        symbols.push({
-          name: unitName,
-          kind: SymbolKind.Namespace,
-          location: location,
-        });
-      }
-    }
-  }
-
-  // Search open documents
-  for (const doc of documents.all()) {
-    const symbolTable = buildSymbolTable(doc.getText());
-    for (const symbol of symbolTable.symbols) {
-      if (symbol.name.toLowerCase().includes(query) && symbol.location) {
-        const line = doc.getText().split(/\r?\n/)[symbol.location.line] || "";
-        const nameStart = symbol.location.character;
-        const nameEnd = nameStart + symbol.name.length;
-
-        symbols.push({
-          name: symbol.name,
-          kind: mapSymbolKind(symbol.kind),
-          location: {
-            uri: doc.uri,
-            range: {
-              start: {
-                line: symbol.location.line,
-                character: nameStart,
-              },
-              end: {
-                line: symbol.location.line,
-                character: nameEnd,
-              },
-            },
-          },
-        });
-      }
-    }
-  }
-
-  // Search workspace files (similar to scanDirectoryForReferences)
-  const openDocumentUris = new Set<string>();
-  documents.all().forEach((d) => openDocumentUris.add(d.uri));
-
-  // Recursive function to scan directory
-  const scanDir = (dir: string): void => {
-    try {
-      if (!fs.existsSync(dir)) {
-        return;
-      }
-
-      const entries = fs.readdirSync(dir, { withFileTypes: true });
-
-      for (const entry of entries) {
-        const fullPath = path.join(dir, entry.name);
-
-        if (entry.isDirectory()) {
-          // Skip hidden directories
-          if (!entry.name.startsWith(".")) {
-            scanDir(fullPath);
-          }
-        } else if (entry.isFile() && entry.name.endsWith(".mez")) {
-          const uri = URI.file(fullPath).toString();
-
-          if (openDocumentUris.has(uri)) {
-            continue; // Already processed
-          }
-
-          try {
-            const content = fs.readFileSync(fullPath, "utf8");
-            const symbolTable = buildSymbolTable(content);
-
-            for (const symbol of symbolTable.symbols) {
-              if (symbol.name.toLowerCase().includes(query) && symbol.location) {
-                const nameStart = symbol.location.character;
-                const nameEnd = nameStart + symbol.name.length;
-
-                symbols.push({
-                  name: symbol.name,
-                  kind: mapSymbolKind(symbol.kind),
-                  location: {
-                    uri: uri,
-                    range: {
-                      start: {
-                        line: symbol.location.line,
-                        character: nameStart,
-                      },
-                      end: {
-                        line: symbol.location.line,
-                        character: nameEnd,
-                      },
-                    },
-                  },
-                });
-              }
-            }
-          } catch (err) {
-            // Silently ignore errors reading files
-          }
-        }
-      }
-    } catch (err) {
-      // Silently ignore errors
-    }
-  };
-
-  for (const root of debugInfo.workspaceRoots) {
-    scanDir(root);
-  }
-
-  return symbols;
+  return projectManager.getWorkspaceSymbols(params.query);
 });
 
 connection.onFoldingRanges((params: FoldingRangeParams): FoldingRange[] => {
@@ -1730,41 +1297,8 @@ function findCurrentUnitContext(
  * BIFs like :all(), :read(), :delete(), :new(), :equals() operate on persistent objects (models), not units
  */
 function isModelBif(methodName: string): boolean {
-  const modelBifs = new Set([
-    // Basic CRUD operations
-    "all",
-    "new",
-    "read",
-    "delete",
-    // Query operations
-    "equals",
-    "empty",
-    "between",
-    "lessThanOrEqual",
-    "lessThan",
-    "greaterThan",
-    "attributeIn",
-    "relationshipIn",
-    "contains",
-    "beginsWith",
-    "endsWith",
-    // Negated queries
-    "notEquals",
-    "notEmpty",
-    "notBetween",
-    "notContains",
-    "notBeginWith",
-    "notEndsWith",
-    "notAttributeIn",
-    "notRelationshipIn",
-    // Set operations
-    "union",
-    "diff",
-    "intersect",
-    "and",
-  ]);
-  
-  return modelBifs.has(methodName);
+  const metadata = getLanguageMetadataSync();
+  return (metadata.modelBifs || []).includes(methodName);
 }
 
 /**
@@ -1830,410 +1364,11 @@ function isTypePosition(
 }
 
 connection.onDefinition((params: DefinitionParams): Location | Location[] | null => {
-  console.log(`[Definition] onDefinition called for ${params.textDocument.uri} at line ${params.position.line}, char ${params.position.character}`);
-  const doc = documents.get(params.textDocument.uri);
-  if (!doc) {
-    console.log(`[Definition] Document not found: ${params.textDocument.uri}`);
-    return null;
-  }
-
-  const position = params.position;
-  const text = doc.getText();
-  const lines = text.split(/\r?\n/);
-  const line = lines[position.line] || "";
-  console.log(`[Definition] Line content: "${line}"`);
-
-  // Check if cursor is on or before a colon (for unit references like UnitName:functionName)
-  // If cursor is on ':', look backwards for the unit name
-  let checkPosition = position.character;
-  if (checkPosition < line.length && line[checkPosition] === ':') {
-    // Cursor is on the colon, check the word before it
-    checkPosition = checkPosition - 1;
-  }
-
-  const beforeCursor = line.substring(0, checkPosition);
-  const afterCursor = line.substring(checkPosition);
-  console.log(`[Definition] Before cursor: "${beforeCursor}"`);
-  console.log(`[Definition] After cursor: "${afterCursor}"`);
-  
-  // Try to match a complete identifier word at cursor position
-  // First, try to find the start of the word by looking backwards
-  let wordStart = checkPosition;
-  while (wordStart > 0 && /[A-Za-z0-9_]/.test(line[wordStart - 1])) {
-    wordStart--;
-  }
-  
-  // Then find the end of the word by looking forwards
-  let wordEnd = checkPosition;
-  while (wordEnd < line.length && /[A-Za-z0-9_]/.test(line[wordEnd])) {
-    wordEnd++;
-  }
-  
-  const fullWord = line.substring(wordStart, wordEnd);
-  console.log(`[Definition] Extracted word from position ${wordStart}-${wordEnd}: "${fullWord}"`);
-  
-  // Verify it's a valid identifier (starts with letter or underscore, followed by alphanumeric/underscore)
-  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(fullWord)) {
-    console.log(`[Definition] Word "${fullWord}" doesn't match identifier pattern - returning null`);
-    return null;
-  }
-  
-  // Check if this looks like a unit reference (UnitName:)
-  const charAfter = wordEnd < line.length ? line[wordEnd] : ' ';
-  const looksLikeUnitRef = charAfter === ':';
-  
-  // Verify it's a complete word (has word boundaries on both sides, or is followed by ':')
-  const charBefore = wordStart > 0 ? line[wordStart - 1] : ' ';
-  const isWordBoundaryBefore = !/[A-Za-z0-9_]/.test(charBefore);
-  const isWordBoundaryAfter = !/[A-Za-z0-9_]/.test(charAfter) || looksLikeUnitRef;
-  
-  console.log(`[Definition] Word boundaries: before="${charBefore}" (${isWordBoundaryBefore}), after="${charAfter}" (${isWordBoundaryAfter}), looksLikeUnitRef=${looksLikeUnitRef}`);
-  
-  if (!isWordBoundaryBefore || (!isWordBoundaryAfter && !looksLikeUnitRef)) {
-    console.log(`[Definition] Word "${fullWord}" is not a complete word (missing word boundaries) - returning null`);
-    return null;
-  }
-  
-  console.log(`[Definition] Valid identifier word extracted: "${fullWord}"`);
-
-  // Determine context: unit reference (followed by ':') vs type reference
-  const inTypePosition = isTypePosition(line, wordStart, wordEnd, fullWord);
-  console.log(`[Definition] Context analysis: looksLikeUnitRef=${looksLikeUnitRef}, inTypePosition=${inTypePosition}`);
-
-  // If explicitly a unit reference (followed by ':'), check if it's a BIF or unit method
-  if (looksLikeUnitRef) {
-    console.log(`[Definition] Detected unit reference pattern (followed by ':'), extracting method name...`);
-    
-    // Extract the method name after ':'
-    const afterColon = line.substring(wordEnd + 1).trimStart();
-    const methodMatch = afterColon.match(/^([a-z][A-Za-z0-9_]*)\s*\(/);
-    
-    if (methodMatch) {
-      const methodName = methodMatch[1];
-      console.log(`[Definition] Extracted method name: "${methodName}"`);
-      
-      // Check if it's a BIF (Built-In Function that operates on models)
-      if (isModelBif(methodName)) {
-        console.log(`[Definition] Method "${methodName}" is a BIF, resolving to model (type definition)...`);
-        // BIFs operate on model types, so resolve to type definition
-        const isUserDefined = workspaceIndex.isUserDefinedType(fullWord);
-        if (isUserDefined) {
-          const location = workspaceIndex.getObjectLocation(fullWord);
-          console.log(`[Definition] SUCCESS: Found type definition for "${fullWord}" (BIF target)`);
-          console.log(`[Definition] Location:`, JSON.stringify(location, null, 2));
-          if (location) {
-            console.log(`[Definition] Returning location: ${location.uri} at line ${location.range.start.line + 1}`);
-            return [location];
-          }
-        }
-        console.log(`[Definition] BIF target "${fullWord}" not found as user-defined type`);
-        return null;
-      } else {
-        console.log(`[Definition] Method "${methodName}" is NOT a BIF, resolving to unit definition...`);
-        // Not a BIF, so it's a unit method - resolve to unit
-        const isUnit = workspaceIndex.isUnit(fullWord);
-        if (isUnit) {
-          const location = workspaceIndex.getUnitLocation(fullWord);
-          console.log(`[Definition] SUCCESS: Found unit definition for "${fullWord}"`);
-          console.log(`[Definition] Location:`, JSON.stringify(location, null, 2));
-          if (location) {
-            console.log(`[Definition] Returning location: ${location.uri} at line ${location.range.start.line + 1}`);
-            return [location];
-          } else {
-            console.log(`[Definition] WARNING: isUnit returned true but getUnitLocation returned null`);
-          }
-        }
-        console.log(`[Definition] Unit reference "${fullWord}" not found in workspace index`);
-        return null;
-      }
-    } else {
-      // Couldn't extract method name, fall back to unit resolution
-      console.log(`[Definition] Could not extract method name after ':', falling back to unit resolution...`);
-      const isUnit = workspaceIndex.isUnit(fullWord);
-      if (isUnit) {
-        const location = workspaceIndex.getUnitLocation(fullWord);
-        if (location) {
-          return [location];
-        }
-      }
-      return null;
-    }
-  }
-
-  // If in type position or ambiguous context, check type first, then unit as fallback
-  if (inTypePosition) {
-    console.log(`[Definition] Detected type position, checking for type definition first...`);
-  } else {
-    console.log(`[Definition] Ambiguous context, checking for type definition first...`);
-  }
-
-  // Check if it's a user-defined type
-  console.log(`[Definition] Checking if "${fullWord}" is a user-defined type...`);
-  const isUserDefined = workspaceIndex.isUserDefinedType(fullWord);
-  console.log(`[Definition] isUserDefinedType("${fullWord}") = ${isUserDefined}`);
-  
-  if (isUserDefined) {
-    const location = workspaceIndex.getObjectLocation(fullWord);
-    console.log(`[Definition] SUCCESS: Found type definition for "${fullWord}"`);
-    console.log(`[Definition] Location:`, JSON.stringify(location, null, 2));
-    if (location) {
-      console.log(`[Definition] Returning location: ${location.uri} at line ${location.range.start.line + 1}`);
-      return [location];
-    } else {
-      console.log(`[Definition] WARNING: isUserDefinedType returned true but getObjectLocation returned null`);
-    }
-  }
-
-  // If type not found, check for unit as fallback (only if not explicitly a unit reference)
-  console.log(`[Definition] Type not found, checking for unit as fallback...`);
-  const isUnit = workspaceIndex.isUnit(fullWord);
-  console.log(`[Definition] isUnit("${fullWord}") = ${isUnit}`);
-  
-  if (isUnit) {
-    const location = workspaceIndex.getUnitLocation(fullWord);
-    console.log(`[Definition] SUCCESS: Found unit definition for "${fullWord}" (fallback)`);
-    console.log(`[Definition] Location:`, JSON.stringify(location, null, 2));
-    if (location) {
-      console.log(`[Definition] Returning location: ${location.uri} at line ${location.range.start.line + 1}`);
-      return [location];
-    } else {
-      console.log(`[Definition] WARNING: isUnit returned true but getUnitLocation returned null`);
-    }
-  }
-
-  // Check if this is a function name in a unit-qualified call (e.g., RoleDetails:getPermissionsTable)
-  // Function names start with lowercase, so check if fullWord starts with lowercase
-  const isFunctionName = /^[a-z]/.test(fullWord);
-  
-  if (isFunctionName) {
-    console.log(`[Definition] "${fullWord}" looks like a function name, checking for unit qualifier...`);
-    
-    // Look backwards in the line to find a unit qualifier pattern (UnitName:)
-    const beforeWord = line.substring(0, wordStart);
-    const unitQualifierMatch = beforeWord.match(/\b([A-Z][A-Za-z0-9_]*)\s*:\s*$/);
-    
-    if (unitQualifierMatch) {
-      const unitName = unitQualifierMatch[1];
-      console.log(`[Definition] Found unit qualifier "${unitName}:" before function "${fullWord}"`);
-      
-      // Verify the unit exists
-      if (workspaceIndex.isUnit(unitName)) {
-        console.log(`[Definition] Unit "${unitName}" exists, searching for function "${fullWord}"...`);
-        
-        // Get the unit file location
-        const unitLocation = workspaceIndex.getUnitLocation(unitName);
-        if (!unitLocation) {
-          console.log(`[Definition] WARNING: Unit "${unitName}" exists but getUnitLocation returned null`);
-        } else {
-          console.log(`[Definition] Unit file: ${unitLocation.uri}`);
-          
-          // Try to get the file content from open documents first
-          let unitFileContent: string | null = null;
-          const unitDoc = documents.get(unitLocation.uri);
-          if (unitDoc) {
-            unitFileContent = unitDoc.getText();
-            console.log(`[Definition] Unit file is open in editor`);
-          } else {
-            // Read from disk
-            try {
-              const unitFilePath = URI.parse(unitLocation.uri).fsPath;
-              unitFileContent = fs.readFileSync(unitFilePath, "utf8");
-              console.log(`[Definition] Read unit file from disk: ${unitFilePath}`);
-            } catch (err) {
-              console.log(`[Definition] ERROR: Could not read unit file: ${err}`);
-              unitFileContent = null;
-            }
-          }
-          
-          if (unitFileContent) {
-            // Search for the function definition in the unit file
-            const functionLocation = findFunctionDefinitionInFile(
-              fullWord,
-              unitFileContent,
-              unitLocation.uri
-            );
-            
-            if (functionLocation) {
-              console.log(`[Definition] SUCCESS: Found function "${fullWord}" in unit "${unitName}"`);
-              console.log(`[Definition] Location:`, JSON.stringify(functionLocation, null, 2));
-              return [functionLocation];
-            } else {
-              console.log(`[Definition] Function "${fullWord}" not found in unit "${unitName}"`);
-            }
-          }
-        }
-      } else {
-        console.log(`[Definition] Unit "${unitName}" does not exist in workspace index`);
-      }
-    } else {
-      // No unit qualifier found, check if we're inside a unit context
-      console.log(`[Definition] No unit qualifier found, checking if we're inside a unit context...`);
-      const currentUnit = findCurrentUnitContext(lines, position.line, position.character);
-      
-      if (currentUnit) {
-        console.log(`[Definition] Inside unit "${currentUnit}", searching for function "${fullWord}" in current file...`);
-        
-        // Search for the function definition in the current file
-        const functionLocation = findFunctionDefinitionInFile(
-          fullWord,
-          text,
-          doc.uri
-        );
-        
-        if (functionLocation) {
-          console.log(`[Definition] SUCCESS: Found function "${fullWord}" in unit "${currentUnit}"`);
-          console.log(`[Definition] Location:`, JSON.stringify(functionLocation, null, 2));
-          return [functionLocation];
-        } else {
-          console.log(`[Definition] Function "${fullWord}" not found in unit "${currentUnit}"`);
-        }
-      } else {
-        console.log(`[Definition] Not inside a unit context`);
-      }
-    }
-  }
-
-  // If not a type or unit-qualified function, check if it's a variable
-  console.log(`[Definition] "${fullWord}" is not a user-defined type or unit-qualified function, checking for variable...`);
-  const symbolTable = buildSymbolTable(text);
-  
-  // Find the most recent declaration of this variable before or at the cursor position
-  const relevantSymbols = symbolTable.symbols
-    .filter(
-      (s) =>
-        s.name === fullWord &&
-        s.kind === "variable" &&
-        s.location &&
-        (s.location.line < position.line ||
-          (s.location.line === position.line &&
-            s.location.character <= position.character))
-    )
-    .sort((a, b) => {
-      // Sort by line (most recent first), then by character
-      if (a.location!.line !== b.location!.line) {
-        return b.location!.line - a.location!.line;
-      }
-      return b.location!.character - a.location!.character;
-    });
-
-  if (relevantSymbols.length > 0) {
-    const variableSymbol = relevantSymbols[0];
-    const location: Location = {
-      uri: doc.uri,
-      range: {
-        start: {
-          line: variableSymbol.location!.line,
-          character: variableSymbol.location!.character,
-        },
-        end: {
-          line: variableSymbol.location!.line,
-          character: variableSymbol.location!.character + fullWord.length,
-        },
-      },
-    };
-    console.log(`[Definition] SUCCESS: Found variable definition for "${fullWord}"`);
-    console.log(`[Definition] Location:`, JSON.stringify(location, null, 2));
-    return [location];
-  }
-
-  console.log(`[Definition] "${fullWord}" is not a type, unit-qualified function, or variable - returning null`);
-  return null;
+  return projectManager.getDefinition(params);
 });
 
 connection.onTypeDefinition((params: TypeDefinitionParams): Location | Location[] | null => {
-  console.log(`[TypeDefinition] ===== onTypeDefinition called =====`);
-  console.log(`[TypeDefinition] URI: ${params.textDocument.uri}`);
-  console.log(`[TypeDefinition] Position: line ${params.position.line}, character ${params.position.character}`);
-  
-  // Log workspace index state
-  const debugInfo = workspaceIndex.getDebugInfo();
-  console.log(`[TypeDefinition] Workspace index state: ${debugInfo.objectCount} objects found`);
-  if (debugInfo.objectCount > 0 && debugInfo.objectCount <= 20) {
-    console.log(`[TypeDefinition] Available types: ${debugInfo.objects.join(", ")}`);
-  }
-  
-  const doc = documents.get(params.textDocument.uri);
-  if (!doc) {
-    console.log(`[TypeDefinition] ERROR: Document not found for URI: ${params.textDocument.uri}`);
-    return null;
-  }
-
-  const position = params.position;
-  const text = doc.getText();
-  const lines = text.split(/\r?\n/);
-  const line = lines[position.line] || "";
-  console.log(`[TypeDefinition] Line ${position.line + 1} content: "${line}"`);
-
-  // Find the word at the cursor position (PascalCase for types)
-  // Strategy: Find the complete word boundary around the cursor position
-  const beforeCursor = line.substring(0, position.character);
-  const afterCursor = line.substring(position.character);
-  console.log(`[TypeDefinition] Before cursor: "${beforeCursor}"`);
-  console.log(`[TypeDefinition] After cursor: "${afterCursor}"`);
-  
-  // Match PascalCase identifier (user-defined types start with uppercase)
-  // Look for word boundary before: non-word character or start of line
-  // Then match PascalCase identifier: [A-Z][A-Za-z0-9_]*
-  // Then match continuation after cursor: [A-Za-z0-9_]*
-  // Then ensure word boundary after: non-word character or end of line
-  
-  // Try to match a complete PascalCase word at cursor position
-  // First, try to find the start of the word by looking backwards
-  let wordStart = position.character;
-  while (wordStart > 0 && /[A-Za-z0-9_]/.test(line[wordStart - 1])) {
-    wordStart--;
-  }
-  
-  // Then find the end of the word by looking forwards
-  let wordEnd = position.character;
-  while (wordEnd < line.length && /[A-Za-z0-9_]/.test(line[wordEnd])) {
-    wordEnd++;
-  }
-  
-  const fullWord = line.substring(wordStart, wordEnd);
-  console.log(`[TypeDefinition] Extracted word from position ${wordStart}-${wordEnd}: "${fullWord}"`);
-  
-  // Verify it's a valid type identifier (starts with letter or underscore, followed by alphanumeric/underscore)
-  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(fullWord)) {
-    console.log(`[TypeDefinition] Word "${fullWord}" doesn't match type identifier pattern - returning null`);
-    return null;
-  }
-  
-  // Verify it's a complete word (has word boundaries on both sides)
-  const charBefore = wordStart > 0 ? line[wordStart - 1] : ' ';
-  const charAfter = wordEnd < line.length ? line[wordEnd] : ' ';
-  const isWordBoundaryBefore = !/[A-Za-z0-9_]/.test(charBefore);
-  const isWordBoundaryAfter = !/[A-Za-z0-9_]/.test(charAfter);
-  
-  console.log(`[TypeDefinition] Word boundaries: before="${charBefore}" (${isWordBoundaryBefore}), after="${charAfter}" (${isWordBoundaryAfter})`);
-  
-  if (!isWordBoundaryBefore || !isWordBoundaryAfter) {
-    console.log(`[TypeDefinition] Word "${fullWord}" is not a complete word (missing word boundaries) - returning null`);
-    return null;
-  }
-  
-  console.log(`[TypeDefinition] Valid PascalCase word extracted: "${fullWord}"`);
-
-  // Check if it's a user-defined type
-  console.log(`[TypeDefinition] Checking if "${fullWord}" is a user-defined type...`);
-  const isUserDefined = workspaceIndex.isUserDefinedType(fullWord);
-  console.log(`[TypeDefinition] isUserDefinedType("${fullWord}") = ${isUserDefined}`);
-  
-  if (isUserDefined) {
-    const location = workspaceIndex.getObjectLocation(fullWord);
-    console.log(`[TypeDefinition] SUCCESS: Found type definition for "${fullWord}"`);
-    console.log(`[TypeDefinition] Location:`, JSON.stringify(location, null, 2));
-    if (location) {
-      console.log(`[TypeDefinition] Returning location: ${location.uri} at line ${location.range.start.line + 1}`);
-      return [location];
-    } else {
-      console.log(`[TypeDefinition] WARNING: isUserDefinedType returned true but getObjectLocation returned null`);
-      return null;
-    }
-  }
-
-  console.log(`[TypeDefinition] "${fullWord}" is not a user-defined type - returning null`);
-  return null;
+  return projectManager.getDefinition(params);
 });
 
 /**
@@ -2366,7 +1501,7 @@ function findReferencesInDocument(
   const symbolTable = buildSymbolTable(text);
 
   // Get the definition location to exclude it if needed
-  const definitionLocation = workspaceIndex.getObjectLocation(typeName);
+  const definitionLocation = projectManager.getObjectLocation(typeName);
   const definitionUri = definitionLocation?.uri;
   const definitionLine = definitionLocation?.range.start.line;
 
@@ -2436,7 +1571,7 @@ function findUnitReferencesInDocument(
   const references: Location[] = [];
 
   // Get the definition location to exclude it if needed
-  const definitionLocation = workspaceIndex.getUnitLocation(unitName);
+  const definitionLocation = projectManager.getUnitLocation(unitName);
   const definitionUri = definitionLocation?.uri;
   const definitionLine = definitionLocation?.range.start.line;
 
@@ -2631,95 +1766,7 @@ function scanDirectoryForUnitReferences(
 }
 
 connection.onReferences((params: ReferenceParams): Location[] => {
-  console.log(`[References] ===== onReferences called =====`);
-  console.log(`[References] URI: ${params.textDocument.uri}`);
-  console.log(`[References] Position: line ${params.position.line}, character ${params.position.character}`);
-  console.log(`[References] Include declaration: ${params.context.includeDeclaration}`);
-
-  const doc = documents.get(params.textDocument.uri);
-  if (!doc) {
-    console.log(`[References] Document not found: ${params.textDocument.uri}`);
-    return [];
-  }
-
-  // Extract name at cursor position (could be type or unit)
-  const name = extractTypeNameAtPosition(doc, params.position);
-  if (!name) {
-    console.log(`[References] Could not extract name at position`);
-    return [];
-  }
-
-  console.log(`[References] Extracted name: "${name}"`);
-
-  const excludeDefinition = !params.context.includeDeclaration;
-  const references: Location[] = [];
-
-  // Get all open document URIs to avoid duplicates
-  const openDocumentUris = new Set<string>();
-  documents.all().forEach((d) => openDocumentUris.add(d.uri));
-
-  // Check if it's a unit first
-  if (workspaceIndex.isUnit(name)) {
-    console.log(`[References] "${name}" is a unit, searching for unit references...`);
-
-    // Search all open documents
-    console.log(`[References] Searching ${openDocumentUris.size} open documents for unit references...`);
-    documents.all().forEach((document) => {
-      const docRefs = findUnitReferencesInDocument(document, name, excludeDefinition);
-      references.push(...docRefs);
-      console.log(`[References] Found ${docRefs.length} unit references in ${document.uri}`);
-    });
-
-    // Search workspace files
-    const debugInfo = workspaceIndex.getDebugInfo();
-    console.log(`[References] Searching workspace files in ${debugInfo.workspaceRoots.length} root(s) for unit references...`);
-    for (const root of debugInfo.workspaceRoots) {
-      const workspaceRefs = scanDirectoryForUnitReferences(
-        root,
-        name,
-        excludeDefinition,
-        openDocumentUris
-      );
-      references.push(...workspaceRefs);
-      console.log(`[References] Found ${workspaceRefs.length} unit references in workspace root: ${root}`);
-    }
-
-    console.log(`[References] ===== Found ${references.length} total unit references =====`);
-    return references;
-  }
-
-  // Verify it's a user-defined type
-  if (!workspaceIndex.isUserDefinedType(name)) {
-    console.log(`[References] "${name}" is not a user-defined type or unit`);
-    return [];
-  }
-
-  console.log(`[References] Searching for references to type "${name}"...`);
-
-  // Search all open documents
-  console.log(`[References] Searching ${openDocumentUris.size} open documents...`);
-  documents.all().forEach((document) => {
-    const docRefs = findReferencesInDocument(document, name, excludeDefinition);
-    references.push(...docRefs);
-    console.log(`[References] Found ${docRefs.length} references in ${document.uri}`);
-  });
-
-  // Search workspace files
-  const debugInfo = workspaceIndex.getDebugInfo();
-  console.log(`[References] Searching workspace files in ${debugInfo.workspaceRoots.length} root(s)...`);
-  for (const root of debugInfo.workspaceRoots) {
-    const workspaceRefs = scanDirectoryForReferences(
-      root,
-      name,
-      excludeDefinition,
-      openDocumentUris
-    );
-    references.push(...workspaceRefs);
-    console.log(`[References] Found ${workspaceRefs.length} references in workspace root: ${root}`);
-  }
-
-  console.log(`[References] ===== Found ${references.length} total references =====`);
-  return references;
+  return projectManager.getReferences(params);
 });
 
 connection.languages.semanticTokens.on((params: SemanticTokensParams) => {
@@ -2750,21 +1797,11 @@ connection.languages.semanticTokens.on((params: SemanticTokensParams) => {
   });
   logVerbose(`[SemanticTokens] Found ${variableDeclarations.size} variable/parameter declarations`);
   
-  // Log workspace index state
-  const debugInfo = workspaceIndex.getDebugInfo();
-  logVerbose(`[SemanticTokens] Workspace index has ${debugInfo.objectCount} types`);
-
-  // Keywords that should not be highlighted as types
-  const keywords = new Set([
-    "unit", "persistent", "object", "enum", "validator",
-    "if", "else", "for", "foreach", "return"
-  ]);
-
-  // System/primitive types that should not be highlighted as user-defined types
-  const systemTypes = new Set([
-    "int", "decimal", "bigint", "uuid", "blob", "bool",
-    "string", "void", "date", "datetime", "json", "jsonarray"
-  ]);
+  const metadata = getLanguageMetadataSync();
+  const keywords = new Set((metadata.keywords || []).map((kw) => kw.toLowerCase()));
+  const systemTypes = new Set((metadata.primitiveTypes || []).map((t) => t.toLowerCase()));
+  const unitNames = new Set(projectManager.getUnitNames());
+  const userTypes = new Set(projectManager.getUserTypes());
 
   // Regex to match user-defined type identifiers (PascalCase or snake_case)
   const typeIdentifierRegex = /\b([A-Za-z_][A-Za-z0-9_]*)\b/g;
@@ -2823,7 +1860,7 @@ connection.languages.semanticTokens.on((params: SemanticTokensParams) => {
       // Check if identifier is in a type position (e.g., TypeName[], TypeName variableName)
       const inTypePos = isTypePosition(line, startChar, startChar + length, identifier);
       
-      if (workspaceIndex.isUnit(identifier)) {
+      if (unitNames.has(identifier)) {
         // Skip semantic tokens for unit references (UnitName:identifier) - let TextMate grammar handle them
         // TextMate grammar provides entity.name.type scope for unit names in references
         if (isUnitRef) {
@@ -2831,14 +1868,14 @@ connection.languages.semanticTokens.on((params: SemanticTokensParams) => {
           continue;
         }
         // If it's in a type position, prioritize type highlighting over unit highlighting
-        if (inTypePos && workspaceIndex.isUserDefinedType(identifier)) {
+        if (inTypePos && projectManager.isUserDefinedType(identifier)) {
           logVerbose(`[SemanticTokens] ✓ Found type "${identifier}" in type position at line ${lineIndex + 1}, char ${startChar}`);
           // Token type index 0 corresponds to "type" in our legend
           builder.push(lineIndex, startChar, length, 0, 0);
           continue;
         }
         // Only highlight standalone unit names (not followed by ':') if they're not also types
-        if (!workspaceIndex.isUserDefinedType(identifier)) {
+        if (!projectManager.isUserDefinedType(identifier)) {
           logVerbose(`[SemanticTokens] ✓ Found standalone unit "${identifier}" at line ${lineIndex + 1}, char ${startChar}`);
           // Token type index 3 corresponds to "namespace" in our legend (units are like namespaces/modules)
           builder.push(lineIndex, startChar, length, 3, 0);
@@ -2847,7 +1884,7 @@ connection.languages.semanticTokens.on((params: SemanticTokensParams) => {
       }
 
       // Check if it's a user-defined type using workspace index
-      if (workspaceIndex.isUserDefinedType(identifier)) {
+      if (userTypes.has(identifier)) {
         logVerbose(`[SemanticTokens] ✓ Found user-defined type "${identifier}" at line ${lineIndex + 1}, char ${startChar}`);
         // Token type index 0 corresponds to "type" in our legend
         builder.push(lineIndex, startChar, length, 0, 0);

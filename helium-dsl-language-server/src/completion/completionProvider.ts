@@ -7,11 +7,11 @@ import {
 import { TextDocument } from "vscode-languageserver-textdocument";
 import { URI } from "vscode-uri";
 import * as fs from "fs";
-import { keywords } from "./keywordCompletions.js";
 import { loadBifCompletions } from "./bifCompletions.js";
 import { buildContextCompletions, getObjectProperties } from "./contextCompletions.js";
 import { SymbolTable } from "../symbols/symbolTable.js";
 import { WorkspaceIndex } from "../symbols/workspaceIndex.js";
+import { getLanguageMetadata } from "../language/metadata.js";
 
 /**
  * Get the type of a variable at a given position
@@ -52,41 +52,9 @@ function getVariableType(
 /**
  * Get all model BIFs (Built-In Functions) available for user-defined types
  */
-function getModelBifCompletions(): CompletionItem[] {
-  const modelBifs = [
-    // Basic CRUD operations
-    "all",
-    "new",
-    "read",
-    "delete",
-    // Query operations
-    "equals",
-    "empty",
-    "between",
-    "lessThanOrEqual",
-    "lessThan",
-    "greaterThan",
-    "attributeIn",
-    "relationshipIn",
-    "contains",
-    "beginsWith",
-    "endsWith",
-    // Negated queries
-    "notEquals",
-    "notEmpty",
-    "notBetween",
-    "notContains",
-    "notBeginWith",
-    "notEndsWith",
-    "notAttributeIn",
-    "notRelationshipIn",
-    // Set operations
-    "union",
-    "diff",
-    "intersect",
-    "and",
-  ];
-
+async function getModelBifCompletions(): Promise<CompletionItem[]> {
+  const metadata = await getLanguageMetadata();
+  const modelBifs = metadata.modelBifs || [];
   return modelBifs.map((bif) => ({
     label: bif,
     kind: CompletionItemKind.Function,
@@ -277,7 +245,7 @@ export async function provideCompletions(
 
         // Check if it's a user-defined type
         if (workspaceIndex.isUserDefinedType(identifier)) {
-          const modelBifCompletions = getModelBifCompletions();
+          const modelBifCompletions = await getModelBifCompletions();
           return modelBifCompletions;
         }
 
@@ -289,7 +257,8 @@ export async function provideCompletions(
 
   // Default completions (keywords, BIFs, etc.) - only show when not dot-triggered or colon-triggered
   if (!isDotTriggered && !isColonTriggered) {
-    keywords.forEach((kw) =>
+    const metadata = await getLanguageMetadata();
+    (metadata.keywords || []).forEach((kw) =>
       items.push({ label: kw, kind: CompletionItemKind.Keyword })
     );
 

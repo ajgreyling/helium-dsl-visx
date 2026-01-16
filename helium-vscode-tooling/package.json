@@ -11,6 +11,7 @@
     "build:parser": "antlr4ts -visitor generated/grammar/MezDSL.g4 -o generated/parser/",
     "build:rules": "ts-node scripts/extract-rules.ts",
     "build:bifs": "ts-node scripts/generate-bif-metadata.ts",
+    "build:language": "ts-node scripts/generate-language-metadata.ts",
     "build:textmate": "ts-node scripts/generate-textmate.ts",
     "version-check": "ts-node scripts/version-check.ts",
     "watch": "ts-node scripts/watch.ts",

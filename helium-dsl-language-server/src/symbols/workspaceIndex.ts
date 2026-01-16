@@ -3,6 +3,7 @@ import * as path from "path";
 import { URI } from "vscode-uri";
 import { Location } from "vscode-languageserver";
 import { logVerbose } from "../utils/logger.js";
+import { getLanguageMetadataSync } from "../language/metadata.js";
 
 export interface ObjectDefinition {
   name: string;
@@ -342,20 +343,8 @@ export class WorkspaceIndex {
    * Check if a type name is a user-defined object (not a system type)
    */
   isUserDefinedType(typeName: string): boolean {
-    const systemTypes = [
-      "int",
-      "decimal",
-      "bigint",
-      "uuid",
-      "blob",
-      "bool",
-      "string",
-      "void",
-      "date",
-      "datetime",
-      "json",
-      "jsonarray",
-    ];
+    const metadata = getLanguageMetadataSync();
+    const systemTypes = metadata.primitiveTypes || [];
     const isSystemType = systemTypes.includes(typeName.toLowerCase());
     const isInIndex = this.objectDefinitions.has(typeName);
     logVerbose(`[WorkspaceIndex] Checking type "${typeName}": isSystemType=${isSystemType}, isInIndex=${isInIndex}, result=${!isSystemType && isInIndex}`);

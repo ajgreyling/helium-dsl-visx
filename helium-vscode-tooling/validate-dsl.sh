@@ -255,14 +255,19 @@ EOF
 # Update test configuration to use the sample project path
 echo -e "${BLUE}Updating test configuration...${NC}"
 mkdir -p "$SCRIPT_DIR/../helium-dsl-language-server/generated/tests"
-cat > "$SCRIPT_DIR/../helium-dsl-language-server/generated/tests/munic-chat.test.ts" << EOF
+CORPUS_NAME="$(basename "$SAMPLE_PROJECT_PATH")"
+TEST_FILE="$SCRIPT_DIR/../helium-dsl-language-server/generated/tests/${CORPUS_NAME}.test.ts"
+cat > "$TEST_FILE" << EOF
 import { describe, it } from "mocha";
 import { expect } from "chai";
 import * as fs from "fs";
 import * as path from "path";
 import { Diagnostic } from "vscode-languageserver";
+import { URI } from "vscode-uri";
 import { parseText } from "../../src/parser/index";
 import { runLints } from "../../src/linter/engine";
+import { ProjectIndex } from "../../src/index/projectIndex";
+import { getLanguageMetadataSync } from "../../src/language/metadata";
 
 const SAMPLE_PROJECT_PATH = "$SAMPLE_PROJECT_PATH";
 
@@ -385,6 +390,49 @@ describe("Sample DSL Codebase Validation", () => {
     console.log(\`    Found \${varInElseErrors.length} variable-in-else violations\`);
     expect(varInElseErrors.length).to.equal(0);
   });
+
+  it("should build AST index and resolve definitions", () => {
+    const metadata = getLanguageMetadataSync();
+    const index = new ProjectIndex(SAMPLE_PROJECT_PATH, metadata);
+    index.indexProjectFiles();
+
+    const objectNames = index.getObjectNames();
+    if (objectNames.length > 0) {
+      const firstObject = objectNames[0];
+      const objLocation = index.getObjectLocation(firstObject);
+      expect(objLocation).to.not.equal(null);
+    }
+
+    const unitNames = index.getUnitNames();
+    if (unitNames.length > 0) {
+      const unitLocation = index.getUnitLocation(unitNames[0]);
+      expect(unitLocation).to.not.equal(null);
+    }
+
+    const testText = [
+      "unit AstIndexUnit;",
+      "int __astIndexFunc__(int x) {",
+      "  return x;",
+      "}",
+      "int __astIndexCaller__() {",
+      "  return __astIndexFunc__(1);",
+      "}",
+    ].join("\\n");
+
+    const tempUri = URI.file(path.join(SAMPLE_PROJECT_PATH, "services", "__ast_index_test.mez")).toString();
+    const testIndex = new ProjectIndex(SAMPLE_PROJECT_PATH, metadata);
+    testIndex.updateFile(tempUri, testText);
+
+    const ast = testIndex.getFileAst(tempUri);
+    if (ast && ast.functionCalls.length > 0) {
+      const firstCall = ast.functionCalls[0];
+      const definition = testIndex.resolveDefinitionAt(tempUri, {
+        line: firstCall.nameRange.start.line,
+        character: firstCall.nameRange.start.character + 1,
+      });
+      expect(definition).to.not.equal(null);
+    }
+  });
 });
 EOF
 
@@ -418,23 +466,27 @@ echo -e "${BLUE}=== Step 6: Generate BIF Metadata ===${NC}"
 npm run build:bifs
 
 echo ""
-echo -e "${BLUE}=== Step 7: Generate TextMate Grammar ===${NC}"
+echo -e "${BLUE}=== Step 7: Generate Language Metadata ===${NC}"
+npm run build:language
+
+echo ""
+echo -e "${BLUE}=== Step 8: Generate TextMate Grammar ===${NC}"
 # Note: SAMPLE_PROJECT_PATH is no longer needed for TextMate grammar generation
 # User-defined types are now handled dynamically via semantic tokens
 npm run build:textmate
 
 echo ""
-echo -e "${BLUE}=== Step 8: Build Language Server ===${NC}"
+echo -e "${BLUE}=== Step 9: Build Language Server ===${NC}"
 cd "$SCRIPT_DIR/../helium-dsl-language-server"
 npm run build
 
 echo ""
-echo -e "${BLUE}=== Step 9: Build VSCode Extension ===${NC}"
+echo -e "${BLUE}=== Step 10: Build VSCode Extension ===${NC}"
 cd "$SCRIPT_DIR/../helium-dsl-vscode"
 npm run build
 
 echo ""
-echo -e "${BLUE}=== Step 10: Update Version with Epoch Build Number ===${NC}"
+echo -e "${BLUE}=== Step 11: Update Version with Epoch Build Number ===${NC}"
 cd "$SCRIPT_DIR/../helium-dsl-vscode"
 PACKAGE_JSON="$SCRIPT_DIR/../helium-dsl-vscode/package.json"
 EPOCH=$(date +%s)
@@ -457,12 +509,12 @@ fs.writeFileSync('$PACKAGE_JSON', JSON.stringify(pkg, null, 2) + '\n');
 echo -e "${GREEN}Version updated: ${ORIGINAL_VERSION} -> ${NEW_VERSION}${NC}"
 
 echo ""
-echo -e "${BLUE}=== Step 11: Package VSCode Extension ===${NC}"
+echo -e "${BLUE}=== Step 12: Package VSCode Extension ===${NC}"
 cd "$SCRIPT_DIR/../helium-dsl-vscode"
 npm run package
 
 echo ""
-echo -e "${BLUE}=== Step 12: Restore Original Version ===${NC}"
+echo -e "${BLUE}=== Step 13: Restore Original Version ===${NC}"
 cd "$SCRIPT_DIR/../helium-dsl-vscode"
 # Restore original version
 node -e "
@@ -474,8 +526,8 @@ fs.writeFileSync('$PACKAGE_JSON', JSON.stringify(pkg, null, 2) + '\n');
 echo -e "${GREEN}Version restored to: ${ORIGINAL_VERSION}${NC}"
 
 echo ""
-echo -e "${BLUE}=== Step 13: Run Validation Tests ===${NC}"
-STEP13_START=$(date +%s)
+echo -e "${BLUE}=== Step 14: Run Validation Tests ===${NC}"
+STEP14_START=$(date +%s)
 cd "$SCRIPT_DIR/../helium-dsl-language-server"
 # Use --exit flag to force mocha to exit after tests complete (prevents hanging on active timers)
 # Use stdbuf to disable output buffering if available (not available on macOS by default)
@@ -492,14 +544,14 @@ else
     NODE_OPTIONS='--loader ts-node/esm' npx mocha --exit --require ts-node/register tests/**/*.test.ts generated/tests/**/*.test.ts 2>&1 | grep -vE "(ExperimentalWarning|DeprecationWarning)" || true
     MOCHA_EXIT_CODE=${PIPESTATUS[0]}
 fi
-STEP13_END=$(date +%s)
-STEP13_DURATION=$((STEP13_END - STEP13_START))
+STEP14_END=$(date +%s)
+STEP14_DURATION=$((STEP14_END - STEP14_START))
 
 # Ensure mocha/npx processes have fully terminated
 wait
 
 # Log timing diagnostics (to stderr for immediate output)
-echo "[DEBUG] Step 13 completed in ${STEP13_DURATION}s, exit code: $MOCHA_EXIT_CODE" >&2
+echo "[DEBUG] Step 14 completed in ${STEP14_DURATION}s, exit code: $MOCHA_EXIT_CODE" >&2
 
 if [ $MOCHA_EXIT_CODE -ne 0 ]; then
     echo -e "${RED}Error: Tests failed with exit code $MOCHA_EXIT_CODE${NC}"
@@ -509,7 +561,7 @@ fi
 # Force output flush before proceeding to Step 14
 # Use printf instead of echo for immediate output (no buffering)
 printf "\n"
-printf "${BLUE}=== Step 14: Install Extension in Cursor ===${NC}\n"
+printf "${BLUE}=== Step 15: Install Extension in Cursor ===${NC}\n"
 
 # VSIX file is created in dist/ directory by the local packaging script
 VSIX_FILE="$SCRIPT_DIR/dist/helium-dsl.vsix"

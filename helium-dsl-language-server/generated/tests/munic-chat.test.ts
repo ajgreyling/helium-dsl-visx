@@ -3,8 +3,11 @@ import { expect } from "chai";
 import * as fs from "fs";
 import * as path from "path";
 import { Diagnostic } from "vscode-languageserver";
+import { URI } from "vscode-uri";
 import { parseText } from "../../src/parser/index";
 import { runLints } from "../../src/linter/engine";
+import { ProjectIndex } from "../../src/index/projectIndex";
+import { getLanguageMetadataSync } from "../../src/language/metadata";
 
 const SAMPLE_PROJECT_PATH = "/Users/ajgreyling/code/munic-chat";
 
@@ -126,5 +129,48 @@ describe("Sample DSL Codebase Validation", () => {
 
     console.log(`    Found ${varInElseErrors.length} variable-in-else violations`);
     expect(varInElseErrors.length).to.equal(0);
+  });
+
+  it("should build AST index and resolve definitions", () => {
+    const metadata = getLanguageMetadataSync();
+    const index = new ProjectIndex(SAMPLE_PROJECT_PATH, metadata);
+    index.indexProjectFiles();
+
+    const objectNames = index.getObjectNames();
+    if (objectNames.length > 0) {
+      const firstObject = objectNames[0];
+      const objLocation = index.getObjectLocation(firstObject);
+      expect(objLocation).to.not.equal(null);
+    }
+
+    const unitNames = index.getUnitNames();
+    if (unitNames.length > 0) {
+      const unitLocation = index.getUnitLocation(unitNames[0]);
+      expect(unitLocation).to.not.equal(null);
+    }
+
+    const testText = [
+      "unit AstIndexUnit;",
+      "int __astIndexFunc__(int x) {",
+      "  return x;",
+      "}",
+      "int __astIndexCaller__() {",
+      "  return __astIndexFunc__(1);",
+      "}",
+    ].join("\n");
+
+    const tempUri = URI.file(path.join(SAMPLE_PROJECT_PATH, "services", "__ast_index_test.mez")).toString();
+    const testIndex = new ProjectIndex(SAMPLE_PROJECT_PATH, metadata);
+    testIndex.updateFile(tempUri, testText);
+
+    const ast = testIndex.getFileAst(tempUri);
+    if (ast && ast.functionCalls.length > 0) {
+      const firstCall = ast.functionCalls[0];
+      const definition = testIndex.resolveDefinitionAt(tempUri, {
+        line: firstCall.nameRange.start.line,
+        character: firstCall.nameRange.start.character + 1,
+      });
+      expect(definition).to.not.equal(null);
+    }
   });
 });

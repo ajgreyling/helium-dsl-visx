@@ -146,6 +146,7 @@ If you need to modify the packaging process:
 - `parser/generated/grammar/*` - All files in this subdirectory (duplicate parser files)
 - `rules/dsl-rules.json` - Linting rules metadata
 - `bifs/bif-metadata.json` - Built-in function metadata
+- `language/helium-language-metadata.json` - Packaged language metadata (keywords, primitive types, model BIFs, reserved identifiers)
 - `syntaxes/helium-dsl.tmLanguage.json` - TextMate syntax highlighting grammar
 
 **helium-dsl-language-server/out/** (All compiled TypeScript output):
@@ -154,7 +155,7 @@ If you need to modify the packaging process:
 - All subdirectories and their contents (completion/, diagnostics.js, linter/, parser/, symbols/, tests/, etc.)
 
 **helium-dsl-language-server/generated/** (Generated test files):
-- `tests/munic-chat.test.ts` - Dynamically generated validation test
+- `tests/<corpus>.test.ts` - Dynamically generated validation test (name derived from the `-p` corpus path passed to `helium-vscode-tooling/validate-dsl.sh`)
 
 **helium-vscode-tooling/helium-dsl-vscode/out/** (Compiled extension output):
 - `extension.js` - Compiled extension code
@@ -354,6 +355,8 @@ When trace level is set to `verbose`, the following debug logs appear in the "He
 - **WorkspaceIndex logs**: Workspace scanning, object/unit discovery, file updates
 - **Type discovery logs**: User-defined types list, workspace roots, type checking operations
 - **Server initialization logs**: Detailed initialization steps and configuration
+
+Note: the language server now does Helium Rapid project discovery and indexing; verbose logs may reference project roots and indexing rather than the legacy WorkspaceIndex-only scanning.
 
 When trace level is `off` (default), these verbose logs are suppressed to keep the Output channel clean. Error logs (`console.error`) always appear regardless of trace level.
 

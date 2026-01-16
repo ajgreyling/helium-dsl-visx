@@ -1,13 +1,7 @@
-export const keywords = [
-  "unit",
-  "persistent",
-  "object",
-  "enum",
-  "validator",
-  "if",
-  "else",
-  "for",
-  "foreach",
-  "return",
-];
+import { getLanguageMetadata } from "../language/metadata.js";
+
+export async function getKeywordCompletions(): Promise<string[]> {
+  const metadata = await getLanguageMetadata();
+  return metadata.keywords || [];
+}
 

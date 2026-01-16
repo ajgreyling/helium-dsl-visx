@@ -159,21 +159,19 @@ RoleDetails:getPermissionsTable()
 
 #### Type IntelliSense
 
-When typing `:` after a user-defined type name (e.g., `SomeModel:`), IntelliSense shows all model Built-In Functions (BIFs):
-- **CRUD operations**: `all`, `new`, `read`, `delete`
-- **Query operations**: `equals`, `empty`, `between`, `lessThan`, `greaterThan`, `contains`, `beginsWith`, `endsWith`, `attributeIn`, `relationshipIn`
-- **Negated queries**: `notEquals`, `notEmpty`, `notBetween`, `notContains`, `notBeginWith`, `notEndsWith`, `notAttributeIn`, `notRelationshipIn`
-- **Set operations**: `union`, `diff`, `intersect`, `and`
+When typing `:` after a user-defined type name (e.g., `SomeModel:`), IntelliSense shows model Built-In Functions (BIFs).
+
+Important: the **model BIF list is generated from the grammar (not hardcoded)** and may evolve as the upstream grammar changes.
 
 Example:
 ```mez
-// Typing "Person:" shows all model BIFs:
+// Typing "Person:" shows model BIFs derived from the grammar:
 Person:all()
 Person:read(uuid)
 Person:new()
 Person:delete(uuid)
 Person:equals(...)
-// ... and all other model BIFs
+// ... and other model BIFs
 ```
 
 ### Linting Rules
@@ -321,7 +319,17 @@ The build process transforms the original ANTLR3 grammar from the Helium Java pr
 - **Content**: Extracts built-in function tokens (e.g., `Mez:now`, `sql:query`) with namespaces, signatures, and grammar line numbers
 - **Purpose**: Powers autocomplete suggestions for built-in functions
 
-#### 7. TextMate Grammar Generation (`npm run build:textmate`)
+#### 7. Language Metadata Generation (`npm run build:language`)
+
+**Script**: `scripts/generate-language-metadata.ts`
+
+- **Inputs**:
+  - `generated/grammar/MezDSL.g4` (extracts keywords, primitive types, model-BIFs)
+  - `generated/bifs/bif-metadata.json` (extracts BIF namespaces and functions)
+- **Output**: `generated/language/helium-language-metadata.json`
+- **Purpose**: Central “no-hardcoding” metadata bundle consumed by the language server for keywords/primitive types/model BIFs/reserved identifiers.
+
+#### 8. TextMate Grammar Generation (`npm run build:textmate`)
 
 **Script**: `scripts/generate-textmate.ts`
 
@@ -330,7 +338,7 @@ The build process transforms the original ANTLR3 grammar from the Helium Java pr
 - **Purpose**: Generates TextMate grammar for syntax highlighting in the editor
 - **Features**: Maps grammar tokens to TextMate scopes (`support.class`, `support.function`, `keyword.control`, etc.)
 
-#### 8. Language Server Build
+#### 9. Language Server Build
 
 **Location**: `helium-dsl-language-server/`
 
@@ -341,7 +349,7 @@ The build process transforms the original ANTLR3 grammar from the Helium Java pr
   - `out/` - All compiled language server modules
   - `node_modules/` - Language server runtime dependencies
 
-#### 9. Extension Build
+#### 10. Extension Build
 
 **Location**: `helium-dsl-vscode/`
 
@@ -349,7 +357,7 @@ The build process transforms the original ANTLR3 grammar from the Helium Java pr
 - **Build**: Compiles TypeScript extension code (`src/extension.ts`) to `out/extension.js`
 - **Output**: Compiled extension client code
 
-#### 10. Local VSIX Packaging (`npm run package`)
+#### 11. Local VSIX Packaging (`npm run package`)
 
 **Orchestrator**: `scripts/package-docker.sh` (uses local packaging)
 
@@ -384,7 +392,7 @@ The packaging process uses local packaging with temporary directories to ensure 
 - **Proper Bundling**: Ensures all transitive dependencies are included (required by Cursor)
 - **Simplified Setup**: No Docker dependency required
 
-#### 11. Publishing to Open VSX Registry
+#### 12. Publishing to Open VSX Registry
 
 **Prerequisites**:
 - Open VSX account at https://open-vsx.org/
@@ -416,9 +424,10 @@ This automates all steps:
 4. Generates TypeScript parser
 5. Extracts linting rules
 6. Generates BIF metadata
-7. Generates TextMate grammar
-8. Builds language server
-9. Builds extension
+7. Generates language metadata
+8. Generates TextMate grammar
+9. Builds language server
+10. Builds extension
 10. Packages VSIX using local packaging
 11. Validates against sample project
 12. Installs extension in Cursor
