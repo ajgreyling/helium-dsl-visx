@@ -98,6 +98,8 @@ The packaging process follows these principles:
 - Parser errors are written to `helium-dsl-language-server/generated/parser-errors.json`.
 - Do not treat parser errors as warnings; they indicate grammar conversion gaps that need fixing in `helium-vscode-tooling/scripts/convert-grammar.ts`.
 - Validation runs in **strict mode** (`HELIUM_STRICT_PARSER=1`) so editor-only false-positive filtering does not mask grammar conversion gaps.
+- If parser errors cluster around multi-argument string functions (e.g. `String:concat`, `String:replaceAll`), check the `STR_LITERAL` conversion in `helium-vscode-tooling/scripts/convert-grammar.ts` to ensure string tokens stop at the next quote.
+- If parser errors appear on lines like `requestBody.jsonPut(...)`, ensure member-call statements are allowed (see `simpleStatement` and `valueExpression` conversion rules).
 
 ## File Structure
 
@@ -136,7 +138,11 @@ If you need to modify the packaging process:
 - The compiled MCP entrypoint is `helium-rapid-dsl-mcp/out/src/index.js` (not `out/index.js`).
 
 ### Node ESM strictness (Cursor)
-- Cursor may run a strict ESM Node runtime (e.g. Node 25). In that environment, **imports must use explicit `.js` suffixes** for certain packages.\n+  - Use `vscode-languageserver/node.js` (not `vscode-languageserver/node`)\n+  - Use `antlr4ts/tree/ParseTreeWalker.js`, `antlr4ts/ParserRuleContext.js`, `antlr4ts/Token.js` (not extensionless paths)\n+\n+If you add any new ESM imports in `helium-dsl-language-server`, follow that pattern to avoid MCP startup failures.
+- Cursor may run a strict ESM Node runtime (e.g. Node 25). In that environment, **imports must use explicit `.js` suffixes** for certain packages.
+  - Use `vscode-languageserver/node.js` (not `vscode-languageserver/node`)
+  - Use `antlr4ts/tree/ParseTreeWalker.js`, `antlr4ts/ParserRuleContext.js`, `antlr4ts/Token.js` (not extensionless paths)
+
+If you add any new ESM imports in `helium-dsl-language-server`, follow that pattern to avoid MCP startup failures.
 
 ### API surface
 - Prefer importing language-server capabilities via the stable module `helium-dsl-language-server/api` rather than deep-importing `out/src/...`.

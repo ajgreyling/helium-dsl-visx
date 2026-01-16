@@ -497,7 +497,7 @@ if ! node -e "require.resolve('ts-node/register')" >/dev/null 2>&1; then
     exit 1
 fi
 
-HELIUM_STRICT_PARSER=1 NODE_OPTIONS='--loader ts-node/esm' TS_NODE_PROJECT="$SCRIPT_DIR/../helium-dsl-language-server/tsconfig.json" TS_NODE_TRANSPILE_ONLY=1 node --input-type=module -e "
+NODE_ENV=development HELIUM_STRICT_PARSER=1 NODE_OPTIONS='--loader ts-node/esm' TS_NODE_PROJECT="$SCRIPT_DIR/../helium-dsl-language-server/tsconfig.json" TS_NODE_TRANSPILE_ONLY=1 node --input-type=module -e "
 import fs from 'fs';
 import path from 'path';
 import { parseText } from './src/parser/index.ts';

@@ -338,6 +338,8 @@ The validation pipeline now **fails fast** when parser diagnostics are detected 
   - `npm run build:parser` ran in `helium-vscode-tooling`
   - `npm install` ran in `helium-dsl-language-server` (ts-node is required for parser validation)
 - The pipeline runs the parser in **strict mode** (`HELIUM_STRICT_PARSER=1`) so known false-positive suppression used in the editor does not hide conversion gaps.
+- If parser errors cluster around multi-argument string functions (e.g. `String:concat`, `String:replaceAll`), verify the `STR_LITERAL` conversion in `helium-vscode-tooling/scripts/convert-grammar.ts` stops at the next quote.
+- If parser errors appear on member-call statements like `requestBody.jsonPut(...)`, ensure member-call statements are allowed (see `simpleStatement` and `valueExpression` conversion rules).
 
 ### Grammar Conversion Errors
 
