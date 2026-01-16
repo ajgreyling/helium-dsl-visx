@@ -1,5 +1,5 @@
 import { ANTLRInputStream, CommonTokenStream } from "antlr4ts";
-import { ParseTreeWalker } from "antlr4ts/tree/ParseTreeWalker";
+import { ParseTreeWalker } from "antlr4ts/tree/ParseTreeWalker.js";
 import { rangeFromContext, rangeFromTokens } from "./span.js";
 import { createRequire } from "module";
 import { fileURLToPath } from "url";
