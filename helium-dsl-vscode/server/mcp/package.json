@@ -1,0 +1,7 @@
+{
+  "name": "helium-rapid-dsl-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "MCP server for Helium Rapid DSL (.mez, .vxml) - bundled in VSIX"
+}

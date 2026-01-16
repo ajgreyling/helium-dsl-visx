@@ -15,6 +15,12 @@ This folder (`helium-rapid-dsl-mcp/`) contains an MCP server used by Cursor agen
   - `out/src/index.js`
 - Do NOT configure Cursor to run `out/index.js` (it will not exist with the current build layout).
 
+## Bundled in VSIX (Cursor)
+
+- When packaged, the MCP server is bundled inside the extension:
+  - `helium-dsl-vscode/server/mcp/out/src/index.js`
+- The extension registers the MCP server via `mcpServerDefinitionProviders`, so Cursor users can enable it directly from **MCP: List Servers**.
+
 ## Node ESM learnings (Cursor runtime)
 
 Cursor may launch MCP servers using a strict Node ESM runtime (e.g. Node 25). In that environment:

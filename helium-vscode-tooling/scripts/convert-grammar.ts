@@ -215,11 +215,44 @@ async function convert() {
 	|	enumValueExpression
 	|	bifExpression
 	|	functionCall
+	|	valueExpression
 	|	accessExpression
 	|	incrementExpression
 	|	decrementExpression
 	|	'(' expression ')'
 	;`
+  );
+
+  // Fix memberFunction in valueExpression to accept expression arguments (not parameter declarations).
+  // This enables common DSL like: oldItems.length(), s.contains("x"), list.get(i)
+  converted = converted.replace(
+    /memberFunction\s*:\s*functionName=ID\s*'\('\s*parameter\*\s*'\)'\s*;/s,
+    `memberFunction
+\t: functionName=(ID | LENGTH | FIRST | LAST | GET | JSONGET | JSONPUT | JSONREMOVE | JSONCONTAINS | JSONKEYS | CONTAINS | NOTCONTAINS) '(' (expression (',' expression)*)? ')'
+\t;`
+  );
+
+  // Allow member attributes to use common keyword-tokens too (e.g. obj.length)
+  converted = converted.replace(
+    /memberAttribute\s*:\s*attName=ID\s*;/s,
+    `memberAttribute
+\t: attName=(ID | LENGTH | FIRST | LAST | GET | JSONGET | JSONPUT | JSONREMOVE | JSONCONTAINS | JSONKEYS | CONTAINS | NOTCONTAINS)
+\t;`
+  );
+
+  // Relax Mez:sms / Mez:smsSend signatures to parse like normal function calls.
+  // The upstream grammar models these with fixed STR_LITERAL arguments, but the ANTLR4 conversion can
+  // misparse valid calls like: Mez:sms(tempUser, "mobile_number", "sms.response");
+  // Treat the 2nd/3rd args as expressions (strings still parse as STR_LITERAL expressions).
+  converted = converted.replace(
+    /\|\s*SMS\s*'\('\s*expression\s*','\s*attName=STR_LITERAL\s*','\s*transKey=STR_LITERAL\s*\(','\s*expression\)\?\s*'\)'\s*/g,
+    `|	SMS '(' expression ',' expression ',' expression (',' expression)? ')'
+`
+  );
+  converted = converted.replace(
+    /\|\s*SMS_SEND\s*'\('\s*expression\s*','\s*attName=STR_LITERAL\s*','\s*transKey=STR_LITERAL\s*\(','\s*expression\)\?\s*'\)'\s*/g,
+    `|	SMS_SEND '(' expression ',' expression ',' expression (',' expression)? ')'
+`
   );
 
   await fs.writeFile(target, converted, "utf8");

@@ -481,6 +481,69 @@ cd "$SCRIPT_DIR/../helium-dsl-language-server"
 npm run build
 
 echo ""
+echo -e "${BLUE}=== Step 9.5: Validate Parser (fail on parser errors) ===${NC}"
+PARSER_ERRORS_FILE="$SCRIPT_DIR/../helium-dsl-language-server/generated/parser-errors.json"
+rm -f "$PARSER_ERRORS_FILE"
+
+PARSER_LEXER_TS="$SCRIPT_DIR/generated/parser/generated/grammar/MezDSLLexer.ts"
+PARSER_PARSER_TS="$SCRIPT_DIR/generated/parser/generated/grammar/MezDSLParser.ts"
+if [ ! -f "$PARSER_LEXER_TS" ] || [ ! -f "$PARSER_PARSER_TS" ]; then
+    echo -e "${RED}Error: Parser not generated. Run npm run build:parser in helium-vscode-tooling.${NC}"
+    exit 1
+fi
+
+if ! node -e "require.resolve('ts-node/register')" >/dev/null 2>&1; then
+    echo -e "${RED}Error: ts-node is required for parser validation. Run npm install in helium-dsl-language-server.${NC}"
+    exit 1
+fi
+
+HELIUM_STRICT_PARSER=1 NODE_OPTIONS='--loader ts-node/esm' TS_NODE_PROJECT="$SCRIPT_DIR/../helium-dsl-language-server/tsconfig.json" TS_NODE_TRANSPILE_ONLY=1 node --input-type=module -e "
+import fs from 'fs';
+import path from 'path';
+import { parseText } from './src/parser/index.ts';
+
+const sampleRoot = '$SAMPLE_PROJECT_PATH';
+const errors = [];
+
+function findMezFiles(dir) {
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      findMezFiles(fullPath);
+    } else if (entry.name.endsWith('.mez')) {
+      const text = fs.readFileSync(fullPath, 'utf8');
+      const result = parseText(text);
+      if (result.diagnostics.length > 0) {
+        errors.push({
+          file: path.relative(sampleRoot, fullPath),
+          issues: result.diagnostics,
+        });
+      }
+    }
+  }
+}
+
+findMezFiles(sampleRoot);
+
+if (errors.length > 0) {
+  fs.writeFileSync('$PARSER_ERRORS_FILE', JSON.stringify(errors, null, 2));
+  console.error('Parser errors detected in sample project. Aborting.');
+  const first = errors.slice(0, 5);
+  first.forEach((e) => {
+    console.error('  ' + e.file);
+    e.issues.slice(0, 3).forEach((issue) => {
+      const line = (issue.range?.start?.line ?? 0) + 1;
+      console.error('    Line ' + line + ': ' + issue.message);
+    });
+  });
+  process.exit(1);
+} else {
+  console.log('No parser errors detected.');
+}
+"
+
+echo ""
 echo -e "${BLUE}=== Step 10: Build VSCode Extension ===${NC}"
 cd "$SCRIPT_DIR/../helium-dsl-vscode"
 npm run build
@@ -511,6 +574,7 @@ echo -e "${GREEN}Version updated: ${ORIGINAL_VERSION} -> ${NEW_VERSION}${NC}"
 echo ""
 echo -e "${BLUE}=== Step 12: Package VSCode Extension ===${NC}"
 cd "$SCRIPT_DIR/../helium-dsl-vscode"
+export HELIUM_PARSER_ERRORS_FILE="$PARSER_ERRORS_FILE"
 npm run package
 
 echo ""

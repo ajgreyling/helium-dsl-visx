@@ -1,4 +1,4 @@
-import * as path from "node:path";
+import * as path from "path";
 import * as fs from "fs";
 import * as vscode from "vscode";
 import {
@@ -177,6 +177,84 @@ export function activate(context: vscode.ExtensionContext) {
   );
   
   context.subscriptions.push({ dispose: () => client?.stop() });
+
+  // Register MCP server definition provider
+  registerMcpServerProvider(context);
+}
+
+/**
+ * Register the Helium Rapid DSL MCP server definition provider.
+ * Uses runtime feature detection since TypeScript types may not be available.
+ */
+function registerMcpServerProvider(context: vscode.ExtensionContext): void {
+  // Check if MCP API is available (runtime feature detection)
+  const vscodeAny = vscode as any;
+  if (!vscodeAny.lm || !vscodeAny.lm.registerMcpServerDefinitionProvider) {
+    console.log("[HeliumDSL] MCP API not available - skipping MCP server registration");
+    return;
+  }
+
+  try {
+    const mcpEntrypoint = context.asAbsolutePath(
+      path.join("server", "mcp", "out", "src", "index.js")
+    );
+
+    // Verify MCP server file exists
+    if (!fs.existsSync(mcpEntrypoint)) {
+      console.warn(`[HeliumDSL] MCP server not found at ${mcpEntrypoint} - skipping registration`);
+      return;
+    }
+
+    const mcpCwd = context.asAbsolutePath(path.join("server", "mcp"));
+    const didChangeEmitter = new vscode.EventEmitter<void>();
+
+    context.subscriptions.push(
+      vscodeAny.lm.registerMcpServerDefinitionProvider("heliumRapidDsl", {
+        onDidChangeMcpServerDefinitions: didChangeEmitter.event,
+        provideMcpServerDefinitions: async (): Promise<any[]> => {
+          // Use McpStdioServerDefinition if available, otherwise construct manually
+          if (vscodeAny.McpStdioServerDefinition) {
+            return [
+              new vscodeAny.McpStdioServerDefinition({
+                label: "Helium Rapid DSL MCP Server",
+                command: "node",
+                args: [mcpEntrypoint],
+                cwd: vscode.Uri.file(mcpCwd),
+                env: {},
+                version: "0.1.0",
+              }),
+            ];
+          } else {
+            // Fallback: construct server definition object manually
+            return [
+              {
+                type: "stdio",
+                label: "Helium Rapid DSL MCP Server",
+                command: "node",
+                args: [mcpEntrypoint],
+                cwd: vscode.Uri.file(mcpCwd),
+                env: {},
+                version: "0.1.0",
+              },
+            ];
+          }
+        },
+        resolveMcpServerDefinition: async (server: any): Promise<any> => {
+          // No additional resolution needed - server is ready to start
+          return server;
+        },
+      })
+    );
+
+    console.log("[HeliumDSL] MCP server definition provider registered");
+    console.log(`[HeliumDSL] MCP entrypoint: ${mcpEntrypoint}`);
+  } catch (error) {
+    const errorMsg = `[HeliumDSL] Failed to register MCP server provider: ${error}`;
+    console.error(errorMsg);
+    if (outputChannel) {
+      outputChannel.appendLine(`ERROR: ${errorMsg}`);
+    }
+  }
 }
 
 /**

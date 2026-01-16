@@ -61,6 +61,7 @@ The extension uses **local packaging with temporary directories** for the follow
 - ✅ Each step should be explicit and verifiable
 - ✅ Builds should work consistently across environments
 - ✅ Fail fast with clear error messages
+- ✅ Fail fast on parser errors; do not continue packaging if parser diagnostics exist
 
 **DEPENDENCY MANAGEMENT:**
 - ✅ Install dependencies locally in each package (use `--no-workspaces` when needed)
@@ -90,6 +91,13 @@ The packaging process follows these principles:
 5. **Flatten Dependencies**: Move nested dependencies to root before packaging
 6. **Validate**: Run `npm list --production` to verify dependency tree
 7. **Package**: Use `vsce package` (WITHOUT `--no-dependencies`)
+
+## Parser Validation (fail fast)
+
+- The validation pipeline must abort if parser diagnostics are detected in the sample project.
+- Parser errors are written to `helium-dsl-language-server/generated/parser-errors.json`.
+- Do not treat parser errors as warnings; they indicate grammar conversion gaps that need fixing in `helium-vscode-tooling/scripts/convert-grammar.ts`.
+- Validation runs in **strict mode** (`HELIUM_STRICT_PARSER=1`) so editor-only false-positive filtering does not mask grammar conversion gaps.
 
 ## File Structure
 

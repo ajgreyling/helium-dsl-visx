@@ -134,9 +134,13 @@ function isParserRuntimeError(errorMsg: string): boolean {
 class CollectingErrorListener {
   public diagnostics: Diagnostic[] = [];
   private sourceText: string;
+  private strict: boolean;
 
   constructor(sourceText: string) {
     this.sourceText = sourceText;
+    // Strict mode is used by build/validation pipelines to fail fast on *any* parser diagnostics.
+    // Default behavior keeps some known false-positives suppressed for editor usability.
+    this.strict = process.env.HELIUM_STRICT_PARSER === "1";
   }
 
   /**
@@ -252,8 +256,9 @@ class CollectingErrorListener {
     charPositionInLine: number,
     msg: string
   ) {
-    // Filter out false positive parser errors - these are parser limitations, not code errors
-    if (!this.isFalsePositive(line, charPositionInLine, msg)) {
+    // In strict mode, treat all parser diagnostics as real (used for build fail-fast).
+    // Otherwise, filter out known false positives (editor UX).
+    if (this.strict || !this.isFalsePositive(line, charPositionInLine, msg)) {
       this.diagnostics.push({
         message: msg,
         range: {

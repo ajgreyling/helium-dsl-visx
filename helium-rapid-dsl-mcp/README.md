@@ -50,6 +50,14 @@ cd helium-rapid-dsl-mcp
 node out/src/index.js
 ```
 
+### Bundled in VSIX (Cursor)
+
+When packaged, the MCP server is bundled inside the Helium DSL extension and registered via the MCP server definition provider. The bundled entrypoint is:
+
+- `helium-dsl-vscode/server/mcp/out/src/index.js`
+
+This allows Cursor users to enable it directly from **MCP: List Servers** without manual configuration.
+
 ### Cursor MCP configuration (example)
 
 Configure Cursor to run this MCP server via stdio, pointing to the built entrypoint.

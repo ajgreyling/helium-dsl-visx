@@ -123,12 +123,13 @@ This will:
 7. Generate language metadata (keywords, primitive types, model BIFs) from grammar
 8. Generate TextMate grammar for syntax highlighting
 9. Build the language server
-10. Build the VSCode extension
-11. Update extension version with epoch-based build number
-12. Package the VSCode extension as a `.vsix` file using local packaging
-13. Restore original version in package.json
-14. Run validation tests against your sample project (including AST/index checks)
-15. Automatically install the extension in Cursor
+10. Validate parser against the sample project (fails fast on parser errors)
+11. Build the VSCode extension
+12. Update extension version with epoch-based build number
+13. Package the VSCode extension as a `.vsix` file using local packaging
+14. Restore original version in package.json
+15. Run validation tests against your sample project (including AST/index checks)
+16. Automatically install the extension in Cursor
 
 ### Manual Build Steps
 
@@ -326,12 +327,25 @@ If you see "Parser not generated yet" errors:
 npm run build:parser
 ```
 
+### Parser Errors Detected
+
+The validation pipeline now **fails fast** when parser diagnostics are detected in the sample project.
+
+- The parser validation step writes details to:
+  `helium-dsl-language-server/generated/parser-errors.json`
+- Fix grammar conversion issues (see below), then re-run `./run.sh`
+- If you see "Parser not generated" during validation, ensure:
+  - `npm run build:parser` ran in `helium-vscode-tooling`
+  - `npm install` ran in `helium-dsl-language-server` (ts-node is required for parser validation)
+- The pipeline runs the parser in **strict mode** (`HELIUM_STRICT_PARSER=1`) so known false-positive suppression used in the editor does not hide conversion gaps.
+
 ### Grammar Conversion Errors
 
 If grammar validation fails:
 1. Check that the source grammar exists
 2. Review the conversion script output
 3. Check `generated/grammar/MezDSL.g4` for syntax errors
+4. **Do not edit generated grammar directly** — update `helium-vscode-tooling/scripts/convert-grammar.ts`
 
 ### Test Failures
 
@@ -784,5 +798,6 @@ See `helium-vscode-tooling/TOKEN_MAPPINGS.md` for complete token scope reference
 - Semantic actions containing `token()` calls are automatically removed during conversion
 - The parser is regenerated from scratch each time to ensure consistency
 - The local packaging ensures all dependencies are included, preventing "Cannot find module" errors at runtime
+- Member access functions like `list.length()` or `obj.jsonGet(...)` are handled in the conversion script; update `convert-grammar.ts` if keyword-tokens cause parse errors
 
 
