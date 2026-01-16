@@ -45,6 +45,9 @@ async function setIconThemeIfNotConfigured(): Promise<void> {
 
 export function activate(context: vscode.ExtensionContext) {
   console.log("[HeliumDSL] Activating extension...");
+  // #region agent log
+  (globalThis as any).fetch('http://127.0.0.1:7243/ingest/f8eecc7d-5d84-4f56-8e99-5ad9d9836767',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'mcp-test-3',hypothesisId:'H1',location:'helium-dsl-vscode/src/extension.ts:49',message:'activate',data:{workspaceFolders:(vscode.workspace.workspaceFolders?.length ?? 0),appName:vscode.env.appName,extensionId:context.extension?.id ?? 'unknown',extensionVersion:context.extension?.packageJSON?.version ?? 'unknown'},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion agent log
   
   // Set icon theme automatically if not already configured
   setIconThemeIfNotConfigured();
@@ -189,6 +192,9 @@ export function activate(context: vscode.ExtensionContext) {
 function registerMcpServerProvider(context: vscode.ExtensionContext): void {
   // Check if MCP API is available (runtime feature detection)
   const vscodeAny = vscode as any;
+  // #region agent log
+  (globalThis as any).fetch('http://127.0.0.1:7243/ingest/f8eecc7d-5d84-4f56-8e99-5ad9d9836767',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'mcp-test-3',hypothesisId:'H1',location:'helium-dsl-vscode/src/extension.ts:195',message:'mcp_api_check',data:{lmPresent:Boolean(vscodeAny.lm),providerFn:Boolean(vscodeAny.lm?.registerMcpServerDefinitionProvider),hasCtor:Boolean(vscodeAny.McpStdioServerDefinition)},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion agent log
   if (!vscodeAny.lm || !vscodeAny.lm.registerMcpServerDefinitionProvider) {
     console.log("[HeliumDSL] MCP API not available - skipping MCP server registration");
     return;
@@ -212,22 +218,26 @@ function registerMcpServerProvider(context: vscode.ExtensionContext): void {
       vscodeAny.lm.registerMcpServerDefinitionProvider("heliumRapidDsl", {
         onDidChangeMcpServerDefinitions: didChangeEmitter.event,
         provideMcpServerDefinitions: async (): Promise<any[]> => {
+          // #region agent log
+          (globalThis as any).fetch('http://127.0.0.1:7243/ingest/f8eecc7d-5d84-4f56-8e99-5ad9d9836767',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'mcp-test-3',hypothesisId:'H2',location:'helium-dsl-vscode/src/extension.ts:217',message:'provide_mcp_definitions',data:{entrypointExists:fs.existsSync(mcpEntrypoint),hasDefinitionCtor:Boolean(vscodeAny.McpStdioServerDefinition)},timestamp:Date.now()})}).catch(()=>{});
+          // #endregion agent log
           // Use McpStdioServerDefinition if available, otherwise construct manually
           if (vscodeAny.McpStdioServerDefinition) {
-            return [
-              new vscodeAny.McpStdioServerDefinition({
+            const def = new vscodeAny.McpStdioServerDefinition({
                 label: "Helium Rapid DSL MCP Server",
                 command: "node",
                 args: [mcpEntrypoint],
                 cwd: vscode.Uri.file(mcpCwd),
                 env: {},
                 version: "0.1.0",
-              }),
-            ];
+              });
+            // #region agent log
+            (globalThis as any).fetch('http://127.0.0.1:7243/ingest/f8eecc7d-5d84-4f56-8e99-5ad9d9836767',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'mcp-test-3',hypothesisId:'H5',location:'helium-dsl-vscode/src/extension.ts:230',message:'mcp_definition_shape',data:{labelType:typeof def?.label,labelValue:String(def?.label),labelCtor:def?.label?.constructor?.name,commandType:typeof def?.command,hasId:Object.prototype.hasOwnProperty.call(def ?? {},'id'),cwdType:typeof def?.cwd,cwdIsUri:def?.cwd instanceof vscode.Uri,argsCount:Array.isArray(def?.args)?def?.args.length:0},timestamp:Date.now()})}).catch(()=>{});
+            // #endregion agent log
+            return [def];
           } else {
             // Fallback: construct server definition object manually
-            return [
-              {
+            const def = {
                 type: "stdio",
                 label: "Helium Rapid DSL MCP Server",
                 command: "node",
@@ -235,11 +245,17 @@ function registerMcpServerProvider(context: vscode.ExtensionContext): void {
                 cwd: vscode.Uri.file(mcpCwd),
                 env: {},
                 version: "0.1.0",
-              },
-            ];
+              };
+            // #region agent log
+            (globalThis as any).fetch('http://127.0.0.1:7243/ingest/f8eecc7d-5d84-4f56-8e99-5ad9d9836767',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'mcp-test-3',hypothesisId:'H5',location:'helium-dsl-vscode/src/extension.ts:245',message:'mcp_definition_shape_fallback',data:{labelType:typeof def.label,labelValue:String(def.label),labelCtor:(def as any).label?.constructor?.name,commandType:typeof def.command,hasId:Object.prototype.hasOwnProperty.call(def,'id'),cwdType:typeof def.cwd,cwdIsUri:def.cwd instanceof vscode.Uri,argsCount:Array.isArray(def.args)?def.args.length:0},timestamp:Date.now()})}).catch(()=>{});
+            // #endregion agent log
+            return [def];
           }
         },
         resolveMcpServerDefinition: async (server: any): Promise<any> => {
+          // #region agent log
+          (globalThis as any).fetch('http://127.0.0.1:7243/ingest/f8eecc7d-5d84-4f56-8e99-5ad9d9836767',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'mcp-test-1',hypothesisId:'H2',location:'helium-dsl-vscode/src/extension.ts:246',message:'resolve_mcp_definition',data:{label:server?.label ?? 'unknown',type:server?.type ?? 'unknown'},timestamp:Date.now()})}).catch(()=>{});
+          // #endregion agent log
           // No additional resolution needed - server is ready to start
           return server;
         },
