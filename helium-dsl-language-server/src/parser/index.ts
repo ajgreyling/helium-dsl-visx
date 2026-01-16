@@ -297,6 +297,17 @@ export function parseText(text: string): { diagnostics: Diagnostic[] } {
   const tokens = new CommonTokenStream(lexer);
   const parser = new MezDSLParser(tokens);
 
+  if (process.env.HELIUM_PARSER_DEBUG_TOKENS === "1") {
+    tokens.fill();
+    const vocabulary = MezDSLParser.VOCABULARY;
+    const tokenDump = tokens.getTokens().map((token) => ({
+      text: token.text,
+      type: vocabulary.getDisplayName(token.type),
+    }));
+    // eslint-disable-next-line no-console
+    console.log(JSON.stringify(tokenDump, null, 2));
+  }
+
   const listener = new CollectingErrorListener(text);
   lexer.removeErrorListeners();
   parser.removeErrorListeners();

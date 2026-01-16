@@ -255,6 +255,22 @@ async function convert() {
 \t;`
   );
 
+  // Allow valueExpression to include a call suffix to avoid ambiguities with functionCall
+  // when nested inside memberFunction arguments (e.g., jsonPut(..., Unit:func(...))).
+  converted = converted.replace(
+    /valueExpression\s*:\s*\(unitName=ID\s*':'\)\?\s*variableName=ID\s*\('\.'\s*memberAccess\)\*\s*;/s,
+    `valueExpression
+\t: (unitName=ID ':')? variableName=ID ('.' memberAccess)* ('(' (expression (',' expression)*)? ')')?
+\t;`
+  );
+
+  // Fix string literal rule to stop at the next quote. The original allows unescaped quotes,
+  // which merges adjacent string arguments into a single STR_LITERAL token.
+  converted = converted.replace(
+    /STR_LITERAL\s*:\s*QUOTE\s*\(\s*~\('\\n'\s*\|\s*'\\\\'\)\s*\|\s*\(\s*'\\\\'\s*~\(\s*'\\n'\s*\)\s*\)\s*\)\*\s*QUOTE\s*;/g,
+    "STR_LITERAL     : QUOTE ( ~('\\n' | '\\\\' | '\"') | ( '\\\\' ~( '\\n' ) ) )* QUOTE;"
+  );
+
   // Relax Mez:sms / Mez:smsSend signatures to parse like normal function calls.
   // The upstream grammar models these with fixed STR_LITERAL arguments, but the ANTLR4 conversion can
   // misparse valid calls like: Mez:sms(tempUser, "mobile_number", "sms.response");
