@@ -240,6 +240,21 @@ async function convert() {
 \t;`
   );
 
+  // Allow member call statements like: requestBody.jsonPut(...);
+  // This is common in the DSL and should parse as a valid statement.
+  converted = converted.replace(
+    /simpleStatement\s*:\s*assignStatement\s*\n\s*\|[^\n]*bifStatement[^\n]*\n\s*\|[^\n]*functionCall[^\n]*\n\s*\|[^\n]*incrementStatement[^\n]*\n\s*\|[^\n]*decrementStatement[^\n]*\n\s*\|[^\n]*throwStatement[^\n]*\n\s*;/s,
+    `simpleStatement
+\t: assignStatement
+\t| bifStatement
+\t| functionCall
+\t| valueExpression
+\t| incrementStatement
+\t| decrementStatement
+\t| throwStatement
+\t;`
+  );
+
   // Relax Mez:sms / Mez:smsSend signatures to parse like normal function calls.
   // The upstream grammar models these with fixed STR_LITERAL arguments, but the ANTLR4 conversion can
   // misparse valid calls like: Mez:sms(tempUser, "mobile_number", "sms.response");
