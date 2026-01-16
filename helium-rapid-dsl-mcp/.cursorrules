@@ -1,0 +1,49 @@
+# Helium Rapid DSL MCP Server - Cursor Rules
+
+This folder (`helium-rapid-dsl-mcp/`) contains an MCP server used by Cursor agents when generating/editing Helium Rapid DSL:
+- `.mez` (Helium DSL)
+- `.vxml` (Helium UI views)
+
+## Core intent
+
+- This MCP server exists to expose **AST/LSP-style** capabilities to AI agents (validate, navigate, refactor preview), not to “guess” DSL structure.
+- Prefer using the Helium language server’s AST/index for `.mez` rather than duplicating logic.
+
+## Entry point (critical)
+
+- The compiled MCP entrypoint is:
+  - `out/src/index.js`
+- Do NOT configure Cursor to run `out/index.js` (it will not exist with the current build layout).
+
+## Node ESM learnings (Cursor runtime)
+
+Cursor may launch MCP servers using a strict Node ESM runtime (e.g. Node 25). In that environment:
+
+- **Always use explicit `.js` import suffixes** when required by the dependency’s ESM exports.
+  - Good: `vscode-languageserver/node.js`
+  - Bad: `vscode-languageserver/node`
+  - Good: `antlr4ts/tree/ParseTreeWalker.js`
+  - Bad: `antlr4ts/tree/ParseTreeWalker`
+
+If you add new imports in `helium-dsl-language-server`, prefer `.js` suffixed specifiers to prevent MCP startup failures.
+
+## Dependency coupling rules
+
+- Prefer importing from `helium-dsl-language-server/api` (stable public surface) rather than deep imports into `out/src/**`.
+- If you change the language server build output paths, also update its `package.json` `exports` map.
+
+## VXML validation rules
+
+- Validate:
+  - `view@unit` exists as a `.mez` unit
+  - `view@init`, `action@action`, `collectionSource@function`, `visible@function` exist in the unit
+  - bound variables exist (`binding@variable`, `visible@variable`, etc.)
+  - model attribute names exist on the bound object type where resolvable
+  - enum values referenced by `<enum>` exist
+  - language keys exist across **all** `web-app/lang/*.lang` files
+
+## Generated files
+
+- Do not edit any generated files under `helium-vscode-tooling/generated/**` or compiled outputs under `out/**`.
+- Make source changes in `src/**` and regenerate via build scripts.
+

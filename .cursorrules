@@ -7,6 +7,7 @@ This project builds a VSCode extension for the Helium DSL that works in **Cursor
 ```
 helium-dsl-visx/ (project root)
 ├── helium-dsl-language-server/  # LSP server implementation
+├── helium-rapid-dsl-mcp/        # MCP server for Cursor agents (.mez/.vxml)
 ├── helium-vscode-tooling/       # Tooling and packaging
 │   ├── scripts/                 # Build automation scripts
 │   ├── helium-dsl-vscode/       # VSCode extension client
@@ -120,6 +121,17 @@ If you need to modify the packaging process:
 ✅ **DO**: Validate dependency tree
 ✅ **DO**: Test in Cursor IDE
 ✅ **DO**: Use explicit, distinct build steps
+
+## MCP Server (helium-rapid-dsl-mcp) learnings
+
+### Entry point
+- The compiled MCP entrypoint is `helium-rapid-dsl-mcp/out/src/index.js` (not `out/index.js`).
+
+### Node ESM strictness (Cursor)
+- Cursor may run a strict ESM Node runtime (e.g. Node 25). In that environment, **imports must use explicit `.js` suffixes** for certain packages.\n+  - Use `vscode-languageserver/node.js` (not `vscode-languageserver/node`)\n+  - Use `antlr4ts/tree/ParseTreeWalker.js`, `antlr4ts/ParserRuleContext.js`, `antlr4ts/Token.js` (not extensionless paths)\n+\n+If you add any new ESM imports in `helium-dsl-language-server`, follow that pattern to avoid MCP startup failures.
+
+### API surface
+- Prefer importing language-server capabilities via the stable module `helium-dsl-language-server/api` rather than deep-importing `out/src/...`.
 
 ## Generated Files - DO NOT EDIT DIRECTLY
 

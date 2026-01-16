@@ -89,7 +89,7 @@ Quick start:
 cd /Users/ajgreyling/code/helium-dsl-visx/helium-rapid-dsl-mcp
 npm install
 npm run build
-node out/index.js
+node out/src/index.js
 ```
 
 See `helium-rapid-dsl-mcp/README.md` for Cursor configuration details and tool descriptions.
