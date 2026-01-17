@@ -2,54 +2,38 @@ import { ANTLRInputStream, CommonTokenStream } from "antlr4ts";
 import { Diagnostic } from "vscode-languageserver";
 import * as path from "path";
 import * as fs from "fs";
-import { createRequire } from "module";
 import { fileURLToPath } from "url";
 
-// Create require function for dynamic module loading in ES modules
-const require = createRequire(import.meta.url);
-
-// Register ts-node for require() calls if available (for TypeScript file loading in tests)
-// This allows require() to load TypeScript files when running tests with ts-node
-// Note: This registration happens after createRequire, but ts-node/register hooks into
-// Node's module system globally, so it will affect subsequent require() calls
-try {
-  // Only register if ts-node is available and we're in a development/test context
-  if (process.env.NODE_ENV !== "production" && !process.env.VSCODE_INJECTION) {
-    try {
-      // Try ts-node/register first (CommonJS style)
-      require("ts-node/register");
-    } catch {
-      // If that fails, try ts-node directly with ESM support
-      try {
-        const tsNode = require("ts-node");
-        if (tsNode && typeof tsNode.register === "function") {
-          tsNode.register({ 
-            esm: true,
-            transpileOnly: true,
-            compilerOptions: {
-              module: "ES2020",
-              moduleResolution: "node"
-            }
-          });
-        }
-      } catch {
-        // ts-node not available, that's okay - will fall back to compiled JS files
-      }
-    }
-  }
-} catch {
-  // Ignore errors - ts-node registration is optional
-}
+// Note: We don't register ts-node here because we're using --loader ts-node/esm
+// which handles TypeScript files directly via the ESM loader.
+// Registering ts-node/register would use require() internally and conflict with import()
 
 // Get __dirname equivalent for ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-function loadGenerated(name: string): any | undefined {
+// Shared module cache (shared with ast/builder.ts via global)
+declare global {
+  // eslint-disable-next-line no-var
+  var __heliumParserModuleCache: Map<string, any> | undefined;
+}
+if (!global.__heliumParserModuleCache) {
+  global.__heliumParserModuleCache = new Map<string, any>();
+}
+const moduleCache = global.__heliumParserModuleCache;
+
+async function loadGenerated(name: string): Promise<any | undefined> {
+  // Check cache first
+  if (moduleCache.has(name)) {
+    const cached = moduleCache.get(name);
+    if (cached) {
+      return cached[name] || cached;
+    }
+  }
   const currentDir = __dirname;
   
-  // Helper function to try loading a module from a path
-  const tryLoad = (modulePath: string, withExtension?: string): any | undefined => {
+  // Helper function to try loading a module from a path using import()
+  const tryLoad = async (modulePath: string, withExtension?: string): Promise<any | undefined> => {
     const pathsToTry = withExtension 
       ? [modulePath + withExtension, modulePath]
       : [modulePath];
@@ -57,12 +41,21 @@ function loadGenerated(name: string): any | undefined {
     for (const tryPath of pathsToTry) {
       if (fs.existsSync(tryPath + ".ts") || fs.existsSync(tryPath + ".js") || fs.existsSync(tryPath)) {
         try {
-          // eslint-disable-next-line @typescript-eslint/no-var-requires
-          const mod = require(tryPath);
+          // Use import() directly in ESM mode to avoid mixing with require()
+          const resolvedPath = path.resolve(tryPath);
+          const fileUrl = (tryPath.endsWith('.ts') || tryPath.endsWith('.js'))
+            ? `file://${resolvedPath}`
+            : `file://${resolvedPath}.ts`;
+          const mod = await import(fileUrl);
           if (mod) {
-            return mod[name] || mod;
+            const result = mod[name] || mod;
+            // Cache the module for future use
+            moduleCache.set(name, mod);
+            return result;
           }
         } catch (e) {
+          // Suppress "Cannot require() ES Module" errors - these occur when a module was already touched
+          // by require() (e.g., by ts-node internally). We'll try other paths which may succeed.
           // Continue to next path
         }
       }
@@ -72,12 +65,12 @@ function loadGenerated(name: string): any | undefined {
   
   // Try bundled path first (when packaged in extension)
   const bundledPath = path.resolve(currentDir, "../../generated/parser/generated/grammar", name);
-  const bundledResult = tryLoad(bundledPath);
+  const bundledResult = await tryLoad(bundledPath);
   if (bundledResult) return bundledResult;
   
   // Fallback to development path
   const devPath = path.resolve(currentDir, "../../../generated/parser/generated/grammar", name);
-  const devResult = tryLoad(devPath);
+  const devResult = await tryLoad(devPath);
   if (devResult) return devResult;
   
   // Fallback to sibling directory path (helium-vscode-tooling)
@@ -91,16 +84,16 @@ function loadGenerated(name: string): any | undefined {
   
   // Try siblingPath1 first (correct path from TypeScript source: src/parser)
   const siblingPath1 = path.resolve(currentDir, "../../../helium-vscode-tooling/generated/parser/generated/grammar", name);
-  const sibling1Result = tryLoad(siblingPath1, ".ts");
+  const sibling1Result = await tryLoad(siblingPath1, ".ts");
   if (sibling1Result) return sibling1Result;
   
   // Try siblingPath2 (correct path from compiled output: out/src/parser)
   const siblingPath2 = path.resolve(currentDir, "../../../../helium-vscode-tooling/generated/parser/generated/grammar", name);
-  const sibling2Result = tryLoad(siblingPath2, ".ts");
+  const sibling2Result = await tryLoad(siblingPath2, ".ts");
   if (sibling2Result) return sibling2Result;
   
   // Try absolute path from project root (most reliable)
-  const absoluteResult = tryLoad(toolingPath, ".ts");
+  const absoluteResult = await tryLoad(toolingPath, ".ts");
   if (absoluteResult) return absoluteResult;
   
   return undefined;
@@ -272,9 +265,9 @@ class CollectingErrorListener {
   }
 }
 
-export function parseText(text: string): { diagnostics: Diagnostic[] } {
-  const MezDSLLexer = loadGenerated("MezDSLLexer");
-  const MezDSLParser = loadGenerated("MezDSLParser");
+export async function parseText(text: string): Promise<{ diagnostics: Diagnostic[] }> {
+  const MezDSLLexer = await loadGenerated("MezDSLLexer");
+  const MezDSLParser = await loadGenerated("MezDSLParser");
 
   if (!MezDSLLexer || !MezDSLParser) {
     return {

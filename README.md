@@ -1,6 +1,6 @@
-# Helium DSL VSCode Extension Tooling
+# Helium Rapid DSL (ANTLR4) VSCode Extension Tooling
 
-This project provides automated tooling for building a VSCode extension for the Helium Rapid DSL. **The extension is primarily designed for Cursor IDE**, though it is compatible with VS Code.
+This project provides automated tooling for building a VSCode extension for the Helium Rapid DSL (ANTLR4). **The extension is primarily designed for Cursor IDE**, though it is compatible with VS Code.
 
 The project includes:
 - ANTLR3 to ANTLR4 grammar conversion
@@ -204,7 +204,7 @@ The extension supports the following configuration options:
 
 **Setting**: `heliumDsl.trace.server`
 
-Controls the verbosity of language server logs in the Output channel ("Helium DSL Language Server").
+Controls the verbosity of language server logs in the Output channel ("Helium Rapid DSL (ANTLR4) Language Server").
 
 **Options**:
 - `off` (default): Minimal logging - only errors and critical messages
@@ -675,7 +675,7 @@ When packaged, the extension includes:
 
 ## Contributing
 
-When the Helium DSL is updated:
+When the Helium Rapid DSL (ANTLR4) is updated:
 
 1. Run the validation script with updated paths
 2. Review any new linting errors

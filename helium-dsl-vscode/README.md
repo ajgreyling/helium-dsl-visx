@@ -1,6 +1,6 @@
-# Helium DSL
+# Helium Rapid DSL (ANTLR4)
 
-Language support for the Helium Rapid DSL in Cursor IDE and VS Code.
+Language support for the Helium Rapid DSL (ANTLR4) in Cursor IDE and VS Code.
 
 ## Features
 
@@ -10,7 +10,7 @@ Language support for the Helium Rapid DSL in Cursor IDE and VS Code.
 - 📝 **Language Server Protocol** - Full LSP support for a modern editing experience
 - 🔎 **Symbol Navigation** - Navigate to definitions and find references across your workspace
 - 💡 **Hover Information** - Get helpful information by hovering over code elements
-- 📁 **Custom Folder Icons** - Distinctive icons for Helium DSL project folders (model, services, presenters, utilities, web-app, views, jasper-reports, builtin-reports, images, lang, sql-scripts)
+- 📁 **Custom Folder Icons** - Distinctive icons for Helium Rapid DSL (ANTLR4) project folders (model, services, presenters, utilities, web-app, views, jasper-reports, builtin-reports, images, lang, sql-scripts)
 - 🤖 **MCP Server (Cursor)** - Bundled Helium Rapid DSL MCP server available in Cursor's MCP server list for agent tools
 
 ## Installation
@@ -23,7 +23,7 @@ Install directly from the [Open VSX Registry](https://open-vsx.org/extension/mez
 cursor --install-extension mezzanineware.helium-dsl-vscode
 ```
 
-Or search for "Helium DSL" in the Cursor/VS Code extension marketplace.
+Or search for "Helium Rapid DSL (ANTLR4)" in the Cursor/VS Code extension marketplace.
 
 ### Manual Installation
 
@@ -71,7 +71,7 @@ Configure linting rules in your settings (Command Palette → "Preferences: Open
 
 ## Supported File Types
 
-- **`.mez`** - Helium DSL source files
+- **`.mez`** - Helium Rapid DSL (ANTLR4) source files
 - **`.vxml`** - Helium VXML files
 
 ## File and Folder Icons
@@ -80,8 +80,8 @@ The extension provides custom icons for both files and folders to enhance visual
 
 ### File Icons
 
-**Helium DSL Files:**
-- **`.mez`** - Green code icon (Helium DSL source files)
+**Helium Rapid DSL (ANTLR4) Files:**
+- **`.mez`** - Green code icon (Helium Rapid DSL (ANTLR4) source files)
 - **`.vxml`** - Green eye icon (Helium VXML view files)
 
 **Common File Types:**
@@ -105,7 +105,7 @@ All file icons are automatically applied when the Helium Icons theme is active (
 
 ### Folder Icons
 
-The extension provides custom folder icons for common Helium DSL project directories:
+The extension provides custom folder icons for common Helium Rapid DSL (ANTLR4) project directories:
 
 - **`model`** - Database icon (model definitions)
 - **`services`** - Server icon (service implementations)
@@ -193,14 +193,14 @@ The extension includes several linting rules:
 ### Extension Not Activating
 
 - Ensure you're opening a `.mez` or `.vxml` file
-- Check the Output panel → "Helium DSL Language Server" for errors
+- Check the Output panel → "Helium Rapid DSL (ANTLR4) Language Server" for errors
 - Try reloading the window: Command Palette → "Developer: Reload Window"
 
 ### Autocomplete Not Working
 
 - Make sure the language server is running (check Output panel)
 - Try restarting the language server: Command Palette → "Developer: Restart Extension Host"
-- Verify your workspace contains valid Helium DSL files
+- Verify your workspace contains valid Helium Rapid DSL (ANTLR4) files
 
 ### Linting Not Showing
 
@@ -218,7 +218,7 @@ To debug issues, enable verbose logging:
 }
 ```
 
-Then check the "Helium DSL Language Server" output channel for detailed logs.
+Then check the "Helium Rapid DSL (ANTLR4) Language Server" output channel for detailed logs.
 
 ## Contributing
 
@@ -246,7 +246,7 @@ The Seti UI icons are used for common file types (.js, .ts, .xml, .json, .sql, .
 
 ## Build and Packaging Process
 
-This extension is built from the Helium DSL ANTLR3 grammar through a multi-step process that extracts, converts, and generates all necessary components. Here's how everything is obtained, updated, and packaged:
+This extension is built from the Helium Rapid DSL (ANTLR4) ANTLR3 grammar through a multi-step process that extracts, converts, and generates all necessary components. Here's how everything is obtained, updated, and packaged:
 
 ### Overview
 
@@ -471,7 +471,7 @@ These files are **not** committed to git and are regenerated during each build.
 
 ### Updating the Extension
 
-When the Helium DSL grammar changes:
+When the Helium Rapid DSL (ANTLR4) grammar changes:
 
 1. **Extract Updated Grammar**: Run `npm run build:extract` to get the latest grammar
 2. **Review Changes**: Check `generated/grammar/MezDSL.g3.hash` to verify grammar was updated

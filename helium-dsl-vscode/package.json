@@ -1,6 +1,6 @@
 {
   "name": "helium-dsl-vscode",
-  "displayName": "Helium DSL",
+  "displayName": "Helium Rapid DSL (ANTLR4)",
   "version": "1.0.1768578931",
   "publisher": "mezzanineware",
   "readme": "./README.md",
@@ -22,7 +22,7 @@
   "main": "./out/extension.js",
   "contributes": {
     "configuration": {
-      "title": "Helium DSL",
+      "title": "Helium Rapid DSL (ANTLR4)",
       "properties": {
         "heliumDsl.lint.noVarInElse": {
           "type": "string",
@@ -52,7 +52,7 @@
       {
         "id": "helium-dsl",
         "aliases": [
-          "Helium DSL",
+          "Helium Rapid DSL (ANTLR4)",
           "helium-dsl"
         ],
         "extensions": [

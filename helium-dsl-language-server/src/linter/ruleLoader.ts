@@ -57,7 +57,7 @@ function defaultRules(): Record<string, LoadedRule> {
     "naming-conventions": {
       id: "naming-conventions",
       severity: "warning",
-      message: "Identifiers must follow Helium DSL naming conventions.",
+      message: "Identifiers must follow Helium Rapid DSL (ANTLR4) naming conventions.",
       category: "style",
     },
     "forbidden-operators": {

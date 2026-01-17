@@ -1,0 +1,648 @@
+
+> helium-dsl-language-server@0.1.0 test
+> NODE_OPTIONS='--loader ts-node/esm' mocha tests/**/*.test.ts
+
+
+  Found 73 .mez files to test
+
+
+
+  AST Building on munic-chat Project
+    ✔ should build AST for a simple test case (140ms)
+
+  Found 73 .mez files to process
+
+  [1/73] Processing: model/ApiDebugLog.mez
+  [1/73] Building AST...
+  [1/73] AST built successfully
+  [1/73] ⚠️  Empty AST (parsing may have failed)
+  [2/73] Processing: model/ApiExceptionLog.mez
+  [2/73] Building AST...
+  [2/73] AST built successfully
+  [2/73] ⚠️  Empty AST (parsing may have failed)
+  [3/73] Processing: model/ApiResponse.mez
+  [3/73] Building AST...
+  [3/73] AST built successfully
+  [3/73] ⚠️  Empty AST (parsing may have failed)
+  [4/73] Processing: model/AsyncApiQueue.mez
+  [4/73] Building AST...
+  [4/73] AST built successfully
+  [4/73] ⚠️  Empty AST (parsing may have failed)
+  [5/73] Processing: model/Attachment.mez
+  [5/73] Building AST...
+  [5/73] AST built successfully
+  [5/73] ⚠️  Empty AST (parsing may have failed)
+  [6/73] Processing: model/Campaign.mez
+  [6/73] Building AST...
+  [6/73] AST built successfully
+  [6/73] ⚠️  Empty AST (parsing may have failed)
+  [7/73] Processing: model/CampaignContacts.mez
+  [7/73] Building AST...
+  [7/73] AST built successfully
+  [7/73] ⚠️  Empty AST (parsing may have failed)
+  [8/73] Processing: model/CaseManagementQueue.mez
+  [8/73] Building AST...
+  [8/73] AST built successfully
+  [8/73] ⚠️  Empty AST (parsing may have failed)
+  [9/73] Processing: model/ChatMessage.mez
+  [9/73] Building AST...
+  [9/73] AST built successfully
+  [9/73] ⚠️  Empty AST (parsing may have failed)
+  [10/73] Processing: model/ChatMessageQueue.mez
+  [10/73] Building AST...
+  [10/73] AST built successfully
+  [10/73] ⚠️  Empty AST (parsing may have failed)
+  [11/73] Processing: model/Config.mez
+  [11/73] Building AST...
+  [11/73] AST built successfully
+  [11/73] ⚠️  Empty AST (parsing may have failed)
+  [12/73] Processing: model/Conversation.mez
+  [12/73] Building AST...
+  [12/73] AST built successfully
+  [12/73] ⚠️  Empty AST (parsing may have failed)
+  [13/73] Processing: model/ConversationAttachmentQueue.mez
+  [13/73] Building AST...
+  [13/73] AST built successfully
+  [13/73] ⚠️  Empty AST (parsing may have failed)
+  [14/73] Processing: model/Enums.mez
+  [14/73] Building AST...
+  [14/73] AST built successfully
+  [14/73] ⚠️  Empty AST (parsing may have failed)
+  [15/73] Processing: model/Form.mez
+  [15/73] Building AST...
+  [15/73] AST built successfully
+  [15/73] ⚠️  Empty AST (parsing may have failed)
+  [16/73] Processing: model/FormDatum.mez
+  [16/73] Building AST...
+  [16/73] AST built successfully
+  [16/73] ⚠️  Empty AST (parsing may have failed)
+  [17/73] Processing: model/FunctionCallResult.mez
+  [17/73] Building AST...
+  [17/73] AST built successfully
+  [17/73] ⚠️  Empty AST (parsing may have failed)
+  [18/73] Processing: model/Incident.mez
+  [18/73] Building AST...
+  [18/73] AST built successfully
+  [18/73] ⚠️  Empty AST (parsing may have failed)
+  [19/73] Processing: model/IntSet.mez
+  [19/73] Building AST...
+  [19/73] AST built successfully
+  [19/73] ⚠️  Empty AST (parsing may have failed)
+  [20/73] Processing: model/Location.mez
+  [20/73] Building AST...
+  [20/73] AST built successfully
+  [20/73] ⚠️  Empty AST (parsing may have failed)
+  [21/73] Processing: model/MeansOfNotification.mez
+  [21/73] Building AST...
+  [21/73] AST built successfully
+  [21/73] ⚠️  Empty AST (parsing may have failed)
+  [22/73] Processing: model/Memory.mez
+  [22/73] Building AST...
+  [22/73] AST built successfully
+  [22/73] ⚠️  Empty AST (parsing may have failed)
+  [23/73] Processing: model/OptedOut.mez
+  [23/73] Building AST...
+  [23/73] AST built successfully
+  [23/73] ⚠️  Empty AST (parsing may have failed)
+  [24/73] Processing: model/Route.mez
+  [24/73] Building AST...
+  [24/73] AST built successfully
+  [24/73] ⚠️  Empty AST (parsing may have failed)
+  [25/73] Processing: model/SMS.mez
+  [25/73] Building AST...
+  [25/73] AST built successfully
+  [25/73] ⚠️  Empty AST (parsing may have failed)
+  [26/73] Processing: model/StringSet.mez
+  [26/73] Building AST...
+  [26/73] AST built successfully
+  [26/73] ⚠️  Empty AST (parsing may have failed)
+  [27/73] Processing: model/SystemUser.mez
+  [27/73] Building AST...
+  [27/73] AST built successfully
+  [27/73] ⚠️  Empty AST (parsing may have failed)
+  [28/73] Processing: model/WhatsappMessage.mez
+  [28/73] Building AST...
+  [28/73] AST built successfully
+  [28/73] ⚠️  Empty AST (parsing may have failed)
+  [29/73] Processing: model/WhatsappMessageData.mez
+  [29/73] Building AST...
+  [29/73] AST built successfully
+  [29/73] ⚠️  Empty AST (parsing may have failed)
+  [30/73] Processing: model/WhatsappUser.mez
+  [30/73] Building AST...
+  [30/73] AST built successfully
+  [30/73] ⚠️  Empty AST (parsing may have failed)
+  [31/73] Processing: model/models.mez
+  [31/73] Building AST...
+  [31/73] AST built successfully
+  [31/73] ⚠️  Empty AST (parsing may have failed)
+  [32/73] Processing: services/ApiDebugService.mez
+  [32/73] Building AST...
+  [32/73] AST built successfully
+  [32/73] ⚠️  Empty AST (parsing may have failed)
+  [33/73] Processing: services/ApiWrapper.mez
+  [33/73] Building AST...
+  [33/73] AST built successfully
+  [33/73] ⚠️  Empty AST (parsing may have failed)
+  [34/73] Processing: services/AttachmentQueueService.mez
+  [34/73] Building AST...
+  [34/73] AST built successfully
+  [34/73] ⚠️  Empty AST (parsing may have failed)
+  [35/73] Processing: services/CampaignImport.mez
+  [35/73] Building AST...
+  [35/73] AST built successfully
+  [35/73] ⚠️  Empty AST (parsing may have failed)
+  [36/73] Processing: services/CaseManagement.mez
+  [36/73] Building AST...
+  [36/73] AST built successfully
+  [36/73] ⚠️  Empty AST (parsing may have failed)
+  [37/73] Processing: services/ChatGptWrapper.mez
+  [37/73] Building AST...
+  [37/73] AST built successfully
+  [37/73] ⚠️  Empty AST (parsing may have failed)
+  [38/73] Processing: services/ConfigService.mez
+  [38/73] Building AST...
+  [38/73] AST built successfully
+  [38/73] ⚠️  Empty AST (parsing may have failed)
+  [39/73] Processing: services/ConversationService.mez
+  [39/73] Building AST...
+  [39/73] AST built successfully
+  [39/73] ⚠️  Empty AST (parsing may have failed)
+  [40/73] Processing: services/ExceptionService.mez
+  [40/73] Building AST...
+  [40/73] AST built successfully
+  [40/73] ⚠️  Empty AST (parsing may have failed)
+  [41/73] Processing: services/FormChatClient.mez
+  [41/73] Building AST...
+  [41/73] AST built successfully
+  [41/73] ⚠️  Empty AST (parsing may have failed)
+  [42/73] Processing: services/FormsDataAPI.mez
+  [42/73] Building AST...
+  [42/73] AST built successfully
+  [42/73] ⚠️  Empty AST (parsing may have failed)
+  [43/73] Processing: services/FundiLoanChatClient.mez
+  [43/73] Building AST...
+  [43/73] AST built successfully
+  [43/73] ⚠️  Empty AST (parsing may have failed)
+  [44/73] Processing: services/GbvChatClient.mez
+  [44/73] Building AST...
+  [44/73] AST built successfully
+  [44/73] ⚠️  Empty AST (parsing may have failed)
+  [45/73] Processing: services/HerotelCampaignChatClient.mez
+  [45/73] Building AST...
+  [45/73] AST built successfully
+  [45/73] ⚠️  Empty AST (parsing may have failed)
+  [46/73] Processing: services/Invites.mez
+  [46/73] Building AST...
+  [46/73] AST built successfully
+  [46/73] ⚠️  Empty AST (parsing may have failed)
+  [47/73] Processing: services/LocationUtil.mez
+  [47/73] Building AST...
+  [47/73] AST built successfully
+  [47/73] ⚠️  Empty AST (parsing may have failed)
+  [48/73] Processing: services/MemoryService.mez
+  [48/73] Building AST...
+  [48/73] AST built successfully
+  [48/73] ⚠️  Empty AST (parsing may have failed)
+  [49/73] Processing: services/MunicChatClient.mez
+  [49/73] Building AST...
+  [49/73] AST built successfully
+  [49/73] ⚠️  Empty AST (parsing may have failed)
+  [50/73] Processing: services/RouteService.mez
+  [50/73] Building AST...
+  [50/73] AST built successfully
+  [50/73] ⚠️  Empty AST (parsing may have failed)
+  [51/73] Processing: services/ScheduledAttachmentProcessor.mez
+  [51/73] Building AST...
+  [51/73] AST built successfully
+  [51/73] ⚠️  Empty AST (parsing may have failed)
+  [52/73] Processing: services/ScheduledFunctions.mez
+  [52/73] Building AST...
+  [52/73] AST built successfully
+  [52/73] ⚠️  Empty AST (parsing may have failed)
+  [53/73] Processing: services/SmsService.mez
+  [53/73] Building AST...
+  [53/73] AST built successfully
+  [53/73] ⚠️  Empty AST (parsing may have failed)
+  [54/73] Processing: services/TranslationService.mez
+  [54/73] Building AST...
+  [54/73] AST built successfully
+  [54/73] ⚠️  Empty AST (parsing may have failed)
+  [55/73] Processing: services/WhatsappApi.mez
+  [55/73] Building AST...
+  [55/73] AST built successfully
+  [55/73] ⚠️  Empty AST (parsing may have failed)
+  [56/73] Processing: utilities/Alert.mez
+  [56/73] Building AST...
+  [56/73] AST built successfully
+  [56/73] ⚠️  Empty AST (parsing may have failed)
+  [57/73] Processing: utilities/DataDictionary.mez
+  [57/73] Building AST...
+  [57/73] AST built successfully
+  [57/73] ⚠️  Empty AST (parsing may have failed)
+  [58/73] Processing: utilities/JsonUtils.mez
+  [58/73] Building AST...
+  [58/73] AST built successfully
+  [58/73] ⚠️  Empty AST (parsing may have failed)
+  [59/73] Processing: utilities/StringUtils.mez
+  [59/73] Building AST...
+  [59/73] AST built successfully
+  [59/73] ⚠️  Empty AST (parsing may have failed)
+  [60/73] Processing: utilities/Utilities.mez
+  [60/73] Building AST...
+  [60/73] AST built successfully
+  [60/73] ⚠️  Empty AST (parsing may have failed)
+  [61/73] Processing: web-app/presenters/ApiAuditLog.mez
+  [61/73] Building AST...
+  [61/73] AST built successfully
+  [61/73] ⚠️  Empty AST (parsing may have failed)
+  [62/73] Processing: web-app/presenters/ApiErrorLog.mez
+  [62/73] Building AST...
+  [62/73] AST built successfully
+  [62/73] ⚠️  Empty AST (parsing may have failed)
+  [63/73] Processing: web-app/presenters/AsyncApiQueue.mez
+  [63/73] Building AST...
+  [63/73] AST built successfully
+  [63/73] ⚠️  Empty AST (parsing may have failed)
+  [64/73] Processing: web-app/presenters/ConversationDebug.mez
+  [64/73] Building AST...
+  [64/73] AST built successfully
+  [64/73] ⚠️  Empty AST (parsing may have failed)
+  [65/73] Processing: web-app/presenters/ConversationUnit.mez
+  [65/73] Building AST...
+  [65/73] AST built successfully
+  [65/73] ⚠️  Empty AST (parsing may have failed)
+  [66/73] Processing: web-app/presenters/Forms.mez
+  [66/73] Building AST...
+  [66/73] AST built successfully
+  [66/73] ⚠️  Empty AST (parsing may have failed)
+  [67/73] Processing: web-app/presenters/FormsData.mez
+  [67/73] Building AST...
+  [67/73] AST built successfully
+  [67/73] ⚠️  Empty AST (parsing may have failed)
+  [68/73] Processing: web-app/presenters/IncidentList.mez
+  [68/73] Building AST...
+  [68/73] AST built successfully
+  [68/73] ⚠️  Empty AST (parsing may have failed)
+  [69/73] Processing: web-app/presenters/LogsMenu.mez
+  [69/73] Building AST...
+  [69/73] AST built successfully
+  [69/73] ⚠️  Empty AST (parsing may have failed)
+  [70/73] Processing: web-app/presenters/Routing.mez
+  [70/73] Building AST...
+  [70/73] AST built successfully
+  [70/73] ⚠️  Empty AST (parsing may have failed)
+  [71/73] Processing: web-app/presenters/Settings.mez
+  [71/73] Building AST...
+  [71/73] AST built successfully
+  [71/73] ⚠️  Empty AST (parsing may have failed)
+  [72/73] Processing: web-app/presenters/Testing.mez
+  [72/73] Building AST...
+  [72/73] AST built successfully
+  [72/73] ⚠️  Empty AST (parsing may have failed)
+  [73/73] Processing: web-app/presenters/Translation.mez
+  [73/73] Building AST...
+  [73/73] AST built successfully
+  [73/73] ⚠️  Empty AST (parsing may have failed)
+
+  ================================================================================
+  AST BUILDING STATISTICS
+  ================================================================================
+
+  📊 File Processing:
+    Total files scanned: 73
+    Successful AST builds: 0
+    Failed builds: 0
+    Empty ASTs (parsing issues): 73
+
+  📋 AST Element Counts:
+    Objects: 0
+      └─ Attributes: 0
+      └─ Relationships: 0
+    Units: 0
+      └─ Functions: 0
+      └─ Variables: 0
+    Enums: 0
+      └─ Values: 0
+    Type References: 0
+    Unit References: 0
+    Function Calls: 0
+    Variable References: 0
+    Property References: 0
+    Else Blocks: 0
+
+  ⚠️  Empty AST Files (73 - may indicate parsing issues):
+    model/ApiDebugLog.mez
+    model/ApiExceptionLog.mez
+    model/ApiResponse.mez
+    model/AsyncApiQueue.mez
+    model/Attachment.mez
+    model/Campaign.mez
+    model/CampaignContacts.mez
+    model/CaseManagementQueue.mez
+    model/ChatMessage.mez
+    model/ChatMessageQueue.mez
+    ... and 63 more
+
+  ⚠️  73 files had issues
+
+  ================================================================================
+
+    ✔ should build ASTs for all .mez files in munic-chat project (2420ms)
+
+  Diagnostics and lints
+    ✔ reports no diagnostics for empty file
+    ✔ flags variable declarations inside else
+
+  Comprehensive munic-chat Tests
+    Lexer Tests
+  [1/73] Lexing: model/ApiDebugLog.mez
+  [2/73] Lexing: model/ApiExceptionLog.mez
+  [3/73] Lexing: model/ApiResponse.mez
+  [4/73] Lexing: model/AsyncApiQueue.mez
+  [5/73] Lexing: model/Attachment.mez
+  [6/73] Lexing: model/Campaign.mez
+  [7/73] Lexing: model/CampaignContacts.mez
+  [8/73] Lexing: model/CaseManagementQueue.mez
+  [9/73] Lexing: model/ChatMessage.mez
+  [10/73] Lexing: model/ChatMessageQueue.mez
+  [11/73] Lexing: model/Config.mez
+  [12/73] Lexing: model/Conversation.mez
+  [13/73] Lexing: model/ConversationAttachmentQueue.mez
+  [14/73] Lexing: model/Enums.mez
+  [15/73] Lexing: model/Form.mez
+  [16/73] Lexing: model/FormDatum.mez
+  [17/73] Lexing: model/FunctionCallResult.mez
+  [18/73] Lexing: model/Incident.mez
+  [19/73] Lexing: model/IntSet.mez
+  [20/73] Lexing: model/Location.mez
+  [21/73] Lexing: model/MeansOfNotification.mez
+  [22/73] Lexing: model/Memory.mez
+  [23/73] Lexing: model/OptedOut.mez
+  [24/73] Lexing: model/Route.mez
+  [25/73] Lexing: model/SMS.mez
+  [26/73] Lexing: model/StringSet.mez
+  [27/73] Lexing: model/SystemUser.mez
+  [28/73] Lexing: model/WhatsappMessage.mez
+  [29/73] Lexing: model/WhatsappMessageData.mez
+  [30/73] Lexing: model/WhatsappUser.mez
+  [31/73] Lexing: model/models.mez
+  [32/73] Lexing: services/ApiDebugService.mez
+  [33/73] Lexing: services/ApiWrapper.mez
+  [34/73] Lexing: services/AttachmentQueueService.mez
+  [35/73] Lexing: services/CampaignImport.mez
+  [36/73] Lexing: services/CaseManagement.mez
+  [37/73] Lexing: services/ChatGptWrapper.mez
+  [38/73] Lexing: services/ConfigService.mez
+  [39/73] Lexing: services/ConversationService.mez
+  [40/73] Lexing: services/ExceptionService.mez
+  [41/73] Lexing: services/FormChatClient.mez
+  [42/73] Lexing: services/FormsDataAPI.mez
+  [43/73] Lexing: services/FundiLoanChatClient.mez
+  [44/73] Lexing: services/GbvChatClient.mez
+  [45/73] Lexing: services/HerotelCampaignChatClient.mez
+  [46/73] Lexing: services/Invites.mez
+  [47/73] Lexing: services/LocationUtil.mez
+  [48/73] Lexing: services/MemoryService.mez
+  [49/73] Lexing: services/MunicChatClient.mez
+  [50/73] Lexing: services/RouteService.mez
+  [51/73] Lexing: services/ScheduledAttachmentProcessor.mez
+  [52/73] Lexing: services/ScheduledFunctions.mez
+  [53/73] Lexing: services/SmsService.mez
+  [54/73] Lexing: services/TranslationService.mez
+  [55/73] Lexing: services/WhatsappApi.mez
+  [56/73] Lexing: utilities/Alert.mez
+  [57/73] Lexing: utilities/DataDictionary.mez
+  [58/73] Lexing: utilities/JsonUtils.mez
+  [59/73] Lexing: utilities/StringUtils.mez
+  [60/73] Lexing: utilities/Utilities.mez
+  [61/73] Lexing: web-app/presenters/ApiAuditLog.mez
+  [62/73] Lexing: web-app/presenters/ApiErrorLog.mez
+  [63/73] Lexing: web-app/presenters/AsyncApiQueue.mez
+  [64/73] Lexing: web-app/presenters/ConversationDebug.mez
+  [65/73] Lexing: web-app/presenters/ConversationUnit.mez
+  [66/73] Lexing: web-app/presenters/Forms.mez
+  [67/73] Lexing: web-app/presenters/FormsData.mez
+  [68/73] Lexing: web-app/presenters/IncidentList.mez
+  [69/73] Lexing: web-app/presenters/LogsMenu.mez
+  [70/73] Lexing: web-app/presenters/Routing.mez
+  [71/73] Lexing: web-app/presenters/Settings.mez
+  [72/73] Lexing: web-app/presenters/Testing.mez
+  [73/73] Lexing: web-app/presenters/Translation.mez
+      ✔ should tokenize all .mez files (1156ms)
+    Parser Tests
+  [1/73] Parsing: model/ApiDebugLog.mez
+  [2/73] Parsing: model/ApiExceptionLog.mez
+  [3/73] Parsing: model/ApiResponse.mez
+  [4/73] Parsing: model/AsyncApiQueue.mez
+  [5/73] Parsing: model/Attachment.mez
+  [6/73] Parsing: model/Campaign.mez
+  [7/73] Parsing: model/CampaignContacts.mez
+  [8/73] Parsing: model/CaseManagementQueue.mez
+  [9/73] Parsing: model/ChatMessage.mez
+  [10/73] Parsing: model/ChatMessageQueue.mez
+  [11/73] Parsing: model/Config.mez
+  [12/73] Parsing: model/Conversation.mez
+  [13/73] Parsing: model/ConversationAttachmentQueue.mez
+  [14/73] Parsing: model/Enums.mez
+  [15/73] Parsing: model/Form.mez
+  [16/73] Parsing: model/FormDatum.mez
+  [17/73] Parsing: model/FunctionCallResult.mez
+  [18/73] Parsing: model/Incident.mez
+  [19/73] Parsing: model/IntSet.mez
+  [20/73] Parsing: model/Location.mez
+  [21/73] Parsing: model/MeansOfNotification.mez
+  [22/73] Parsing: model/Memory.mez
+  [23/73] Parsing: model/OptedOut.mez
+  [24/73] Parsing: model/Route.mez
+  [25/73] Parsing: model/SMS.mez
+  [26/73] Parsing: model/StringSet.mez
+  [27/73] Parsing: model/SystemUser.mez
+  [28/73] Parsing: model/WhatsappMessage.mez
+  [29/73] Parsing: model/WhatsappMessageData.mez
+  [30/73] Parsing: model/WhatsappUser.mez
+  [31/73] Parsing: model/models.mez
+  [32/73] Parsing: services/ApiDebugService.mez
+  [33/73] Parsing: services/ApiWrapper.mez
+  [34/73] Parsing: services/AttachmentQueueService.mez
+  [35/73] Parsing: services/CampaignImport.mez
+  [36/73] Parsing: services/CaseManagement.mez
+  [37/73] Parsing: services/ChatGptWrapper.mez
+  [38/73] Parsing: services/ConfigService.mez
+  [39/73] Parsing: services/ConversationService.mez
+  [40/73] Parsing: services/ExceptionService.mez
+  [41/73] Parsing: services/FormChatClient.mez
+  [42/73] Parsing: services/FormsDataAPI.mez
+  [43/73] Parsing: services/FundiLoanChatClient.mez
+  [44/73] Parsing: services/GbvChatClient.mez
+  [45/73] Parsing: services/HerotelCampaignChatClient.mez
+  [46/73] Parsing: services/Invites.mez
+  [47/73] Parsing: services/LocationUtil.mez
+  [48/73] Parsing: services/MemoryService.mez
+  [49/73] Parsing: services/MunicChatClient.mez
+  [50/73] Parsing: services/RouteService.mez
+  [51/73] Parsing: services/ScheduledAttachmentProcessor.mez
+  [52/73] Parsing: services/ScheduledFunctions.mez
+  [53/73] Parsing: services/SmsService.mez
+  [54/73] Parsing: services/TranslationService.mez
+  [55/73] Parsing: services/WhatsappApi.mez
+  [56/73] Parsing: utilities/Alert.mez
+  [57/73] Parsing: utilities/DataDictionary.mez
+  [58/73] Parsing: utilities/JsonUtils.mez
+  [59/73] Parsing: utilities/StringUtils.mez
+  [60/73] Parsing: utilities/Utilities.mez
+  [61/73] Parsing: web-app/presenters/ApiAuditLog.mez
+  [62/73] Parsing: web-app/presenters/ApiErrorLog.mez
+  [63/73] Parsing: web-app/presenters/AsyncApiQueue.mez
+  [64/73] Parsing: web-app/presenters/ConversationDebug.mez
+  [65/73] Parsing: web-app/presenters/ConversationUnit.mez
+  [66/73] Parsing: web-app/presenters/Forms.mez
+  [67/73] Parsing: web-app/presenters/FormsData.mez
+  [68/73] Parsing: web-app/presenters/IncidentList.mez
+  [69/73] Parsing: web-app/presenters/LogsMenu.mez
+  [70/73] Parsing: web-app/presenters/Routing.mez
+  [71/73] Parsing: web-app/presenters/Settings.mez
+  [72/73] Parsing: web-app/presenters/Testing.mez
+  [73/73] Parsing: web-app/presenters/Translation.mez
+      ✔ should parse all .mez files (1118ms)
+    Linter Tests
+  [1/73] Linting: model/ApiDebugLog.mez
+  [2/73] Linting: model/ApiExceptionLog.mez
+  [3/73] Linting: model/ApiResponse.mez
+  [4/73] Linting: model/AsyncApiQueue.mez
+  [5/73] Linting: model/Attachment.mez
+  [6/73] Linting: model/Campaign.mez
+  [7/73] Linting: model/CampaignContacts.mez
+  [8/73] Linting: model/CaseManagementQueue.mez
+  [9/73] Linting: model/ChatMessage.mez
+  [10/73] Linting: model/ChatMessageQueue.mez
+  [11/73] Linting: model/Config.mez
+  [12/73] Linting: model/Conversation.mez
+  [13/73] Linting: model/ConversationAttachmentQueue.mez
+  [14/73] Linting: model/Enums.mez
+  [15/73] Linting: model/Form.mez
+  [16/73] Linting: model/FormDatum.mez
+  [17/73] Linting: model/FunctionCallResult.mez
+  [18/73] Linting: model/Incident.mez
+  [19/73] Linting: model/IntSet.mez
+  [20/73] Linting: model/Location.mez
+  [21/73] Linting: model/MeansOfNotification.mez
+  [22/73] Linting: model/Memory.mez
+  [23/73] Linting: model/OptedOut.mez
+  [24/73] Linting: model/Route.mez
+  [25/73] Linting: model/SMS.mez
+  [26/73] Linting: model/StringSet.mez
+  [27/73] Linting: model/SystemUser.mez
+  [28/73] Linting: model/WhatsappMessage.mez
+  [29/73] Linting: model/WhatsappMessageData.mez
+  [30/73] Linting: model/WhatsappUser.mez
+  [31/73] Linting: model/models.mez
+  [32/73] Linting: services/ApiDebugService.mez
+  [33/73] Linting: services/ApiWrapper.mez
+  [34/73] Linting: services/AttachmentQueueService.mez
+  [35/73] Linting: services/CampaignImport.mez
+  [36/73] Linting: services/CaseManagement.mez
+  [37/73] Linting: services/ChatGptWrapper.mez
+  [38/73] Linting: services/ConfigService.mez
+  [39/73] Linting: services/ConversationService.mez
+  [40/73] Linting: services/ExceptionService.mez
+  [41/73] Linting: services/FormChatClient.mez
+  [42/73] Linting: services/FormsDataAPI.mez
+  [43/73] Linting: services/FundiLoanChatClient.mez
+  [44/73] Linting: services/GbvChatClient.mez
+  [45/73] Linting: services/HerotelCampaignChatClient.mez
+  [46/73] Linting: services/Invites.mez
+  [47/73] Linting: services/LocationUtil.mez
+  [48/73] Linting: services/MemoryService.mez
+  [49/73] Linting: services/MunicChatClient.mez
+  [50/73] Linting: services/RouteService.mez
+  [51/73] Linting: services/ScheduledAttachmentProcessor.mez
+  [52/73] Linting: services/ScheduledFunctions.mez
+  [53/73] Linting: services/SmsService.mez
+  [54/73] Linting: services/TranslationService.mez
+  [55/73] Linting: services/WhatsappApi.mez
+  [56/73] Linting: utilities/Alert.mez
+  [57/73] Linting: utilities/DataDictionary.mez
+  [58/73] Linting: utilities/JsonUtils.mez
+  [59/73] Linting: utilities/StringUtils.mez
+  [60/73] Linting: utilities/Utilities.mez
+  [61/73] Linting: web-app/presenters/ApiAuditLog.mez
+  [62/73] Linting: web-app/presenters/ApiErrorLog.mez
+  [63/73] Linting: web-app/presenters/AsyncApiQueue.mez
+  [64/73] Linting: web-app/presenters/ConversationDebug.mez
+  [65/73] Linting: web-app/presenters/ConversationUnit.mez
+  [66/73] Linting: web-app/presenters/Forms.mez
+  [67/73] Linting: web-app/presenters/FormsData.mez
+  [68/73] Linting: web-app/presenters/IncidentList.mez
+  [69/73] Linting: web-app/presenters/LogsMenu.mez
+  [70/73] Linting: web-app/presenters/Routing.mez
+  [71/73] Linting: web-app/presenters/Settings.mez
+  [72/73] Linting: web-app/presenters/Testing.mez
+  [73/73] Linting: web-app/presenters/Translation.mez
+      ✔ should lint all .mez files (2450ms)
+    AST Tests
+  [1/73] Building AST: model/ApiDebugLog.mez
+  [2/73] Building AST: model/ApiExceptionLog.mez
+  [3/73] Building AST: model/ApiResponse.mez
+  [4/73] Building AST: model/AsyncApiQueue.mez
+  [5/73] Building AST: model/Attachment.mez
+  [6/73] Building AST: model/Campaign.mez
+  [7/73] Building AST: model/CampaignContacts.mez
+  [8/73] Building AST: model/CaseManagementQueue.mez
+  [9/73] Building AST: model/ChatMessage.mez
+  [10/73] Building AST: model/ChatMessageQueue.mez
+  [11/73] Building AST: model/Config.mez
+  [12/73] Building AST: model/Conversation.mez
+  [13/73] Building AST: model/ConversationAttachmentQueue.mez
+  [14/73] Building AST: model/Enums.mez
+  [15/73] Building AST: model/Form.mez
+  [16/73] Building AST: model/FormDatum.mez
+  [17/73] Building AST: model/FunctionCallResult.mez
+  [18/73] Building AST: model/Incident.mez
+  [19/73] Building AST: model/IntSet.mez
+  [20/73] Building AST: model/Location.mez
+  [21/73] Building AST: model/MeansOfNotification.mez
+  [22/73] Building AST: model/Memory.mez
+  [23/73] Building AST: model/OptedOut.mez
+  [24/73] Building AST: model/Route.mez
+  [25/73] Building AST: model/SMS.mez
+  [26/73] Building AST: model/StringSet.mez
+  [27/73] Building AST: model/SystemUser.mez
+  [28/73] Building AST: model/WhatsappMessage.mez
+  [29/73] Building AST: model/WhatsappMessageData.mez
+  [30/73] Building AST: model/WhatsappUser.mez
+  [31/73] Building AST: model/models.mez
+  [32/73] Building AST: services/ApiDebugService.mez
+  [33/73] Building AST: services/ApiWrapper.mez
+  [34/73] Building AST: services/AttachmentQueueService.mez
+  [35/73] Building AST: services/CampaignImport.mez
+  [36/73] Building AST: services/CaseManagement.mez
+  [37/73] Building AST: services/ChatGptWrapper.mez
+  [38/73] Building AST: services/ConfigService.mez
+  [39/73] Building AST: services/ConversationService.mez
+  [40/73] Building AST: services/ExceptionService.mez
+  [41/73] Building AST: services/FormChatClient.mez
+  [42/73] Building AST: services/FormsDataAPI.mez
+  [43/73] Building AST: services/FundiLoanChatClient.mez
+  [44/73] Building AST: services/GbvChatClient.mez
+  [45/73] Building AST: services/HerotelCampaignChatClient.mez
+  [46/73] Building AST: services/Invites.mez
+  [47/73] Building AST: services/LocationUtil.mez
+  [48/73] Building AST: services/MemoryService.mez
+  [49/73] Building AST: services/MunicChatClient.mez
+  [50/73] Building AST: services/RouteService.mez
+  [51/73] Building AST: services/ScheduledAttachmentProcessor.mez
+  [52/73] Building AST: services/ScheduledFunctions.mez
+  [53/73] Building AST: services/SmsService.mez
+  [54/73] Building AST: services/TranslationService.mez
+  [55/73] Building AST: services/WhatsappApi.mez
+  [56/73] Building AST: utilities/Alert.mez
+  [57/73] Building AST: utilities/DataDictionary.mez
+  [58/73] Building AST: utilities/JsonUtils.mez
+  [59/73] Building AST: utilities/StringUtils.mez
+  [60/73] Building AST: utilities/Utilities.mez
+  [61/73] Building AST: web-app/presenters/ApiAuditLog.mez
+  [62/73] Building AST: web-app/presenters/ApiErrorLog.mez
+  [63/73] Building AST: web-app/presenters/AsyncApiQueue.mez
+  [64/73] Building AST: web-app/presenters/ConversationDebug.mez
+  [65/73] Building AST: web-app/presenters/ConversationUnit.mez

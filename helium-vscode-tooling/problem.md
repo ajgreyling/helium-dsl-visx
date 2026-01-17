@@ -2,7 +2,7 @@
 
 ## Problem Overview
 
-When packaging the Helium DSL VSCode extension as a VSIX file, we encounter multiple issues related to npm workspaces, dependency hoisting, version conflicts, and duplicate files. The core challenge is creating a VSIX that works correctly in Cursor without using the `--no-dependencies` flag, which prevents Cursor from extracting `node_modules` during installation.
+When packaging the Helium Rapid DSL (ANTLR4) VSCode extension as a VSIX file, we encounter multiple issues related to npm workspaces, dependency hoisting, version conflicts, and duplicate files. The core challenge is creating a VSIX that works correctly in Cursor without using the `--no-dependencies` flag, which prevents Cursor from extracting `node_modules` during installation.
 
 ## Root Causes
 

@@ -1,7 +1,7 @@
 # Helium Rapid DSL MCP Server - Cursor Rules
 
 This folder (`helium-rapid-dsl-mcp/`) contains an MCP server used by Cursor agents when generating/editing Helium Rapid DSL:
-- `.mez` (Helium DSL)
+- `.mez` (Helium Rapid DSL (ANTLR4))
 - `.vxml` (Helium UI views)
 
 ## Core intent

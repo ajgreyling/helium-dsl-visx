@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Helium DSL Linter Validation Script
+# Helium Rapid DSL (ANTLR4) Linter Validation Script
 # This script converts ANTLR3 grammar to ANTLR4, generates the parser,
 # extracts linting rules, and validates a DSL project codebase.
 

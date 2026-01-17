@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKSPACE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 echo "=========================================="
-echo "Helium DSL VSIX Packaging (Local)"
+echo "Helium Rapid DSL (ANTLR4) VSIX Packaging (Local)"
 echo "=========================================="
 echo ""
 

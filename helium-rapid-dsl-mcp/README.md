@@ -1,7 +1,7 @@
 ## Helium Rapid DSL MCP Server
 
 This package provides an **MCP server** for Cursor agents working with **Helium Rapid DSL** files:
-- **`.mez`** (Helium DSL)
+- **`.mez`** (Helium Rapid DSL (ANTLR4))
 - **`.vxml`** (Helium UI views)
 
 It is designed to reuse the existing Helium language server **AST/index/LSP-style features** for `.mez`, and adds a VXML parser/index plus language-key validation.
@@ -52,7 +52,7 @@ node out/src/index.js
 
 ### Bundled in VSIX (Cursor)
 
-When packaged, the MCP server is bundled inside the Helium DSL extension and registered via the MCP server definition provider. The bundled entrypoint is:
+When packaged, the MCP server is bundled inside the Helium Rapid DSL (ANTLR4) extension and registered via the MCP server definition provider. The bundled entrypoint is:
 
 - `helium-dsl-vscode/server/mcp/out/src/index.js`
 

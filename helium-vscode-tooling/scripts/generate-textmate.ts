@@ -256,7 +256,7 @@ async function main() {
 
   const tmLanguage = {
     $schema: "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
-    name: "Helium DSL",
+    name: "Helium Rapid DSL (ANTLR4)",
     scopeName: "source.helium-dsl",
     patterns,
     repository: {

@@ -1,9 +1,9 @@
 import { pushDiagnostic, LintContext } from "../engine.js";
 import { buildFileAst, rangeContains } from "../../ast/builder.js";
 
-export function applyNoVarInElse(ctx: LintContext) {
+export async function applyNoVarInElse(ctx: LintContext) {
   if (!ctx.rules["no-var-in-else"]) return;
-  const ast = buildFileAst(ctx.text, "memory://lint");
+  const ast = await buildFileAst(ctx.text, "memory://lint");
   if (ast.elseBlocks.length === 0) {
     applyLegacyNoVarInElse(ctx);
     return;

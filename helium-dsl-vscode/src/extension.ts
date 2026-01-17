@@ -64,7 +64,7 @@ export function activate(context: vscode.ExtensionContext) {
   if (!fs.existsSync(serverModule)) {
     const errorMsg = `[HeliumDSL] ERROR: Server file not found at ${serverModule}`;
     console.error(errorMsg);
-    vscode.window.showErrorMessage(`Helium DSL: Language server not found. Please rebuild the extension.`);
+    vscode.window.showErrorMessage(`Helium Rapid DSL (ANTLR4): Language server not found. Please rebuild the extension.`);
     return;
   }
 
@@ -78,7 +78,7 @@ export function activate(context: vscode.ExtensionContext) {
   };
 
   // Create output channel for language server logs
-  outputChannel = vscode.window.createOutputChannel("Helium DSL Language Server");
+  outputChannel = vscode.window.createOutputChannel("Helium Rapid DSL (ANTLR4) Language Server");
   context.subscriptions.push(outputChannel);
 
   // Read trace level from configuration
@@ -117,7 +117,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   client = new LanguageClient(
     "heliumDslLanguageServer",
-    "Helium DSL Language Server",
+    "Helium Rapid DSL (ANTLR4) Language Server",
     serverOptions,
     clientOptions
   );
@@ -134,7 +134,7 @@ export function activate(context: vscode.ExtensionContext) {
         outputChannel.appendLine(`[HeliumDSL] Triggering semantic tokens refresh...`);
       }
       
-      // Trigger semantic tokens refresh for all open Helium DSL documents
+      // Trigger semantic tokens refresh for all open Helium Rapid DSL (ANTLR4) documents
       refreshSemanticTokens();
     } catch (err) {
       const errorMsg = `[HeliumDSL] Error handling helium/userTypes notification: ${err}`;
@@ -163,7 +163,7 @@ export function activate(context: vscode.ExtensionContext) {
       }
       console.log("[HeliumDSL] Language client started successfully");
       if (outputChannel) {
-        outputChannel.appendLine("Helium DSL Language Server started successfully");
+        outputChannel.appendLine("Helium Rapid DSL (ANTLR4) Language Server started successfully");
         outputChannel.appendLine(`[HeliumDSL] Server module: ${serverModule}`);
         outputChannel.appendLine(`[HeliumDSL] Trace level: ${traceConfig}`);
       }
@@ -175,7 +175,7 @@ export function activate(context: vscode.ExtensionContext) {
         outputChannel.appendLine(`ERROR: ${errorMsg}`);
         outputChannel.show(true);
       }
-      vscode.window.showErrorMessage(`Helium DSL: Failed to start language server. Check the output channel for details.`);
+      vscode.window.showErrorMessage(`Helium Rapid DSL (ANTLR4): Failed to start language server. Check the output channel for details.`);
     }
   );
   
@@ -204,9 +204,15 @@ function registerMcpServerProvider(context: vscode.ExtensionContext): void {
     const mcpEntrypoint = context.asAbsolutePath(
       path.join("server", "mcp", "out", "src", "index.js")
     );
+    // #region agent log
+    (globalThis as any).fetch('http://127.0.0.1:7243/ingest/f8eecc7d-5d84-4f56-8e99-5ad9d9836767',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'mcp-test-3',hypothesisId:'H2',location:'helium-dsl-vscode/src/extension.ts:205',message:'mcp_entrypoint_check',data:{mcpEntrypoint,entrypointExists:fs.existsSync(mcpEntrypoint)},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion agent log
 
     // Verify MCP server file exists
     if (!fs.existsSync(mcpEntrypoint)) {
+      // #region agent log
+      (globalThis as any).fetch('http://127.0.0.1:7243/ingest/f8eecc7d-5d84-4f56-8e99-5ad9d9836767',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'mcp-test-3',hypothesisId:'H2',location:'helium-dsl-vscode/src/extension.ts:209',message:'mcp_entrypoint_missing',data:{mcpEntrypoint},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion agent log
       console.warn(`[HeliumDSL] MCP server not found at ${mcpEntrypoint} - skipping registration`);
       return;
     }
@@ -274,7 +280,7 @@ function registerMcpServerProvider(context: vscode.ExtensionContext): void {
 }
 
 /**
- * Refresh semantic tokens for all open Helium DSL documents
+ * Refresh semantic tokens for all open Helium Rapid DSL (ANTLR4) documents
  * Semantic tokens will be automatically recomputed when VS Code requests them,
  * but we can trigger a refresh by requesting semantic tokens refresh from the language server.
  */
@@ -283,7 +289,7 @@ function refreshSemanticTokens(): void {
     return;
   }
 
-  // Find all open Helium DSL documents
+  // Find all open Helium Rapid DSL (ANTLR4) documents
   const openDocuments = vscode.workspace.textDocuments.filter(
     (doc) => doc.languageId === "helium-dsl"
   );

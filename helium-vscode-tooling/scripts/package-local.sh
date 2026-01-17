@@ -23,7 +23,7 @@ if [ -n "${HELIUM_PARSER_ERRORS_FILE:-}" ] && [ -s "${HELIUM_PARSER_ERRORS_FILE}
 fi
 
 echo "=========================================="
-echo "Helium DSL VSIX Packaging (Local)"
+echo "Helium Rapid DSL (ANTLR4) VSIX Packaging (Local)"
 echo "=========================================="
 echo ""
 echo "Working directory: $WORK_DIR"

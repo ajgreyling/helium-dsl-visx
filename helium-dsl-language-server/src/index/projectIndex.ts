@@ -139,8 +139,8 @@ export class ProjectIndex {
     return this.files.get(uri);
   }
 
-  updateFile(uri: string, text: string) {
-    const ast = buildFileAst(text, uri);
+  async updateFile(uri: string, text: string) {
+    const ast = await buildFileAst(text, uri);
     this.files.set(uri, ast);
     this.rebuildIndexes();
   }
@@ -150,11 +150,11 @@ export class ProjectIndex {
     this.rebuildIndexes();
   }
 
-  indexFileFromDisk(filePath: string) {
+  async indexFileFromDisk(filePath: string) {
     try {
       const text = fs.readFileSync(filePath, "utf8");
       const uri = URI.file(filePath).toString();
-      this.updateFile(uri, text);
+      await this.updateFile(uri, text);
     } catch {
       // ignore
     }
@@ -179,7 +179,8 @@ export class ProjectIndex {
       if (entry.isDirectory()) {
         this.scanDirectory(fullPath);
       } else if (entry.isFile() && entry.name.endsWith(".mez")) {
-        this.indexFileFromDisk(fullPath);
+        // Fire and forget - indexing happens asynchronously
+        this.indexFileFromDisk(fullPath).catch(() => {});
       }
     }
   }

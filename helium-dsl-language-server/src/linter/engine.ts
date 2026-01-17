@@ -16,7 +16,7 @@ export async function runLints(text: string): Promise<Diagnostic[]> {
   // Only apply critical rules that are known to be accurate
   // Disable rules that cause false positives for valid code
   // console.warn("[Linter] Applying no-var-in-else rule...");
-  applyNoVarInElse(ctx);
+  await applyNoVarInElse(ctx);
   // console.warn(`[Linter] no-var-in-else complete, found ${diagnostics.length} issues`);
   
   // applyNamingConventions(ctx); // Disabled - causes false positives

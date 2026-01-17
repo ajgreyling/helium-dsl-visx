@@ -1,6 +1,6 @@
-# Helium DSL TextMate Token Mappings
+# Helium Rapid DSL (ANTLR4) TextMate Token Mappings
 
-This document lists all TextMate scope names used in the Helium DSL grammar and what syntax elements they map to. These scopes are designed to provide unique colors in Cursor Dark theme while remaining compatible with other themes like Solarized Dark and MonoKai.
+This document lists all TextMate scope names used in the Helium Rapid DSL (ANTLR4) grammar and what syntax elements they map to. These scopes are designed to provide unique colors in Cursor Dark theme while remaining compatible with other themes like Solarized Dark and MonoKai.
 
 ## Token Scope Mappings
 

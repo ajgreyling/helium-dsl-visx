@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Test script to run the Helium DSL linter against munic-chat codebase
+ * Test script to run the Helium Rapid DSL (ANTLR4) linter against munic-chat codebase
  */
 
 const fs = require('fs');
@@ -44,7 +44,7 @@ function findMezFiles(baseDir) {
 }
 
 async function main() {
-    console.log('🔍 Testing Helium DSL Linter against munic-chat codebase\n');
+    console.log('🔍 Testing Helium Rapid DSL (ANTLR4) Linter against munic-chat codebase\n');
     console.log(`Scanning folders: ${FOLDERS_TO_SCAN.join(', ')}\n`);
     
     // Find all .mez files
@@ -122,7 +122,7 @@ async function main() {
             }
         }
     } else {
-        console.log('✅ No issues found! All files conform to Helium DSL rules.');
+        console.log('✅ No issues found! All files conform to Helium Rapid DSL (ANTLR4) rules.');
     }
     
     console.log('\n' + '='.repeat(80));

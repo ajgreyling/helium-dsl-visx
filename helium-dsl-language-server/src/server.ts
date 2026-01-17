@@ -242,7 +242,7 @@ documents.onDidOpen((change) => {
 
 async function validateDocument(document: TextDocument) {
   const text = document.getText();
-  const syntaxDiagnostics = createDiagnostics(text);
+  const syntaxDiagnostics = await createDiagnostics(text);
   const lintDiagnostics = await runLints(text);
   const diagnostics = [...syntaxDiagnostics, ...lintDiagnostics];
   connection.sendDiagnostics({ uri: document.uri, diagnostics });
@@ -1161,12 +1161,12 @@ connection.onDocumentLinks((params: DocumentLinkParams): DocumentLink[] => {
 });
 
 connection.onDocumentColor((params: { textDocument: { uri: string } }): ColorInformation[] => {
-  // Helium DSL doesn't have color literals, return empty array
+  // Helium Rapid DSL (ANTLR4) doesn't have color literals, return empty array
   return [];
 });
 
 connection.onColorPresentation((params: ColorPresentationParams): { label: string }[] => {
-  // Helium DSL doesn't have color literals, return empty array
+  // Helium Rapid DSL (ANTLR4) doesn't have color literals, return empty array
   return [];
 });
 

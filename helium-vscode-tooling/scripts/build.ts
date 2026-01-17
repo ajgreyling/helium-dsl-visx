@@ -34,6 +34,9 @@ async function main() {
   // 4. Generate TypeScript parser
   run("npm run build:parser");
 
+  // 4a. Fix parser imports (add .js extensions for strict ESM)
+  run("ts-node scripts/fix-parser-imports.ts");
+
   // 5. Generate lint rules
   run("ts-node scripts/extract-rules.ts");
 

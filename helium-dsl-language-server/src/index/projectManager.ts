@@ -34,6 +34,9 @@ export class ProjectManager {
       index.indexProjectFiles();
       this.indexes.set(root, index);
     });
+    // #region agent log
+    (globalThis as any).fetch('http://127.0.0.1:7243/ingest/f8eecc7d-5d84-4f56-8e99-5ad9d9836767',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'mcp-symbols-1',hypothesisId:'H1',location:'helium-dsl-language-server/src/index/projectManager.ts:28',message:'project_manager_init',data:{workspaceFolderCount:(workspaceFolders ?? []).length,projectRoots:this.projectRoots,projectRootCount:this.projectRoots.length},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion agent log
   }
 
   getProjectRoots(): string[] {
@@ -43,7 +46,8 @@ export class ProjectManager {
   updateDocument(doc: TextDocument) {
     const index = this.getIndexForUri(doc.uri);
     if (!index) return;
-    index.updateFile(doc.uri, doc.getText());
+    // Fire and forget - indexing happens asynchronously
+    index.updateFile(doc.uri, doc.getText()).catch(() => {});
   }
 
   removeDocument(uri: string) {

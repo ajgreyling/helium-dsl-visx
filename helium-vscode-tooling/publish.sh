@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Helium DSL Extension Publishing Script
+# Helium Rapid DSL (ANTLR4) Extension Publishing Script
 # This script builds the extension, packages it, and publishes to Open VSX Registry
 
 set -e  # Exit on error

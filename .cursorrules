@@ -1,6 +1,6 @@
-# Helium DSL VSCode Extension Tooling - Cursor Rules
+# Helium Rapid DSL (ANTLR4) VSCode Extension Tooling - Cursor Rules
 
-This project builds a VSCode extension for the Helium DSL that works in **Cursor IDE**. The packaging process uses local packaging with temporary directories to ensure robust, reproducible builds.
+This project builds a VSCode extension for the Helium Rapid DSL (ANTLR4) that works in **Cursor IDE**. The packaging process uses local packaging with temporary directories to ensure robust, reproducible builds.
 
 ## Project Structure
 
@@ -287,7 +287,7 @@ If you need to change any of these files:
 
 ## Icon Theme Guidelines
 
-The extension includes a custom icon theme (`helium-icons`) that provides icons for Helium DSL files and common file types.
+The extension includes a custom icon theme (`helium-icons`) that provides icons for Helium Rapid DSL (ANTLR4) files and common file types.
 
 ### Icon Theme Structure
 
@@ -376,7 +376,7 @@ The extension supports three trace levels controlled by the `heliumDsl.trace.ser
 
 ### What Logs Are Controlled
 
-When trace level is set to `verbose`, the following debug logs appear in the "Helium DSL Language Server" Output channel:
+When trace level is set to `verbose`, the following debug logs appear in the "Helium Rapid DSL (ANTLR4) Language Server" Output channel:
 
 - **WorkspaceIndex logs**: Workspace scanning, object/unit discovery, file updates
 - **Type discovery logs**: User-defined types list, workspace roots, type checking operations

@@ -54,7 +54,11 @@ export function discoverProjectRoots(workspaceFolders: WorkspaceFolder[] | null)
     const fsPath = URI.parse(folder.uri).fsPath;
     scanForProjects(fsPath, roots);
   });
-  return Array.from(roots).sort();
+  const result = Array.from(roots).sort();
+  // #region agent log
+  (globalThis as any).fetch('http://127.0.0.1:7243/ingest/f8eecc7d-5d84-4f56-8e99-5ad9d9836767',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'mcp-symbols-1',hypothesisId:'H1',location:'helium-dsl-language-server/src/projects/projectDiscovery.ts:51',message:'discover_project_roots',data:{workspaceFolderCount:(workspaceFolders ?? []).length,workspaceFolders:(workspaceFolders ?? []).map(f=>({uri:f.uri,name:f.name})),projectRoots:result,projectRootCount:result.length},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion agent log
+  return result;
 }
 
 export function findProjectRootForFile(filePath: string, projectRoots: string[]): string | null {

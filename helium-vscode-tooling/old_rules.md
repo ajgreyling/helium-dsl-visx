@@ -1,4 +1,4 @@
-This project is developed in Helium DSL, a domain specific language with Java-like syntax that runs on top of the Helium platform
+This project is developed in Helium Rapid DSL (ANTLR4), a domain specific language with Java-like syntax that runs on top of the Helium platform
 
 # Directory Structure  
 - Model files (objects, enum's and roles all in their own file): model/*.mez
@@ -139,7 +139,7 @@ void init() {
 
 ```
 # Data Types
-Helium DSL supports the following primitive data types:
+Helium Rapid DSL (ANTLR4) supports the following primitive data types:
 - int, string, decimal, bigint, bool, date, datetime, uuid, void, blob, json, jsonarray
 
 # Blob Type
@@ -151,7 +151,7 @@ Helium DSL supports the following primitive data types:
 - The Blob type has `Blob:toString(blobField)` which returns a Base64 encoded string and `Blob:fromString(base64String)` which takes Base64 encoded string as input
 
 # Control Structures
-Helium DSL supports common control flow statements:
+Helium Rapid DSL (ANTLR4) supports common control flow statements:
 - `if/else if/else` for conditional branching. The condition has to be written as a equation. `if (isSometing) ` is not valid. Structure of a if statement:
 ```
 bool boolVar1 = true;
