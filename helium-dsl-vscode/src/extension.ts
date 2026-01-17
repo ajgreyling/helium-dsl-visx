@@ -7,7 +7,7 @@ import {
   ServerOptions,
   TransportKind,
   Trace,
-} from "vscode-languageclient/node";
+} from "vscode-languageclient/node.js";
 
 let client: LanguageClient | undefined;
 let userDefinedTypes: string[] = [];
@@ -168,7 +168,7 @@ export function activate(context: vscode.ExtensionContext) {
         outputChannel.appendLine(`[HeliumDSL] Trace level: ${traceConfig}`);
       }
     },
-    (error) => {
+    (error: unknown) => {
       const errorMsg = `[HeliumDSL] ERROR: Failed to start language client: ${error}`;
       console.error(errorMsg);
       if (outputChannel) {

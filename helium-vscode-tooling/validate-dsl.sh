@@ -529,52 +529,62 @@ fi
 # Create temporary script file for tsx to execute
 # We'll use npx tsx directly - it will find tsx in node_modules from any directory
 # Use .ts extension so Node.js recognizes it as TypeScript
-TEMP_SCRIPT=$(mktemp --suffix=.ts)
-cat > "$TEMP_SCRIPT" << 'EOF'
+# Create temp file first, then rename to add .ts extension (works on both BSD and GNU mktemp)
+TEMP_SCRIPT=$(mktemp /tmp/helium-validate.XXXXXX)
+mv "$TEMP_SCRIPT" "${TEMP_SCRIPT}.ts"
+TEMP_SCRIPT="${TEMP_SCRIPT}.ts"
+LANG_SERVER_DIR="$SCRIPT_DIR/../helium-dsl-language-server"
+cat > "$TEMP_SCRIPT" << EOF
 import fs from 'fs';
 import path from 'path';
-import { parseText } from './src/parser/index.js';
+import { pathToFileURL } from 'url';
 
 const sampleRoot = process.env.SAMPLE_PROJECT_PATH;
 const errorsFile = process.env.PARSER_ERRORS_FILE;
 const errors = [];
 
-async function findMezFiles(dir) {
-  const entries = fs.readdirSync(dir, { withFileTypes: true });
-  for (const entry of entries) {
-    const fullPath = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      await findMezFiles(fullPath);
-    } else if (entry.name.endsWith('.mez')) {
-      const text = fs.readFileSync(fullPath, 'utf8');
-      const result = await parseText(text);
-      if (result.diagnostics.length > 0) {
-        errors.push({
-          file: path.relative(sampleRoot, fullPath),
-          issues: result.diagnostics,
-        });
+(async () => {
+  const langServerDir = '${LANG_SERVER_DIR}';
+  const parserModule = pathToFileURL(path.join(langServerDir, 'src/parser/index.js')).href;
+  const { parseText } = await import(parserModule);
+
+  async function findMezFiles(dir) {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        await findMezFiles(fullPath);
+      } else if (entry.name.endsWith('.mez')) {
+        const text = fs.readFileSync(fullPath, 'utf8');
+        const result = await parseText(text);
+        if (result.diagnostics.length > 0) {
+          errors.push({
+            file: path.relative(sampleRoot, fullPath),
+            issues: result.diagnostics,
+          });
+        }
       }
     }
   }
-}
 
-await findMezFiles(sampleRoot);
+  await findMezFiles(sampleRoot);
 
-if (errors.length > 0) {
-  fs.writeFileSync(errorsFile, JSON.stringify(errors, null, 2));
-  console.error('Parser errors detected in sample project. Aborting.');
-  const first = errors.slice(0, 5);
-  first.forEach((e) => {
-    console.error('  ' + e.file);
-    e.issues.slice(0, 3).forEach((issue) => {
-      const line = (issue.range?.start?.line ?? 0) + 1;
-      console.error('    Line ' + line + ': ' + issue.message);
+  if (errors.length > 0) {
+    fs.writeFileSync(errorsFile, JSON.stringify(errors, null, 2));
+    console.error('Parser errors detected in sample project. Aborting.');
+    const first = errors.slice(0, 5);
+    first.forEach((e) => {
+      console.error('  ' + e.file);
+      e.issues.slice(0, 3).forEach((issue) => {
+        const line = (issue.range?.start?.line ?? 0) + 1;
+        console.error('    Line ' + line + ': ' + issue.message);
+      });
     });
-  });
-  process.exit(1);
-} else {
-  console.log('No parser errors detected.');
-}
+    process.exit(1);
+  } else {
+    console.log('No parser errors detected.');
+  }
+})();
 EOF
 
 cd "$SCRIPT_DIR/../helium-dsl-language-server"
