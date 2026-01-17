@@ -1,7 +1,9 @@
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import fs from "fs-extra";
 import { glob } from "glob";
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
 const parserDir = path.join(root, "generated/parser");
 

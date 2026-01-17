@@ -2,8 +2,8 @@ import { describe, it } from "mocha";
 import { expect } from "chai";
 import * as fs from "fs";
 import * as path from "path";
-import { parseText } from "../src/parser/index";
-import { runLints } from "../src/linter/engine";
+import { parseText } from "../src/parser/index.js";
+import { runLints } from "../src/linter/engine.js";
 import { Diagnostic } from "vscode-languageserver";
 
 const SAMPLE_PROJECT_PATH = "/Users/ajgreyling/code/munic-chat";
@@ -197,7 +197,7 @@ describe("Sample DSL Codebase Validation", () => {
     `;
 
     const lintDiagnostics = await runLints(testCode);
-    const varInElseErrors = lintDiagnostics.filter((d) =>
+    const varInElseErrors = lintDiagnostics.filter((d: { message: string }) =>
       d.message.includes("Variables cannot be declared in else blocks")
     );
 

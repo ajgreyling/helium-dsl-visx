@@ -1,19 +1,15 @@
 {
   "compilerOptions": {
-    "target": "ES2020",
-    "module": "ES2020",
+    "target": "ES2022",
+    "module": "NodeNext",
     "outDir": "out",
     "rootDir": ".",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "moduleResolution": "bundler",
+    "moduleResolution": "NodeNext",
     "resolveJsonModule": true,
     "typeRoots": ["./node_modules/@types", "../node_modules/@types", "./src/parser"]
-  },
-  "ts-node": {
-    "esm": true,
-    "experimentalSpecifierResolution": "node"
   },
   "include": ["src/**/*", "tests/**/*", "generated/**/*"],
   "exclude": ["out", "node_modules"]

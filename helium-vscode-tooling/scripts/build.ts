@@ -1,7 +1,9 @@
 import { execSync } from "node:child_process";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import fs from "fs-extra";
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
 const generated = path.join(root, "generated");
 
@@ -23,31 +25,31 @@ async function main() {
   await ensureGenerated();
 
   // 1. Extract ANTLR3 grammar from Java project
-  run("ts-node scripts/extract-grammar.ts");
+  run("npx tsx scripts/extract-grammar.ts");
 
   // 2. Convert ANTLR3 → ANTLR4
-  run("ts-node scripts/convert-grammar.ts");
+  run("npx tsx scripts/convert-grammar.ts");
 
   // 3. Validate grammar
-  run("ts-node scripts/validate-grammar.ts");
+  run("npx tsx scripts/validate-grammar.ts");
 
   // 4. Generate TypeScript parser
   run("npm run build:parser");
 
   // 4a. Fix parser imports (add .js extensions for strict ESM)
-  run("ts-node scripts/fix-parser-imports.ts");
+  run("npx tsx scripts/fix-parser-imports.ts");
 
   // 5. Generate lint rules
-  run("ts-node scripts/extract-rules.ts");
+  run("npx tsx scripts/extract-rules.ts");
 
   // 6. Generate BIF metadata
-  run("ts-node scripts/generate-bif-metadata.ts");
+  run("npx tsx scripts/generate-bif-metadata.ts");
 
   // 7. Generate language metadata
-  run("ts-node scripts/generate-language-metadata.ts");
+  run("npx tsx scripts/generate-language-metadata.ts");
 
   // 8. Generate TextMate grammar
-  run("ts-node scripts/generate-textmate.ts");
+  run("npx tsx scripts/generate-textmate.ts");
 
   // 9. Build language server + extension
   run("npm run build", { cwd: path.join(root, "..", "helium-dsl-language-server") });

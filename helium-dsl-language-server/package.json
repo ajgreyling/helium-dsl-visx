@@ -18,7 +18,7 @@
     "build": "tsc -b",
     "clean": "rimraf out",
     "watch": "tsc -b -w",
-    "test": "NODE_OPTIONS='--loader ts-node/esm' mocha tests/**/*.test.ts"
+    "test": "mocha --import tsx tests/**/*.test.ts"
   },
   "dependencies": {
     "antlr4ts": "^0.5.0-alpha.4",
@@ -34,14 +34,7 @@
     "chai": "^4.4.1",
     "mocha": "^10.7.3",
     "rimraf": "^6.0.1",
-    "ts-node": "^10.9.2",
+    "tsx": "^4.19.2",
     "typescript": "^5.6.3"
-  },
-  "ts-node": {
-    "esm": true,
-    "compilerOptions": {
-      "module": "ES2020",
-      "moduleResolution": "node"
-    }
   }
 }

@@ -1,10 +1,10 @@
 import { expect } from "chai";
-import { createDiagnostics } from "../src/diagnostics";
-import { runLints } from "../src/linter/engine";
+import { createDiagnostics } from "../src/diagnostics.js";
+import { runLints } from "../src/linter/engine.js";
 
 describe("Diagnostics and lints", () => {
   it("reports no diagnostics for empty file", async () => {
-    const diags = createDiagnostics("");
+    const diags = await createDiagnostics("");
     expect(diags.length).to.be.greaterThan(0); // parser-not-generated warning until parser is built
   });
 

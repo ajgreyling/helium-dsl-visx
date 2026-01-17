@@ -75,9 +75,11 @@ echo ""
 echo -e "${BLUE}Updating extract-grammar.ts...${NC}"
 cat > "$SCRIPT_DIR/scripts/extract-grammar.ts" << EOF
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import fs from "fs-extra";
 import crypto from "node:crypto";
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
 const sourceGrammar = "$GRAMMAR_FILE";
 const targetGrammar = path.join(root, "generated/grammar/MezDSL.g3");
@@ -113,8 +115,10 @@ EOF
 echo -e "${BLUE}Updating extract-rules.ts...${NC}"
 cat > "$SCRIPT_DIR/scripts/extract-rules.ts" << 'EOF'
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import fs from "fs-extra";
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
 const output = path.join(root, "generated/rules/dsl-rules.json");
 
@@ -166,7 +170,9 @@ cat > "$SCRIPT_DIR/scripts/watch.ts" << EOF
 import chokidar from "chokidar";
 import { execSync } from "node:child_process";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
 const grammarFile = "$GRAMMAR_FILE";
 const rulesFile = "$RULES_FILE";
@@ -200,7 +206,9 @@ import { execSync } from "node:child_process";
 import fs from "fs-extra";
 import crypto from "node:crypto";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
 const dslCommonsPath = "$DSL_COMMONS_PATH";
 
@@ -264,10 +272,10 @@ import * as fs from "fs";
 import * as path from "path";
 import { Diagnostic } from "vscode-languageserver";
 import { URI } from "vscode-uri";
-import { parseText } from "../../src/parser/index";
-import { runLints } from "../../src/linter/engine";
-import { ProjectIndex } from "../../src/index/projectIndex";
-import { getLanguageMetadataSync } from "../../src/language/metadata";
+import { parseText } from "../../src/parser/index.js";
+import { runLints } from "../../src/linter/engine.js";
+import { ProjectIndex } from "../../src/index/projectIndex.js";
+import { getLanguageMetadataSync } from "../../src/language/metadata.js";
 
 const SAMPLE_PROJECT_PATH = "$SAMPLE_PROJECT_PATH";
 
@@ -301,7 +309,7 @@ describe("Sample DSL Codebase Validation", () => {
       const relativePath = path.relative(SAMPLE_PROJECT_PATH, file);
 
       try {
-        const parseResult = parseText(text);
+        const parseResult = await parseText(text);
         const lintDiagnostics = await runLints(text);
         const allDiagnostics = [...parseResult.diagnostics, ...lintDiagnostics];
 
@@ -440,6 +448,32 @@ echo ""
 echo -e "${GREEN}=== Configuration Complete ===${NC}"
 echo ""
 
+# Check dependencies before running build pipeline
+echo -e "${BLUE}=== Step 0: Verify Dependencies ===${NC}"
+cd "$SCRIPT_DIR"
+
+# Check if tsx is available in node_modules (workspace root or local)
+TSX_FOUND=false
+if [ -f "$SCRIPT_DIR/../node_modules/.bin/tsx" ]; then
+    TSX_FOUND=true
+    echo -e "${GREEN}✓ tsx found in workspace root node_modules${NC}"
+elif [ -f "$SCRIPT_DIR/node_modules/.bin/tsx" ]; then
+    TSX_FOUND=true
+    echo -e "${GREEN}✓ tsx found in local node_modules${NC}"
+elif command -v tsx >/dev/null 2>&1; then
+    TSX_FOUND=true
+    echo -e "${GREEN}✓ tsx found in PATH${NC}"
+fi
+
+if [ "$TSX_FOUND" = false ]; then
+    echo -e "${RED}✗ Error: tsx not found${NC}"
+    echo -e "${YELLOW}  tsx is required to run TypeScript scripts.${NC}"
+    echo -e "${YELLOW}  Please run: npm install${NC}"
+    echo -e "${YELLOW}  (from the repository root: $(cd "$SCRIPT_DIR/../.." && pwd))${NC}"
+    exit 1
+fi
+echo ""
+
 # Run the build pipeline
 echo -e "${BLUE}=== Step 1: Extract Grammar ===${NC}"
 cd "$SCRIPT_DIR"
@@ -492,28 +526,28 @@ if [ ! -f "$PARSER_LEXER_TS" ] || [ ! -f "$PARSER_PARSER_TS" ]; then
     exit 1
 fi
 
-if ! node -e "require.resolve('ts-node/register')" >/dev/null 2>&1; then
-    echo -e "${RED}Error: ts-node is required for parser validation. Run npm install in helium-dsl-language-server.${NC}"
-    exit 1
-fi
-
-NODE_ENV=development HELIUM_STRICT_PARSER=1 NODE_OPTIONS='--loader ts-node/esm' TS_NODE_PROJECT="$SCRIPT_DIR/../helium-dsl-language-server/tsconfig.json" TS_NODE_TRANSPILE_ONLY=1 node --input-type=module -e "
+# Create temporary script file for tsx to execute
+# We'll use npx tsx directly - it will find tsx in node_modules from any directory
+# Use .ts extension so Node.js recognizes it as TypeScript
+TEMP_SCRIPT=$(mktemp --suffix=.ts)
+cat > "$TEMP_SCRIPT" << 'EOF'
 import fs from 'fs';
 import path from 'path';
-import { parseText } from './src/parser/index.ts';
+import { parseText } from './src/parser/index.js';
 
-const sampleRoot = '$SAMPLE_PROJECT_PATH';
+const sampleRoot = process.env.SAMPLE_PROJECT_PATH;
+const errorsFile = process.env.PARSER_ERRORS_FILE;
 const errors = [];
 
-function findMezFiles(dir) {
+async function findMezFiles(dir) {
   const entries = fs.readdirSync(dir, { withFileTypes: true });
   for (const entry of entries) {
     const fullPath = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      findMezFiles(fullPath);
+      await findMezFiles(fullPath);
     } else if (entry.name.endsWith('.mez')) {
       const text = fs.readFileSync(fullPath, 'utf8');
-      const result = parseText(text);
+      const result = await parseText(text);
       if (result.diagnostics.length > 0) {
         errors.push({
           file: path.relative(sampleRoot, fullPath),
@@ -524,10 +558,10 @@ function findMezFiles(dir) {
   }
 }
 
-findMezFiles(sampleRoot);
+await findMezFiles(sampleRoot);
 
 if (errors.length > 0) {
-  fs.writeFileSync('$PARSER_ERRORS_FILE', JSON.stringify(errors, null, 2));
+  fs.writeFileSync(errorsFile, JSON.stringify(errors, null, 2));
   console.error('Parser errors detected in sample project. Aborting.');
   const first = errors.slice(0, 5);
   first.forEach((e) => {
@@ -541,7 +575,20 @@ if (errors.length > 0) {
 } else {
   console.log('No parser errors detected.');
 }
-"
+EOF
+
+cd "$SCRIPT_DIR/../helium-dsl-language-server"
+# Use npx tsx which will find tsx in node_modules from any directory
+echo "  Running parser validation with tsx..."
+echo "  Temp script: $TEMP_SCRIPT"
+echo "  Sample project: $SAMPLE_PROJECT_PATH"
+NODE_ENV=development HELIUM_STRICT_PARSER=1 SAMPLE_PROJECT_PATH="$SAMPLE_PROJECT_PATH" PARSER_ERRORS_FILE="$PARSER_ERRORS_FILE" npx tsx "$TEMP_SCRIPT" 2>&1
+TSX_EXIT_CODE=$?
+rm -f "$TEMP_SCRIPT"
+
+if [ $TSX_EXIT_CODE -ne 0 ]; then
+    exit 1
+fi
 
 echo ""
 echo -e "${BLUE}=== Step 10: Build VSCode Extension ===${NC}"
@@ -595,17 +642,17 @@ STEP14_START=$(date +%s)
 cd "$SCRIPT_DIR/../helium-dsl-language-server"
 # Use --exit flag to force mocha to exit after tests complete (prevents hanging on active timers)
 # Use stdbuf to disable output buffering if available (not available on macOS by default)
-# Use NODE_OPTIONS with ts-node/esm loader for ESM support, and --require ts-node/register for require() calls
+# Use tsx to run tests directly (supports ESM natively)
 # Filter out Node.js warnings about deprecated loader and fs.Stats
 if command -v stdbuf >/dev/null 2>&1; then
     # Use PIPESTATUS to capture exit code before grep filters warnings
-    # Register ts-node for require() calls AND use loader for import() calls
-    NODE_OPTIONS='--loader ts-node/esm' stdbuf -oL -eL npx mocha --exit --require ts-node/register tests/**/*.test.ts generated/tests/**/*.test.ts 2>&1 | grep -vE "(ExperimentalWarning|DeprecationWarning)" || true
+    # Use mocha with tsx import for ESM TypeScript support
+    stdbuf -oL -eL mocha --import tsx --exit tests/**/*.test.ts generated/tests/**/*.test.ts 2>&1 | grep -vE "(ExperimentalWarning|DeprecationWarning)" || true
     MOCHA_EXIT_CODE=${PIPESTATUS[0]}
 else
     # Use PIPESTATUS to capture exit code before grep filters warnings
-    # Register ts-node for require() calls AND use loader for import() calls
-    NODE_OPTIONS='--loader ts-node/esm' npx mocha --exit --require ts-node/register tests/**/*.test.ts generated/tests/**/*.test.ts 2>&1 | grep -vE "(ExperimentalWarning|DeprecationWarning)" || true
+    # Use mocha with tsx import for ESM TypeScript support
+    mocha --import tsx --exit tests/**/*.test.ts generated/tests/**/*.test.ts 2>&1 | grep -vE "(ExperimentalWarning|DeprecationWarning)" || true
     MOCHA_EXIT_CODE=${PIPESTATUS[0]}
 fi
 STEP14_END=$(date +%s)

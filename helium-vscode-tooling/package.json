@@ -2,25 +2,26 @@
   "name": "helium-vscode-tooling",
   "private": true,
   "version": "0.1.0",
+  "type": "module",
   "description": "Build tooling for Helium Rapid DSL (ANTLR4) VSCode extension and language server",
   "scripts": {
-    "build:all": "ts-node scripts/build.ts",
-    "build:extract": "ts-node scripts/extract-grammar.ts",
-    "build:grammar": "ts-node scripts/convert-grammar.ts",
-    "build:validate": "ts-node scripts/validate-grammar.ts",
+    "build:all": "npx tsx scripts/build.ts",
+    "build:extract": "npx tsx scripts/extract-grammar.ts",
+    "build:grammar": "npx tsx scripts/convert-grammar.ts",
+    "build:validate": "npx tsx scripts/validate-grammar.ts",
     "build:parser": "antlr4ts -visitor generated/grammar/MezDSL.g4 -o generated/parser/",
-    "build:parser:fix": "ts-node scripts/fix-parser-imports.ts",
-    "build:rules": "ts-node scripts/extract-rules.ts",
-    "build:bifs": "ts-node scripts/generate-bif-metadata.ts",
-    "build:language": "ts-node scripts/generate-language-metadata.ts",
-    "build:textmate": "ts-node scripts/generate-textmate.ts",
-    "version-check": "ts-node scripts/version-check.ts",
-    "watch": "ts-node scripts/watch.ts",
+    "build:parser:fix": "npx tsx scripts/fix-parser-imports.ts",
+    "build:rules": "npx tsx scripts/extract-rules.ts",
+    "build:bifs": "npx tsx scripts/generate-bif-metadata.ts",
+    "build:language": "npx tsx scripts/generate-language-metadata.ts",
+    "build:textmate": "npx tsx scripts/generate-textmate.ts",
+    "version-check": "npx tsx scripts/version-check.ts",
+    "watch": "npx tsx scripts/watch.ts",
     "lint": "echo \"No lint configured yet\"",
     "test": "echo \"No tests configured yet\"",
     "package": "bash scripts/package-docker.sh",
     "package:docker": "bash scripts/package-docker.sh",
-    "package:all": "ts-node scripts/package.ts"
+    "package:all": "npx tsx scripts/package.ts"
   },
   "devDependencies": {
     "@types/node": "^22.9.0",
@@ -30,7 +31,7 @@
     "commander": "^12.1.0",
     "fs-extra": "^11.2.0",
     "glob": "^10.4.5",
-    "ts-node": "^10.9.2",
+    "tsx": "^4.19.2",
     "typescript": "^5.6.3"
   }
 }

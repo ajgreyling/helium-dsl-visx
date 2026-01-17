@@ -9,10 +9,10 @@ import { ANTLRInputStream, CommonTokenStream } from "antlr4ts";
 import { Diagnostic } from "vscode-languageserver";
 
 // Import language server components
-import { parseText } from "../src/parser/index";
-import { runLints } from "../src/linter/engine";
-import { buildFileAst, FileAst } from "../src/ast/builder";
-import { ProjectManager } from "../src/index/projectManager";
+import { parseText } from "../src/parser/index.js";
+import { runLints } from "../src/linter/engine.js";
+import { buildFileAst, FileAst } from "../src/ast/builder.js";
+import { ProjectManager } from "../src/index/projectManager.js";
 import { createRequire } from "module";
 import { fileURLToPath } from "url";
 
@@ -442,7 +442,7 @@ describe("Comprehensive munic-chat Tests", () => {
           if (lintDiagnostics.length > 0) {
             stats.linter.filesWithIssues++;
             stats.linter.totalIssues += lintDiagnostics.length;
-            lintDiagnostics.forEach((diag) => {
+            lintDiagnostics.forEach((diag: { source?: string }) => {
               const source = diag.source || "unknown";
               stats.linter.issuesByRule[source] = (stats.linter.issuesByRule[source] || 0) + 1;
             });

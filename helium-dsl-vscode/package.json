@@ -9,6 +9,7 @@
     "url": "https://github.com/ajgreyling/helium-dsl-visx.git"
   },
   "license": "MIT",
+  "type": "module",
   "engines": {
     "vscode": "^1.85.0"
   },

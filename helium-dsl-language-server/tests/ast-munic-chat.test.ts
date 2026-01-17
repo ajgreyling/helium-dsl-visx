@@ -3,8 +3,8 @@ import { expect } from "chai";
 import * as fs from "fs";
 import * as path from "path";
 import { URI } from "vscode-uri";
-import { buildFileAst } from "../src/ast/builder";
-import { FileAst } from "../src/ast/nodes";
+import { buildFileAst } from "../src/ast/builder.js";
+import { FileAst } from "../src/ast/nodes.js";
 
 const SAMPLE_PROJECT_PATH = "/Users/ajgreyling/code/munic-chat";
 
@@ -21,12 +21,12 @@ function buildFileAstWithTimeout(
   return Promise.race([
     new Promise<FileAst>((resolve, reject) => {
       // Run AST building asynchronously so timeout can interrupt
-      setImmediate(() => {
+      setImmediate(async () => {
         console.error("[DEBUG TEST] setImmediate callback executing", uri);
         try {
           console.error("[DEBUG TEST] About to call buildFileAst", uri);
           // Import buildFileAst implementation details to inspect
-          const result = buildFileAst(text, uri);
+          const result = await buildFileAst(text, uri);
           console.error("[DEBUG TEST] buildFileAst returned", {
             uri: uri.substring(uri.length - 30),
             objects: result.objects.length,
@@ -94,17 +94,17 @@ type AstStatistics = {
 };
 
 describe("AST Building on munic-chat Project", () => {
-  it("should build AST for a simple test case", () => {
+  it("should build AST for a simple test case", async () => {
     const simpleText = "object TestObject { string name; }";
     const uri = "file:///test.mez";
     console.error("[DEBUG TEST] About to call buildFileAst, import path:", "../src/ast/builder");
     console.error("[DEBUG TEST] buildFileAst function:", typeof buildFileAst, buildFileAst.toString().substring(0, 200));
-    const result = buildFileAst(simpleText, uri);
+    const result = await buildFileAst(simpleText, uri);
     console.error("[DEBUG SIMPLE TEST] Simple object test:", {
       objects: result.objects.length,
       objectName: result.objects[0]?.name,
       text: simpleText,
-      allObjects: result.objects.map(o => o.name)
+      allObjects: result.objects.map((o: { name: string }) => o.name)
     });
     // For now, just log - we know it's returning 0 objects
     // This test will help us debug the root cause

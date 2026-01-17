@@ -4,10 +4,10 @@ import * as fs from "fs";
 import * as path from "path";
 import { Diagnostic } from "vscode-languageserver";
 import { URI } from "vscode-uri";
-import { parseText } from "../../src/parser/index";
-import { runLints } from "../../src/linter/engine";
-import { ProjectIndex } from "../../src/index/projectIndex";
-import { getLanguageMetadataSync } from "../../src/language/metadata";
+import { parseText } from "../../src/parser/index.js";
+import { runLints } from "../../src/linter/engine.js";
+import { ProjectIndex } from "../../src/index/projectIndex.js";
+import { getLanguageMetadataSync } from "../../src/language/metadata.js";
 
 const SAMPLE_PROJECT_PATH = "/Users/ajgreyling/code/munic-chat";
 
@@ -41,7 +41,7 @@ describe("Sample DSL Codebase Validation", () => {
       const relativePath = path.relative(SAMPLE_PROJECT_PATH, file);
 
       try {
-        const parseResult = parseText(text);
+        const parseResult = await parseText(text);
         const lintDiagnostics = await runLints(text);
         const allDiagnostics = [...parseResult.diagnostics, ...lintDiagnostics];
 

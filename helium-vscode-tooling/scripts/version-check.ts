@@ -2,7 +2,9 @@ import { execSync } from "node:child_process";
 import fs from "fs-extra";
 import crypto from "node:crypto";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
 const dslCommonsPath = "/Users/ajgreyling/code/appexec-dsl-commons";
 
