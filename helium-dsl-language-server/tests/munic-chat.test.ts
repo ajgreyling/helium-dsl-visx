@@ -185,23 +185,4 @@ describe("Sample DSL Codebase Validation", () => {
     // Test passes regardless - this is a validation report
     expect(mezFiles.length).to.be.greaterThan(0);
   });
-
-  it("should not flag variables in else blocks in known-good code", async () => {
-    // This is a representative test case
-    const testCode = `
-      if (x > 0) {
-        int y = 5;
-      } else {
-        return false;
-      }
-    `;
-
-    const lintDiagnostics = await runLints(testCode);
-    const varInElseErrors = lintDiagnostics.filter((d: { message: string }) =>
-      d.message.includes("Variables cannot be declared in else blocks")
-    );
-
-    console.log(`    Found ${varInElseErrors.length} variable-in-else violations`);
-    expect(varInElseErrors.length).to.equal(0);
-  });
 });

@@ -46,10 +46,6 @@ async function loadGenerated(name: string): Promise<any | undefined> {
   }
   // Use __dirname which is already set from import.meta.url
   const currentDir = __dirname;
-  // Only log if not in cache (to reduce noise)
-  if (!moduleCache.has(name)) {
-    console.error("[DEBUG] loadGenerated called for", name, "from dir", currentDir);
-  }
   
   // Helper function to try loading a module from a path using dynamic import()
   const tryLoad = async (modulePath: string, withExtension?: string): Promise<any | undefined> => {
@@ -59,10 +55,6 @@ async function loadGenerated(name: string): Promise<any | undefined> {
     
     for (const tryPath of pathsToTry) {
       const exists = fs.existsSync(tryPath + ".ts") || fs.existsSync(tryPath + ".js") || fs.existsSync(tryPath);
-      // Only log if file exists (to reduce noise from non-existent paths)
-      if (exists) {
-        console.error("[DEBUG] Trying path:", tryPath, "exists:", exists);
-      }
       if (exists) {
         try {
           // In ESM mode, use import() directly to avoid mixing require() and import()
@@ -75,7 +67,6 @@ async function loadGenerated(name: string): Promise<any | undefined> {
           if (mod) {
             const result = mod[name] || mod;
             if (result) {
-              console.error("[DEBUG] Successfully loaded from:", tryPath, "via import()");
               // Cache the module for future use
               moduleCache.set(name, mod);
               return result;
@@ -85,12 +76,7 @@ async function loadGenerated(name: string): Promise<any | undefined> {
           const importErrorMsg = importError instanceof Error ? importError.message : String(importError);
           // Suppress "Cannot require() ES Module" errors - these occur when a module was already touched
           // by require() (e.g., by ts-node internally). We'll try other paths which may succeed.
-          // Only log if it's not the expected "require/import conflict" error
-          const isRequireConflict = importErrorMsg.includes("Cannot require() ES Module") || 
-                                   importErrorMsg.includes("imported again after being required");
-          if (!isRequireConflict && tryPath.includes('helium-vscode-tooling')) {
-            console.error("[DEBUG] Failed to load from:", tryPath, "error:", importErrorMsg.substring(0, 100));
-          }
+          // Silently continue to next path on import errors
         }
       }
     }
@@ -139,7 +125,6 @@ async function loadGenerated(name: string): Promise<any | undefined> {
   const parserDirResult2 = await tryLoad(parserDirPath2, ".ts");
   if (parserDirResult2) return parserDirResult2;
 
-  console.error("[DEBUG] Failed to load", name, "from any path");
   return undefined;
 }
 
@@ -150,6 +135,7 @@ class AstListener {
   private currentObject: ObjectDecl | null = null;
   private currentEnum: EnumDecl | null = null;
   private persistentDepth = 0;
+  private inForEachLoop: boolean = false;
   public tokenStream: any = null; // Store token stream for accessing tokens by index
   public tokenFillSucceeded: boolean = false; // Whether tokens.fill() succeeded
 
@@ -390,6 +376,7 @@ class AstListener {
       scope,
       functionName: this.currentFunction?.name,
       unitName: this.currentUnit?.name,
+      isForeachLoopVariable: this.inForEachLoop,
     };
     if (this.currentFunction) {
       this.currentFunction.locals.push(variable);
@@ -501,6 +488,14 @@ class AstListener {
   enterElsePart(ctx: any) {
     this.ast.elseBlocks.push(rangeFromContext(ctx));
   }
+
+  enterForEach(_ctx: any) {
+    this.inForEachLoop = true;
+  }
+
+  exitForEach(_ctx: any) {
+    this.inForEachLoop = false;
+  }
 }
 
 export async function buildFileAst(text: string, uri: string): Promise<FileAst> {
@@ -543,6 +538,9 @@ export async function buildFileAst(text: string, uri: string): Promise<FileAst> 
       }
     }
     const parser = new MezDSLParser(tokens);
+    // Remove default error listeners to prevent stderr logging
+    lexer.removeErrorListeners();
+    parser.removeErrorListeners();
     let tree;
     try {
       tree = parser.script();
@@ -614,6 +612,26 @@ export async function buildFileAst(text: string, uri: string): Promise<FileAst> 
         return { valid: issues.length === 0, issues };
       }
       
+      // ErrorNodes don't have ruleContext - this is expected when there are parse errors, skip validation
+      const isErrorNode = node.constructor?.name === 'ErrorNode' || node.constructor?.name === 'ErrorNodeImpl';
+      if (isErrorNode) {
+        // ErrorNodes are created by ANTLR4 when it encounters syntax errors
+        // They don't have ruleContext because they represent invalid syntax, not valid parse tree nodes
+        // Skip validation but still check children if any
+        if (depth < 5 && (node as any).childCount > 0) {
+          for (let i = 0; i < Math.min((node as any).childCount, 20); i++) {
+            const child = (node as any).getChild?.(i);
+            if (child) {
+              const childValidation = validateTree(child, depth + 1, `${path}[${i}]`);
+              if (!childValidation.valid) {
+                issues.push(...childValidation.issues);
+              }
+            }
+          }
+        }
+        return { valid: issues.length === 0, issues };
+      }
+      
       // Check if node has ruleContext (required by ParseTreeWalker.enterRule)
       const ruleContext = (node as any).ruleContext;
       if (ruleContext === undefined && depth === 0) {
@@ -645,9 +663,7 @@ export async function buildFileAst(text: string, uri: string): Promise<FileAst> 
     }
     
     const treeValidation = validateTree(tree);
-    if (!treeValidation.valid) {
-      console.error("[DEBUG] Tree validation found issues:", treeValidation.issues.slice(0, 10));
-    }
+    // Tree validation runs silently - issues would be caught by tests or error handling
     
     // Create a custom walker wrapper to catch which node causes the error
     // We'll intercept the walker's enterRule call to see which node fails
@@ -663,33 +679,12 @@ export async function buildFileAst(text: string, uri: string): Promise<FileAst> 
             const ctx = r?.ruleContext;
             if (!ctx) {
               stats.skippedCount++;
-              // Only log first few skipped nodes to avoid spam
-              if (stats.skippedCount <= 3) {
-                console.error("[DEBUG WALKER] Skipping node without ruleContext:", {
-                  nodeType: r?.constructor?.name,
-                  nodeRuleIndex: r?.ruleIndex,
-                  isRuleNode: r?.ruleIndex !== undefined,
-                  nodeKeys: r ? Object.keys(r).slice(0, 5) : []
-                });
-              }
               return; // Skip nodes without ruleContext
             }
             if (typeof ctx.enterRule !== 'function') {
-              console.error("[DEBUG WALKER] ruleContext.enterRule is not a function:", {
-                nodeType: r?.constructor?.name,
-                ctxType: ctx?.constructor?.name
-              });
               return;
             }
             stats.processedCount++;
-            // Log first few processed nodes to verify listener methods are being called
-            if (stats.processedCount <= 5) {
-              console.error("[DEBUG WALKER] Processing node:", {
-                nodeType: r?.constructor?.name,
-                ctxType: ctx?.constructor?.name,
-                ruleIndex: ctx?.ruleIndex
-              });
-            }
             return originalEnterRule(listener, r);
           } catch (err) {
             console.error("[DEBUG] Walker enterRule error:", {
@@ -703,15 +698,6 @@ export async function buildFileAst(text: string, uri: string): Promise<FileAst> 
         };
         try {
           const result = originalWalk(listener, tree);
-          // Log summary after walk completes
-          console.error("[DEBUG WALKER] Walk completed:", {
-            uri,
-            processedNodes: stats.processedCount,
-            skippedNodes: stats.skippedCount,
-            astObjects: listener.ast.objects.length,
-            astUnits: listener.ast.units.length,
-            astEnums: listener.ast.enums.length
-          });
           return result;
         } finally {
           // Restore original enterRule

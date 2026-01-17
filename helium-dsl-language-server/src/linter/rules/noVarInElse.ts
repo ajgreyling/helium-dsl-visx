@@ -18,7 +18,7 @@ export async function applyNoVarInElse(ctx: LintContext) {
     const inElse = ast.elseBlocks.some((elseRange) =>
       rangeContains(elseRange, decl.declRange.start.line, decl.declRange.start.character)
     );
-    if (inElse) {
+    if (inElse && !decl.isForeachLoopVariable) {
       pushDiagnostic(
         ctx,
         "no-var-in-else",

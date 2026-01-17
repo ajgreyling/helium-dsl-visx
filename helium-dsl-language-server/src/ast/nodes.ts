@@ -77,6 +77,7 @@ export type VariableDecl = {
   scope: "unit" | "function";
   functionName?: string;
   unitName?: string;
+  isForeachLoopVariable?: boolean;
 };
 
 export type EnumDecl = {
