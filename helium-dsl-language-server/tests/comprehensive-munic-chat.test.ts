@@ -372,8 +372,6 @@ describe("Comprehensive munic-chat Tests", () => {
         const text = fs.readFileSync(file, "utf8");
         const relativePath = path.relative(SAMPLE_PROJECT_PATH, file);
 
-        console.log(`  [${i + 1}/${mezFiles.length}] Lexing: ${relativePath}`);
-
         try {
           const result = await tokenizeTextWithTimeout(text, 30000);
           
@@ -401,8 +399,6 @@ describe("Comprehensive munic-chat Tests", () => {
         const text = fs.readFileSync(file, "utf8");
         const relativePath = path.relative(SAMPLE_PROJECT_PATH, file);
 
-        console.log(`  [${i + 1}/${mezFiles.length}] Parsing: ${relativePath}`);
-
         try {
           const parseResult = await parseTextWithTimeout(text, 30000);
           
@@ -428,8 +424,6 @@ describe("Comprehensive munic-chat Tests", () => {
         const file = mezFiles[i];
         const text = fs.readFileSync(file, "utf8");
         const relativePath = path.relative(SAMPLE_PROJECT_PATH, file);
-
-        console.log(`  [${i + 1}/${mezFiles.length}] Linting: ${relativePath}`);
 
         try {
           const lintDiagnostics = await Promise.race([
@@ -465,8 +459,6 @@ describe("Comprehensive munic-chat Tests", () => {
         const text = fs.readFileSync(file, "utf8");
         const relativePath = path.relative(SAMPLE_PROJECT_PATH, file);
         const uri = URI.file(file).toString();
-
-        console.log(`  [${i + 1}/${mezFiles.length}] Building AST: ${relativePath}`);
 
         try {
           const ast = await buildFileAstWithTimeout(text, uri, 30000);

@@ -9,8 +9,4 @@ helium-dsl-language-server/out/**
 helium-dsl-language-server/out/**
 helium-dsl-vscode/out/**
 helium-rapid-dsl-mcp/node_modules/**
-
-.cursor/debug.log
-
-.cursor/debug.log
 .cursor/debug.log

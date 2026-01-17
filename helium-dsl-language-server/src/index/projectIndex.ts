@@ -139,10 +139,12 @@ export class ProjectIndex {
     return this.files.get(uri);
   }
 
-  async updateFile(uri: string, text: string) {
+  async updateFile(uri: string, text: string, skipRebuild?: boolean) {
     const ast = await buildFileAst(text, uri);
     this.files.set(uri, ast);
-    this.rebuildIndexes();
+    if (!skipRebuild) {
+      this.rebuildIndexes();
+    }
   }
 
   removeFile(uri: string) {
@@ -150,11 +152,11 @@ export class ProjectIndex {
     this.rebuildIndexes();
   }
 
-  async indexFileFromDisk(filePath: string) {
+  async indexFileFromDisk(filePath: string, skipRebuild?: boolean) {
     try {
       const text = fs.readFileSync(filePath, "utf8");
       const uri = URI.file(filePath).toString();
-      await this.updateFile(uri, text);
+      await this.updateFile(uri, text, skipRebuild);
     } catch (err) {
       // Log parser errors but continue indexing other files
       if (err instanceof Error) {
@@ -184,7 +186,7 @@ export class ProjectIndex {
     
     // Index all files in parallel, but wait for completion
     const indexingPromises = filePaths.map(filePath => 
-      this.indexFileFromDisk(filePath).catch(err => {
+      this.indexFileFromDisk(filePath, true).catch(err => {
         console.error(`[ProjectIndex] Failed to index ${filePath}:`, err);
         return null; // Continue with other files
       })
@@ -192,7 +194,7 @@ export class ProjectIndex {
     
     await Promise.all(indexingPromises);
     
-    // Rebuild indexes after all files are indexed
+    // Rebuild indexes after all files are indexed (only once)
     this.rebuildIndexes();
     
     // Log final state
@@ -229,10 +231,6 @@ export class ProjectIndex {
     for (const ast of this.files.values()) {
       ast.objects.forEach((obj) => {
         this.objects.set(obj.name, obj);
-        // Log when Conversation type is indexed
-        if (obj.name === "Conversation") {
-          console.error(`[ProjectIndex] ✓ Indexed Conversation type from ${ast.uri}`);
-        }
       });
       ast.units.forEach((unit) => {
         this.units.set(unit.name, unit);

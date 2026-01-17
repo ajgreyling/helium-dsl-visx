@@ -140,16 +140,11 @@ describe("AST Building on munic-chat Project", () => {
       const relativePath = path.relative(SAMPLE_PROJECT_PATH, file);
       const uri = URI.file(file).toString();
 
-      // Log progress
-      console.log(`  [${i + 1}/${mezFiles.length}] Processing: ${relativePath}`);
-
       try {
         // Build AST with timeout protection
-        console.log(`  [${i + 1}/${mezFiles.length}] Building AST...`);
         let ast: FileAst;
         try {
           ast = await buildFileAstWithTimeout(text, uri, 30000);
-          console.log(`  [${i + 1}/${mezFiles.length}] AST built successfully`);
         } catch (astErr) {
           const errorMsg = astErr instanceof Error ? astErr.message : String(astErr);
           console.log(`  [${i + 1}/${mezFiles.length}] ⚠️  AST building failed/timeout: ${errorMsg}`);

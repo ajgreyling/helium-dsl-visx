@@ -66,12 +66,8 @@ describe("Sample DSL Codebase Validation", () => {
       const text = fs.readFileSync(file, "utf8");
       const relativePath = path.relative(SAMPLE_PROJECT_PATH, file);
 
-      // Log every file to identify hang location
-      console.log(`  [${i + 1}/${mezFiles.length}] Starting: ${relativePath}`);
-
       try {
         // Parse with timeout protection
-        console.log(`  [${i + 1}/${mezFiles.length}] Parsing...`);
         let parseResult;
         try {
           parseResult = await parseTextWithTimeout(text, 30000);
@@ -84,7 +80,6 @@ describe("Sample DSL Codebase Validation", () => {
         }
 
         // Lint with timeout protection (runLints is already async)
-        console.log(`  [${i + 1}/${mezFiles.length}] Linting...`);
         let lintDiagnostics: Diagnostic[];
         try {
           lintDiagnostics = await Promise.race([
@@ -93,9 +88,6 @@ describe("Sample DSL Codebase Validation", () => {
               setTimeout(() => reject(new Error(`Linter timeout after 30000ms`)), 30000)
             )
           ]);
-          if (lintDiagnostics.length > 0) {
-            console.log(`  [${i + 1}/${mezFiles.length}] Linting complete`);
-          }
         } catch (lintErr) {
           const errorMsg = lintErr instanceof Error ? lintErr.message : String(lintErr);
           console.log(`  [${i + 1}/${mezFiles.length}] ⚠️  Linting failed/timeout: ${errorMsg}`);

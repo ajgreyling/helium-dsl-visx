@@ -192,26 +192,32 @@ class AstListener {
     // Only try to use token stream if fill() succeeded - otherwise use ctx.ID() directly
     if (nameToken && ctx.start && this.tokenStream && this.tokenFillSucceeded) {
       try {
-        // The start token is "object" keyword. The object name should be the next token after it.
-        // If start.tokenIndex is -1, we need to find the token by looking at the start token's position
+        // The start token is "object" keyword. The object name should be the next non-whitespace token after it.
+        // Always skip whitespace tokens to find the actual object name
         let objectNameTokenIndex: number | undefined = undefined;
+        const allTokens = this.tokenStream.getTokens();
+        
+        // Find the "object" token first
+        let objectTokenIndex: number | undefined = undefined;
         if (ctx.start.tokenIndex !== undefined && ctx.start.tokenIndex >= 0) {
-          objectNameTokenIndex = ctx.start.tokenIndex + 1;
+          objectTokenIndex = ctx.start.tokenIndex;
         } else {
-          // If tokenIndex is -1, try to find the token by scanning from the start
-          // The start token text is "object", so the next non-whitespace token should be the object name
-          const allTokens = this.tokenStream.getTokens();
-          for (let i = 0; i < allTokens.length - 1; i++) {
+          // If tokenIndex is -1, scan for "object" token
+          for (let i = 0; i < allTokens.length; i++) {
             if (allTokens[i].text === "object") {
-              // Find the next non-whitespace token (skip whitespace)
-              for (let j = i + 1; j < allTokens.length; j++) {
-                const token = allTokens[j];
-                // Skip whitespace tokens (type 265 or channel HIDDEN)
-                if (token.type !== 265 && token.channel !== 1) {
-                  objectNameTokenIndex = j;
-                  break;
-                }
-              }
+              objectTokenIndex = i;
+              break;
+            }
+          }
+        }
+        
+        // Now find the next non-whitespace token after "object"
+        if (objectTokenIndex !== undefined) {
+          for (let j = objectTokenIndex + 1; j < allTokens.length; j++) {
+            const token = allTokens[j];
+            // Skip whitespace tokens (type 265 or channel HIDDEN)
+            if (token.type !== 265 && token.channel !== 1) {
+              objectNameTokenIndex = j;
               break;
             }
           }
@@ -233,9 +239,14 @@ class AstListener {
       return;
     }
     
+    // Validate that nameToken.text is not just whitespace
+    if (!nameToken.text || nameToken.text.trim().length === 0) {
+      return;
+    }
+    
     const objectDecl: ObjectDecl = {
       kind: "ObjectDecl",
-      name: nameToken.text,
+      name: nameToken.text.trim(), // Trim whitespace just in case
       nameRange: rangeFromTokens(nameToken.symbol, nameToken.symbol),
       isPersistent: this.persistentDepth > 0,
       attributes: [],
