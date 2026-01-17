@@ -18,7 +18,7 @@
     "build": "tsc -b",
     "clean": "rimraf out",
     "watch": "tsc -b -w",
-    "test": "mocha --import tsx tests/**/*.test.ts"
+    "test": "mocha --import tsx --exit tests/**/*.test.ts generated/tests/**/*.test.ts"
   },
   "dependencies": {
     "antlr4ts": "^0.5.0-alpha.4",

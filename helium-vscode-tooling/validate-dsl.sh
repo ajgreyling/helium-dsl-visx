@@ -650,19 +650,15 @@ echo ""
 echo -e "${BLUE}=== Step 14: Run Validation Tests ===${NC}"
 STEP14_START=$(date +%s)
 cd "$SCRIPT_DIR/../helium-dsl-language-server"
-# Use --exit flag to force mocha to exit after tests complete (prevents hanging on active timers)
-# Use stdbuf to disable output buffering if available (not available on macOS by default)
-# Use tsx to run tests directly (supports ESM natively)
+# Use npm test which uses the package.json test script with proper tsx import and --exit flag
 # Filter out Node.js warnings about deprecated loader and fs.Stats
 if command -v stdbuf >/dev/null 2>&1; then
     # Use PIPESTATUS to capture exit code before grep filters warnings
-    # Use mocha with tsx import for ESM TypeScript support
-    stdbuf -oL -eL mocha --import tsx --exit tests/**/*.test.ts generated/tests/**/*.test.ts 2>&1 | grep -vE "(ExperimentalWarning|DeprecationWarning)" || true
+    stdbuf -oL -eL npm test 2>&1 | grep -vE "(ExperimentalWarning|DeprecationWarning)" || true
     MOCHA_EXIT_CODE=${PIPESTATUS[0]}
 else
     # Use PIPESTATUS to capture exit code before grep filters warnings
-    # Use mocha with tsx import for ESM TypeScript support
-    mocha --import tsx --exit tests/**/*.test.ts generated/tests/**/*.test.ts 2>&1 | grep -vE "(ExperimentalWarning|DeprecationWarning)" || true
+    npm test 2>&1 | grep -vE "(ExperimentalWarning|DeprecationWarning)" || true
     MOCHA_EXIT_CODE=${PIPESTATUS[0]}
 fi
 STEP14_END=$(date +%s)
