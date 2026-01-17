@@ -155,33 +155,69 @@ export class ProjectIndex {
       const text = fs.readFileSync(filePath, "utf8");
       const uri = URI.file(filePath).toString();
       await this.updateFile(uri, text);
-    } catch {
-      // ignore
+    } catch (err) {
+      // Log parser errors but continue indexing other files
+      if (err instanceof Error) {
+        console.error(`[ProjectIndex] Error indexing file ${filePath}: ${err.message}`);
+      }
+      // ignore and continue
     }
   }
 
-  indexProjectFiles() {
+  async indexProjectFiles() {
     this.files.clear();
     this.objects.clear();
     this.units.clear();
     this.enums.clear();
     this.functionsByName.clear();
-    this.scanDirectory(this.projectRoot);
+    
+    // Collect all .mez files first
+    const filePaths: string[] = [];
+    this.collectMezFiles(this.projectRoot, filePaths);
+    console.error(`[ProjectIndex] Found ${filePaths.length} .mez files to index in ${this.projectRoot}`);
+    
+    // Log if Conversation.mez is found
+    const conversationFile = filePaths.find(p => p.includes("Conversation.mez"));
+    if (conversationFile) {
+      console.error(`[ProjectIndex] Found Conversation.mez at: ${conversationFile}`);
+    }
+    
+    // Index all files in parallel, but wait for completion
+    const indexingPromises = filePaths.map(filePath => 
+      this.indexFileFromDisk(filePath).catch(err => {
+        console.error(`[ProjectIndex] Failed to index ${filePath}:`, err);
+        return null; // Continue with other files
+      })
+    );
+    
+    await Promise.all(indexingPromises);
+    
+    // Rebuild indexes after all files are indexed
     this.rebuildIndexes();
+    
+    // Log final state
+    if (this.objects.has("Conversation")) {
+      console.error(`[ProjectIndex] ✓ Conversation type is now in index`);
+    } else {
+      console.error(`[ProjectIndex] ✗ Conversation type NOT found in index after indexing`);
+    }
   }
 
-  private scanDirectory(dir: string) {
+  private collectMezFiles(dir: string, filePaths: string[]) {
     if (!fs.existsSync(dir)) return;
-    const entries = fs.readdirSync(dir, { withFileTypes: true });
-    for (const entry of entries) {
-      if (entry.name.startsWith(".") || entry.name === "node_modules") continue;
-      const fullPath = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        this.scanDirectory(fullPath);
-      } else if (entry.isFile() && entry.name.endsWith(".mez")) {
-        // Fire and forget - indexing happens asynchronously
-        this.indexFileFromDisk(fullPath).catch(() => {});
+    try {
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (entry.name.startsWith(".") || entry.name === "node_modules") continue;
+        const fullPath = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          this.collectMezFiles(fullPath, filePaths);
+        } else if (entry.isFile() && entry.name.endsWith(".mez")) {
+          filePaths.push(fullPath);
+        }
       }
+    } catch (err) {
+      // Ignore directory read errors
     }
   }
 
@@ -191,7 +227,13 @@ export class ProjectIndex {
     this.enums = new Map();
     this.functionsByName = new Map();
     for (const ast of this.files.values()) {
-      ast.objects.forEach((obj) => this.objects.set(obj.name, obj));
+      ast.objects.forEach((obj) => {
+        this.objects.set(obj.name, obj);
+        // Log when Conversation type is indexed
+        if (obj.name === "Conversation") {
+          console.error(`[ProjectIndex] ✓ Indexed Conversation type from ${ast.uri}`);
+        }
+      });
       ast.units.forEach((unit) => {
         this.units.set(unit.name, unit);
         unit.functions.forEach((fn) => {
@@ -203,6 +245,7 @@ export class ProjectIndex {
       });
       ast.enums.forEach((enm) => this.enums.set(enm.name, enm));
     }
+    console.error(`[ProjectIndex] Rebuilt indexes: ${this.objects.size} objects, ${this.units.size} units, ${this.enums.size} enums`);
   }
 
   getWorkspaceSymbols(query: string): SymbolInformation[] {

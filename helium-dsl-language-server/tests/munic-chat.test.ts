@@ -75,7 +75,6 @@ describe("Sample DSL Codebase Validation", () => {
         let parseResult;
         try {
           parseResult = await parseTextWithTimeout(text, 30000);
-          console.log(`  [${i + 1}/${mezFiles.length}] Parsing complete`);
         } catch (parseErr) {
           const errorMsg = parseErr instanceof Error ? parseErr.message : String(parseErr);
           console.log(`  [${i + 1}/${mezFiles.length}] ⚠️  Parsing failed/timeout: ${errorMsg}`);
@@ -94,7 +93,9 @@ describe("Sample DSL Codebase Validation", () => {
               setTimeout(() => reject(new Error(`Linter timeout after 30000ms`)), 30000)
             )
           ]);
-          console.log(`  [${i + 1}/${mezFiles.length}] Linting complete`);
+          if (lintDiagnostics.length > 0) {
+            console.log(`  [${i + 1}/${mezFiles.length}] Linting complete`);
+          }
         } catch (lintErr) {
           const errorMsg = lintErr instanceof Error ? lintErr.message : String(lintErr);
           console.log(`  [${i + 1}/${mezFiles.length}] ⚠️  Linting failed/timeout: ${errorMsg}`);

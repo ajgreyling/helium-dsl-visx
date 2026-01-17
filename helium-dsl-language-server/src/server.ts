@@ -88,7 +88,7 @@ const semanticLegend: SemanticTokensLegend = {
   tokenModifiers: [],
 };
 
-connection.onInitialize((params: InitializeParams): InitializeResult => {
+connection.onInitialize(async (params: InitializeParams): Promise<InitializeResult> => {
   console.error("[Server] ===== onInitialize Called =====");
   console.error("[Server] Initializing language server...");
   console.error(`[Server] Workspace folders:`, JSON.stringify(params.workspaceFolders, null, 2));
@@ -106,7 +106,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
   
   // Initialize project manager with workspace folders
   console.error("[Server] Initializing project manager...");
-  projectManager.initialize(params.workspaceFolders || null);
+  await projectManager.initialize(params.workspaceFolders || null);
   console.error("[Server] Project manager initialized");
 
   // After initializing the index, send a notification with all discovered user-defined types
@@ -187,8 +187,8 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
     // Now it's safe to register workspace folder change handler
     connection.workspace.onDidChangeWorkspaceFolders((_event) => {
       console.error("[Server] Workspace folders changed, re-initializing project manager...");
-      connection.workspace.getWorkspaceFolders().then((folders) => {
-        projectManager.initialize(folders);
+      connection.workspace.getWorkspaceFolders().then(async (folders) => {
+        await projectManager.initialize(folders);
         try {
           const types = projectManager.getUserTypes();
           logVerbose(

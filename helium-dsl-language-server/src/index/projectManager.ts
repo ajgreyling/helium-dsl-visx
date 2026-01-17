@@ -25,15 +25,29 @@ export class ProjectManager {
   private projectRoots: string[] = [];
   private indexes = new Map<string, ProjectIndex>();
 
-  initialize(workspaceFolders: WorkspaceFolder[] | null) {
+  async initialize(workspaceFolders: WorkspaceFolder[] | null) {
     this.projectRoots = discoverProjectRoots(workspaceFolders);
     const metadata = getLanguageMetadataSync();
     this.indexes.clear();
-    this.projectRoots.forEach((root) => {
+    
+    // Index all projects in parallel, but wait for completion
+    const indexingPromises = this.projectRoots.map(async (root) => {
       const index = new ProjectIndex(root, metadata);
-      index.indexProjectFiles();
+      await index.indexProjectFiles();
       this.indexes.set(root, index);
+      
+      // Log discovered types for debugging
+      const objectNames = index.getObjectNames();
+      if (objectNames.length > 0) {
+        console.error(`[ProjectManager] Indexed ${objectNames.length} objects in ${root}`);
+        if (objectNames.includes("Conversation")) {
+          console.error(`[ProjectManager] ✓ Found Conversation type in ${root}`);
+        }
+      }
     });
+    
+    await Promise.all(indexingPromises);
+    
     // #region agent log
     (globalThis as any).fetch('http://127.0.0.1:7243/ingest/f8eecc7d-5d84-4f56-8e99-5ad9d9836767',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'mcp-symbols-1',hypothesisId:'H1',location:'helium-dsl-language-server/src/index/projectManager.ts:28',message:'project_manager_init',data:{workspaceFolderCount:(workspaceFolders ?? []).length,projectRoots:this.projectRoots,projectRootCount:this.projectRoots.length},timestamp:Date.now()})}).catch(()=>{});
     // #endregion agent log
@@ -89,7 +103,13 @@ export class ProjectManager {
   }
 
   isUserDefinedType(name: string): boolean {
-    return this.getUserTypes().includes(name);
+    const types = this.getUserTypes();
+    const isType = types.includes(name);
+    if (!isType && name === "Conversation") {
+      console.error(`[ProjectManager] Conversation type not found. Available types: ${types.slice(0, 20).join(", ")}${types.length > 20 ? "..." : ""}`);
+      console.error(`[ProjectManager] Project roots: ${this.projectRoots.join(", ")}`);
+    }
+    return isType;
   }
 
   isUnit(name: string): boolean {
@@ -99,7 +119,16 @@ export class ProjectManager {
   getObjectLocation(name: string): Location | null {
     for (const index of this.indexes.values()) {
       const location = index.getObjectLocation(name);
-      if (location) return location;
+      if (location) {
+        if (name === "Conversation") {
+          console.error(`[ProjectManager] ✓ Found Conversation location: ${location.uri}:${location.range.start.line + 1}`);
+        }
+        return location;
+      }
+    }
+    if (name === "Conversation") {
+      console.error(`[ProjectManager] ✗ Conversation location not found in any project index`);
+      console.error(`[ProjectManager] Available objects: ${this.getUserTypes().slice(0, 20).join(", ")}`);
     }
     return null;
   }
