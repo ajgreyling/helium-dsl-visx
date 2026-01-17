@@ -72,6 +72,23 @@ helium-vscode-tooling/
 - Access to `appexec-dsl-commons` repository
 - Access to a sample DSL project for validation
 
+## ES Module Architecture
+
+This project uses **ES modules (ESM)** throughout for modern Node.js compatibility:
+
+- **TypeScript Target**: `ES2024` (latest supported, not ES2025)
+- **Module System**: `NodeNext` with `moduleResolution: "NodeNext"`
+- **Parser Files**: Compiled as ES modules (using `export` syntax, not CommonJS `exports.`)
+- **Build Process**: Parser files are copied to `helium-dsl-language-server/generated/parser/` before compilation to ensure ES module output
+- **Parser Loading**: Uses direct ES module `import()` calls (no CommonJS workarounds)
+
+### Why ES Modules?
+
+1. **Modern Standard**: Aligns with current Node.js best practices
+2. **No Compatibility Issues**: Eliminates "exports is not defined" errors that occurred with CommonJS/ESM mixing
+3. **Simpler Code**: Removed complex `createRequire` and temporary directory workarounds
+4. **Consistent**: All code uses the same module format throughout the codebase
+
 ## Installation
 
 ```bash
@@ -324,8 +341,15 @@ Example output:
 
 If you see "Parser not generated yet" errors:
 ```bash
+# Generate parser files
 npm run build:parser
+
+# Build language server (copies parser files and compiles as ES modules)
+cd ../helium-dsl-language-server
+npm run build
 ```
+
+**Note**: The build process automatically copies parser files from `helium-vscode-tooling/generated/parser/` to `helium-dsl-language-server/generated/parser/` before compilation. This ensures parser files are compiled as ES modules (not CommonJS).
 
 ### Parser Errors Detected
 
@@ -731,6 +755,8 @@ When the Helium Rapid DSL (ANTLR4) is updated:
 
 **`npm run build:parser`**
 - Generates TypeScript parser from ANTLR4 grammar using `antlr4ts`
+- Parser files are created in `helium-vscode-tooling/generated/parser/`
+- These files are automatically copied to `helium-dsl-language-server/generated/parser/` during `build:all` to ensure ES module compilation
 
 **`npm run build:rules`** → `scripts/extract-rules.ts`
 - Extracts linting rules from grammar
