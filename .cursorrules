@@ -406,6 +406,114 @@ To enable verbose logging for debugging:
 - WorkspaceIndex uses `logVerbose()` for all debug logging
 - Server initialization logs use `logVerbose()` for verbose information
 
+## AST Building and ParseTreeWalker
+
+### ParseTreeWalker Wrapper Implementation
+
+**Location**: `helium-dsl-language-server/src/ast/builder.ts`
+
+**Critical Bug Fix**: When wrapping `ParseTreeWalker.DEFAULT.enterRule`, **ALWAYS bind `originalEnterRule` BEFORE replacing the method**. Binding after replacement causes infinite recursion because the bound function references the replaced method instead of the original.
+
+**Correct Pattern**:
+```typescript
+// ✅ CORRECT: Bind before replacement
+const originalEnterRule = (ParseTreeWalker.DEFAULT as any).enterRule.bind(ParseTreeWalker.DEFAULT);
+const walkerProxy = {
+  walk: (listener: any, tree: any) => {
+    (ParseTreeWalker.DEFAULT as any).enterRule = function(listener: any, r: any) {
+      // ... wrapper logic ...
+      return originalEnterRule(listener, r);
+    };
+    // ... walk logic ...
+  }
+};
+```
+
+**Incorrect Pattern** (causes infinite recursion):
+```typescript
+// ❌ WRONG: Binding after replacement captures the replaced method
+const walkerProxy = {
+  walk: (listener: any, tree: any) => {
+    (ParseTreeWalker.DEFAULT as any).enterRule = function(listener: any, r: any) {
+      // ... wrapper logic ...
+    };
+    const originalEnterRule = (ParseTreeWalker.DEFAULT as any).enterRule.bind(...); // Too late!
+  }
+};
+```
+
+### TerminalNode Handling
+
+**TerminalNodes don't have `ruleContext`**: The `ParseTreeWalker` calls `enterRule` for all nodes, but `TerminalNode` objects don't have a `ruleContext` property. The wrapper must skip these nodes to prevent crashes:
+
+```typescript
+if (!r?.ruleContext) {
+  // TerminalNodes don't have ruleContext - skip them (they're handled by visitTerminal)
+  return;
+}
+```
+
+### Token Stream Fill Stack Overflow
+
+**Problem**: `tokens.fill()` can cause stack overflow for certain files (especially those with complex patterns or very large content). This prevents AST building even when the file could be parsed with lazy tokenization.
+
+**Solution**: Make `tokens.fill()` optional. If it fails with stack overflow, continue with lazy tokenization:
+
+```typescript
+let tokenFillSucceeded = false;
+try {
+  tokens.fill();
+  tokenFillSucceeded = true;
+} catch (fillErr) {
+  if (fillErr instanceof Error && fillErr.message.includes('Maximum call stack')) {
+    // Continue without filling - parser will tokenize lazily
+    tokenFillSucceeded = false;
+  } else {
+    throw fillErr;
+  }
+}
+```
+
+**Token Stream Access**: When `tokens.fill()` fails, methods like `getTokens()` and `get(index)` may not work for all tokens. Make token stream access conditional:
+
+```typescript
+if (nameToken && ctx.start && this.tokenStream && this.tokenFillSucceeded) {
+  // Only use token stream if fill() succeeded
+  const allTokens = this.tokenStream.getTokens();
+  // ...
+} else {
+  // Fall back to ctx.ID() or other context methods
+}
+```
+
+### Stack Overflow Protection
+
+**Comprehensive Protection**: Add stack overflow handling at multiple levels:
+
+1. **Token Stream Filling**: Catch and continue with lazy tokenization
+2. **Parser Execution**: Catch and return empty AST gracefully
+3. **Tree Walking**: Catch and return partially populated AST
+
+**Error Messages**: Use descriptive error messages that indicate the operation that failed:
+- `"[DEBUG] Token stream fill failed with stack overflow for: <uri> - continuing with lazy tokenization"`
+- `"[DEBUG] Parser failed with stack overflow for: <uri>"`
+- `"[DEBUG] Walker failed with stack overflow for: <uri>"`
+
+**Graceful Degradation**: When stack overflow occurs:
+- Token fill failure → Continue with lazy tokenization (parser still works)
+- Parser failure → Return empty AST (prevents crash, allows other files to process)
+- Walker failure → Return partially populated AST (some data is better than none)
+
+### When Modifying AST Building
+
+If you need to modify AST building or ParseTreeWalker interaction:
+
+1. **Always bind original methods BEFORE replacing them** - prevents infinite recursion
+2. **Handle TerminalNodes explicitly** - they don't have `ruleContext` and should be skipped
+3. **Make token stream operations optional** - handle stack overflow gracefully
+4. **Add comprehensive error handling** - catch stack overflow at all levels
+5. **Test with problematic files** - use files that previously caused stack overflow to verify fixes
+
 ## Linting Rules
 
 The extension implements several linting rules to catch errors and enforce best practices.

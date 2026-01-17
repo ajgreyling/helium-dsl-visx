@@ -341,6 +341,21 @@ The validation pipeline now **fails fast** when parser diagnostics are detected 
 - If parser errors cluster around multi-argument string functions (e.g. `String:concat`, `String:replaceAll`), verify the `STR_LITERAL` conversion in `helium-vscode-tooling/scripts/convert-grammar.ts` stops at the next quote.
 - If parser errors appear on member-call statements like `requestBody.jsonPut(...)`, ensure member-call statements are allowed (see `simpleStatement` and `valueExpression` conversion rules).
 
+### Stack Overflow During Parsing
+
+If you see "Token stream fill failed with stack overflow" or "Parser failed with stack overflow" messages:
+
+- **Token fill stack overflow**: The system automatically falls back to lazy tokenization, so parsing continues. This is handled gracefully.
+- **Parser stack overflow**: The system returns an empty AST for that file to prevent crashes. This typically indicates grammar issues or very complex parsing patterns in the file.
+- **Files with stack overflow**: These files are logged but don't crash the build. The validation pipeline continues processing other files.
+- **Root cause**: Stack overflow usually occurs with:
+  - Very large files
+  - Complex nested patterns
+  - Grammar issues causing deep recursion
+  - Error recovery during parsing
+
+See `.cursorrules` for detailed information about AST building and stack overflow protection.
+
 ### Grammar Conversion Errors
 
 If grammar validation fails:
@@ -348,6 +363,18 @@ If grammar validation fails:
 2. Review the conversion script output
 3. Check `generated/grammar/MezDSL.g4` for syntax errors
 4. **Do not edit generated grammar directly** — update `helium-vscode-tooling/scripts/convert-grammar.ts`
+
+### Multi-line String Block Parsing
+
+If you see parsing errors with multi-line string blocks (`/% ... %/`):
+
+- **Error pattern**: "mismatched input '%'" or "extraneous input '{'" when parsing `/% ... %/` blocks
+- **Root cause**: The STR_BLOCK lexer rule may be incorrectly converted from ANTLR3 to ANTLR4
+- **Fix**: Ensure `convert-grammar.ts` converts `( options { greedy=false;} : . )*` to `.*?` (not `( .*?)*`)
+- **Correct rule**: `STR_BLOCK : LSTR_BLOCK .*? RSTR_BLOCK;`
+- **Verification**: Regenerate grammar and parser, then test with files containing `/% ... %/` blocks
+
+See `.cursorrules` for detailed information about grammar conversion.
 
 ### Test Failures
 

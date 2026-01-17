@@ -273,6 +273,30 @@ async function convert() {
     "STR_LITERAL     : QUOTE ( ~('\\n' | '\\\\' | '\"') | ( '\\\\' ~( '\\n' ) ) )* QUOTE;"
   );
 
+  // Fix STR_BLOCK rule: convert ANTLR3 pattern ( options { greedy=false;} : . )* to ANTLR4 .*?
+  // The incorrect conversion ( .*?)* causes parsing errors with multi-line string blocks.
+  converted = converted.replace(
+    /STR_BLOCK\s*:\s*LSTR_BLOCK\s*\(\s*options\s*\{\s*greedy\s*=\s*false\s*;\s*\}\s*:\s*\.\s*\)\*\s*RSTR_BLOCK\s*;/g,
+    "STR_BLOCK       : LSTR_BLOCK .*? RSTR_BLOCK;"
+  );
+  // Also fix already-converted incorrect pattern ( .*?)* to .*?
+  converted = converted.replace(
+    /STR_BLOCK\s*:\s*LSTR_BLOCK\s*\(\s*\.\*\?\s*\)\*\s*RSTR_BLOCK\s*;/g,
+    "STR_BLOCK       : LSTR_BLOCK .*? RSTR_BLOCK;"
+  );
+
+  // Fix ML_COMMENT rule: convert ANTLR3 pattern ( options { greedy=false;} : . )* to ANTLR4 .*?
+  // The incorrect conversion ( .*?)* causes parsing errors with block comments.
+  converted = converted.replace(
+    /ML_COMMENT\s*:\s*LMULTI\s*\(\s*options\s*\{\s*greedy\s*=\s*false\s*;\s*\}\s*:\s*\.\s*\)\*\s*RMULTI\s*;/g,
+    "ML_COMMENT 	: LMULTI .*? RMULTI -> channel(HIDDEN);"
+  );
+  // Also fix already-converted incorrect pattern ( .*?)* to .*?
+  converted = converted.replace(
+    /ML_COMMENT\s*:\s*LMULTI\s*\(\s*\.\*\?\s*\)\*\s*RMULTI\s*->\s*channel\(HIDDEN\)\s*;/g,
+    "ML_COMMENT 	: LMULTI .*? RMULTI -> channel(HIDDEN);"
+  );
+
   // Relax Mez:sms / Mez:smsSend signatures to parse like normal function calls.
   // The upstream grammar models these with fixed STR_LITERAL arguments, but the ANTLR4 conversion can
   // misparse valid calls like: Mez:sms(tempUser, "mobile_number", "sms.response");
