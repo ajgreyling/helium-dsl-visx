@@ -1,9 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 export class LangKeyIndex {
+    projectRoot;
+    langFiles = new Map();
     constructor(projectRoot) {
         this.projectRoot = projectRoot;
-        this.langFiles = new Map();
         this.refresh();
     }
     refresh() {

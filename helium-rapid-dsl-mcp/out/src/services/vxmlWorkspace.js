@@ -5,6 +5,9 @@ import { LangKeyIndex } from "./langIndex.js";
 import { buildVxmlAst } from "../vxml/parser.js";
 import { validateVxml } from "../vxml/validator.js";
 export class VxmlWorkspaceService {
+    workspaceRoot;
+    langIndex;
+    mez;
     constructor(workspaceRoot) {
         this.workspaceRoot = workspaceRoot;
         this.langIndex = new LangKeyIndex(workspaceRoot);

@@ -4,9 +4,11 @@ import { URI } from "vscode-uri";
 import { TextDocument } from "vscode-languageserver-textdocument";
 import { ProjectManager, ProjectIndex, buildFileAst, createDiagnostics, getLanguageMetadataSync, runLints, formatDocument, } from "helium-dsl-language-server/api";
 export class MezWorkspaceService {
+    workspaceRoot;
+    projectManager = new ProjectManager();
+    projectIndex;
     constructor(workspaceRoot) {
         this.workspaceRoot = workspaceRoot;
-        this.projectManager = new ProjectManager();
         const metadata = getLanguageMetadataSync();
         this.projectIndex = new ProjectIndex(workspaceRoot, metadata);
         this.projectIndex.indexProjectFiles();

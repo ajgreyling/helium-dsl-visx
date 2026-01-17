@@ -51,8 +51,29 @@ async function main() {
   // 8. Generate TextMate grammar
   run("npx tsx scripts/generate-textmate.ts");
 
-  // 9. Build language server + extension
-  run("npm run build", { cwd: path.join(root, "..", "helium-dsl-language-server") });
+  // 9. Copy parser files to language server for compilation
+  // This ensures parser files are compiled as ES modules by the language server's TypeScript compiler
+  const parserSourceDir = path.join(generated, "parser");
+  const languageServerRoot = path.join(root, "..", "helium-dsl-language-server");
+  const languageServerGeneratedDir = path.join(languageServerRoot, "generated", "parser");
+  
+  if (await fs.pathExists(parserSourceDir)) {
+    console.log("Copying parser files to language server for compilation...");
+    await fs.ensureDir(languageServerGeneratedDir);
+    await fs.copy(parserSourceDir, languageServerGeneratedDir, {
+      overwrite: true,
+      filter: (src) => {
+        // Copy all files and directories
+        return true;
+      }
+    });
+    console.log("  ✓ Parser files copied to language server");
+  } else {
+    console.warn("  ⚠ Warning: Parser source directory not found, skipping copy");
+  }
+
+  // 10. Build language server + extension
+  run("npm run build", { cwd: languageServerRoot });
   run("npm run build", { cwd: path.join(root, "..", "helium-dsl-vscode") });
 }
 
