@@ -46,7 +46,7 @@ async function setIconThemeIfNotConfigured(): Promise<void> {
 export function activate(context: vscode.ExtensionContext) {
   console.log("[HeliumDSL] Activating extension...");
   // #region agent log
-  (globalThis as any).fetch('http://127.0.0.1:7243/ingest/f8eecc7d-5d84-4f56-8e99-5ad9d9836767',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'mcp-test-3',hypothesisId:'H1',location:'helium-dsl-vscode/src/extension.ts:49',message:'activate',data:{workspaceFolders:(vscode.workspace.workspaceFolders?.length ?? 0),appName:vscode.env.appName,extensionId:context.extension?.id ?? 'unknown',extensionVersion:context.extension?.packageJSON?.version ?? 'unknown'},timestamp:Date.now()})}).catch(()=>{});
+  (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1',location:'helium-dsl-vscode/src/extension.ts:activate',message:'activate_enter',data:{workspaceFolders:(vscode.workspace.workspaceFolders?.length ?? 0),appName:vscode.env.appName,extensionId:context.extension?.id ?? 'unknown',extensionVersion:context.extension?.packageJSON?.version ?? 'unknown'},timestamp:Date.now()})}).catch(()=>{});
   // #endregion agent log
   
   // Set icon theme automatically if not already configured
@@ -192,32 +192,70 @@ export function activate(context: vscode.ExtensionContext) {
 function registerMcpServerProvider(context: vscode.ExtensionContext): void {
   // Check if MCP API is available (runtime feature detection)
   const vscodeAny = vscode as any;
+  const cursorMcp = vscodeAny?.cursor?.mcp;
   // #region agent log
-  (globalThis as any).fetch('http://127.0.0.1:7243/ingest/f8eecc7d-5d84-4f56-8e99-5ad9d9836767',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'mcp-test-3',hypothesisId:'H1',location:'helium-dsl-vscode/src/extension.ts:195',message:'mcp_api_check',data:{lmPresent:Boolean(vscodeAny.lm),providerFn:Boolean(vscodeAny.lm?.registerMcpServerDefinitionProvider),hasCtor:Boolean(vscodeAny.McpStdioServerDefinition)},timestamp:Date.now()})}).catch(()=>{});
+  (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'post-fix-1',hypothesisId:'H6',location:'helium-dsl-vscode/src/extension.ts:cursor_mcp_api_check',message:'cursor_mcp_api_check',data:{cursorPresent:Boolean(vscodeAny?.cursor),mcpPresent:Boolean(cursorMcp),registerServerFn:Boolean(cursorMcp?.registerServer),unregisterServerFn:Boolean(cursorMcp?.unregisterServer)},timestamp:Date.now()})}).catch(()=>{});
   // #endregion agent log
-  if (!vscodeAny.lm || !vscodeAny.lm.registerMcpServerDefinitionProvider) {
-    console.log("[HeliumDSL] MCP API not available - skipping MCP server registration");
-    return;
-  }
+  // #region agent log
+  (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H4',location:'helium-dsl-vscode/src/extension.ts:registerMcpServerProvider',message:'mcp_api_check',data:{lmPresent:Boolean(vscodeAny.lm),providerFn:Boolean(vscodeAny.lm?.registerMcpServerDefinitionProvider),hasCtor:Boolean(vscodeAny.McpStdioServerDefinition)},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion agent log
 
   try {
     const mcpEntrypoint = context.asAbsolutePath(
       path.join("server", "mcp", "out", "src", "index.js")
     );
     // #region agent log
-    (globalThis as any).fetch('http://127.0.0.1:7243/ingest/f8eecc7d-5d84-4f56-8e99-5ad9d9836767',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'mcp-test-3',hypothesisId:'H2',location:'helium-dsl-vscode/src/extension.ts:205',message:'mcp_entrypoint_check',data:{mcpEntrypoint,entrypointExists:fs.existsSync(mcpEntrypoint)},timestamp:Date.now()})}).catch(()=>{});
+    (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H2',location:'helium-dsl-vscode/src/extension.ts:mcp_entrypoint_check',message:'mcp_entrypoint_check',data:{mcpEntrypoint,entrypointExists:fs.existsSync(mcpEntrypoint)},timestamp:Date.now()})}).catch(()=>{});
     // #endregion agent log
 
     // Verify MCP server file exists
     if (!fs.existsSync(mcpEntrypoint)) {
-      // #region agent log
-      (globalThis as any).fetch('http://127.0.0.1:7243/ingest/f8eecc7d-5d84-4f56-8e99-5ad9d9836767',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'mcp-test-3',hypothesisId:'H2',location:'helium-dsl-vscode/src/extension.ts:209',message:'mcp_entrypoint_missing',data:{mcpEntrypoint},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion agent log
       console.warn(`[HeliumDSL] MCP server not found at ${mcpEntrypoint} - skipping registration`);
       return;
     }
 
     const mcpCwd = context.asAbsolutePath(path.join("server", "mcp"));
+
+    // Cursor MCP Extension API (preferred in Cursor; legacy provider is not supported there)
+    if (cursorMcp?.registerServer) {
+      const isWindows = process.platform === "win32";
+      const command = isWindows ? "cmd" : "bash";
+      const args = isWindows
+        ? ["/d", "/s", "/c", `cd /d "${mcpCwd}" && node "${mcpEntrypoint}"`]
+        : ["-lc", `cd "${mcpCwd}" && node "${mcpEntrypoint}"`];
+
+      // #region agent log
+      (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'post-fix-1',hypothesisId:'H6',location:'helium-dsl-vscode/src/extension.ts:cursor_registerServer_attempt',message:'cursor_registerServer_attempt',data:{name:'heliumRapidDsl',command,argsCount:args.length,entrypoint:mcpEntrypoint,cwd:mcpCwd,isWindows},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion agent log
+
+      Promise.resolve(
+        cursorMcp.registerServer({
+          name: "heliumRapidDsl",
+          server: { command, args, env: {} },
+        })
+      ).then(
+        () => {
+          // #region agent log
+          (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'post-fix-1',hypothesisId:'H6',location:'helium-dsl-vscode/src/extension.ts:cursor_registerServer_success',message:'cursor_registerServer_success',data:{name:'heliumRapidDsl'},timestamp:Date.now()})}).catch(()=>{});
+          // #endregion agent log
+          console.log("[HeliumDSL] Registered MCP server via vscode.cursor.mcp.registerServer");
+        },
+        (err: unknown) => {
+          // #region agent log
+          (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'post-fix-1',hypothesisId:'H6',location:'helium-dsl-vscode/src/extension.ts:cursor_registerServer_error',message:'cursor_registerServer_error',data:{name:'heliumRapidDsl',err:String(err)},timestamp:Date.now()})}).catch(()=>{});
+          // #endregion agent log
+          console.warn(`[HeliumDSL] Failed to register MCP server via cursor API: ${err}`);
+        }
+      );
+
+      return;
+    }
+
+    // Legacy API (VS Code). Cursor logs warn this is unsupported.
+    if (!vscodeAny.lm || !vscodeAny.lm.registerMcpServerDefinitionProvider) {
+      console.log("[HeliumDSL] MCP API not available - skipping MCP server registration");
+      return;
+    }
     const didChangeEmitter = new vscode.EventEmitter<void>();
 
     context.subscriptions.push(
@@ -225,7 +263,7 @@ function registerMcpServerProvider(context: vscode.ExtensionContext): void {
         onDidChangeMcpServerDefinitions: didChangeEmitter.event,
         provideMcpServerDefinitions: async (): Promise<any[]> => {
           // #region agent log
-          (globalThis as any).fetch('http://127.0.0.1:7243/ingest/f8eecc7d-5d84-4f56-8e99-5ad9d9836767',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'mcp-test-3',hypothesisId:'H2',location:'helium-dsl-vscode/src/extension.ts:217',message:'provide_mcp_definitions',data:{entrypointExists:fs.existsSync(mcpEntrypoint),hasDefinitionCtor:Boolean(vscodeAny.McpStdioServerDefinition)},timestamp:Date.now()})}).catch(()=>{});
+          (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H2',location:'helium-dsl-vscode/src/extension.ts:provideMcpServerDefinitions',message:'provide_mcp_definitions',data:{entrypointExists:fs.existsSync(mcpEntrypoint),hasDefinitionCtor:Boolean(vscodeAny.McpStdioServerDefinition)},timestamp:Date.now()})}).catch(()=>{});
           // #endregion agent log
           // Use McpStdioServerDefinition if available, otherwise construct manually
           if (vscodeAny.McpStdioServerDefinition) {
@@ -237,9 +275,6 @@ function registerMcpServerProvider(context: vscode.ExtensionContext): void {
                 env: {},
                 version: "0.1.0",
               });
-            // #region agent log
-            (globalThis as any).fetch('http://127.0.0.1:7243/ingest/f8eecc7d-5d84-4f56-8e99-5ad9d9836767',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'mcp-test-3',hypothesisId:'H5',location:'helium-dsl-vscode/src/extension.ts:230',message:'mcp_definition_shape',data:{labelType:typeof def?.label,labelValue:String(def?.label),labelCtor:def?.label?.constructor?.name,commandType:typeof def?.command,hasId:Object.prototype.hasOwnProperty.call(def ?? {},'id'),cwdType:typeof def?.cwd,cwdIsUri:def?.cwd instanceof vscode.Uri,argsCount:Array.isArray(def?.args)?def?.args.length:0},timestamp:Date.now()})}).catch(()=>{});
-            // #endregion agent log
             return [def];
           } else {
             // Fallback: construct server definition object manually
@@ -252,16 +287,10 @@ function registerMcpServerProvider(context: vscode.ExtensionContext): void {
                 env: {},
                 version: "0.1.0",
               };
-            // #region agent log
-            (globalThis as any).fetch('http://127.0.0.1:7243/ingest/f8eecc7d-5d84-4f56-8e99-5ad9d9836767',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'mcp-test-3',hypothesisId:'H5',location:'helium-dsl-vscode/src/extension.ts:245',message:'mcp_definition_shape_fallback',data:{labelType:typeof def.label,labelValue:String(def.label),labelCtor:(def as any).label?.constructor?.name,commandType:typeof def.command,hasId:Object.prototype.hasOwnProperty.call(def,'id'),cwdType:typeof def.cwd,cwdIsUri:def.cwd instanceof vscode.Uri,argsCount:Array.isArray(def.args)?def.args.length:0},timestamp:Date.now()})}).catch(()=>{});
-            // #endregion agent log
             return [def];
           }
         },
         resolveMcpServerDefinition: async (server: any): Promise<any> => {
-          // #region agent log
-          (globalThis as any).fetch('http://127.0.0.1:7243/ingest/f8eecc7d-5d84-4f56-8e99-5ad9d9836767',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'mcp-test-1',hypothesisId:'H2',location:'helium-dsl-vscode/src/extension.ts:246',message:'resolve_mcp_definition',data:{label:server?.label ?? 'unknown',type:server?.type ?? 'unknown'},timestamp:Date.now()})}).catch(()=>{});
-          // #endregion agent log
           // No additional resolution needed - server is ready to start
           return server;
         },

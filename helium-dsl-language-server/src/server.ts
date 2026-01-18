@@ -1338,15 +1338,48 @@ function isModelBif(methodName: string): boolean {
   return (metadata.modelBifs || []).includes(methodName);
 }
 
-connection.onDefinition((params: DefinitionParams): Location | Location[] | null => {
+connection.onDefinition(async (params: DefinitionParams): Promise<Location | Location[] | null> => {
   const doc = documents.get(params.textDocument.uri);
   if (doc && isVxmlDocument(doc)) {
     const ast = buildVxmlAst(doc.getText(), doc.uri);
-    const viewUnitRef = ast.references.find((r) => r.kind === "unit");
-    if (viewUnitRef && rangeContains(viewUnitRef.range as any, params.position.line, params.position.character)) {
-      const loc = projectManager.getUnitLocation(viewUnitRef.name);
+    const viewUnitName = ast.view?.unitName;
+
+    const refAtPos = ast.references.find((r) =>
+      rangeContains(r.range as any, params.position.line, params.position.character)
+    );
+    if (!refAtPos) return null;
+
+    if (refAtPos.kind === "unit") {
+      const loc = projectManager.getUnitLocation(refAtPos.name);
       return loc ? [loc] : null;
     }
+
+    if (refAtPos.kind === "function" || refAtPos.kind === "variable") {
+      const resolved = resolveVxmlQualified(refAtPos.name, viewUnitName);
+      if (!resolved?.unitName || !resolved?.memberName) return null;
+
+      const unitLoc = projectManager.getUnitLocation(resolved.unitName);
+      if (!unitLoc) return null;
+
+      try {
+        const unitFilePath = URI.parse(unitLoc.uri).fsPath;
+        const unitFileContent = fs.readFileSync(unitFilePath, "utf8");
+        const unitAst = await buildFileAst(unitFileContent, unitLoc.uri);
+        const unitDecl = (unitAst.units || []).find((u: any) => u.name === resolved.unitName);
+        if (!unitDecl) return null;
+
+        if (refAtPos.kind === "function") {
+          const fn = (unitDecl.functions || []).find((f: any) => f.name === resolved.memberName);
+          return fn?.nameRange ? [{ uri: unitLoc.uri, range: fn.nameRange }] : null;
+        }
+
+        const v = (unitDecl.variables || []).find((vv: any) => vv.name === resolved.memberName);
+        return v?.nameRange ? [{ uri: unitLoc.uri, range: v.nameRange }] : null;
+      } catch {
+        return unitLoc ? [unitLoc] : null;
+      }
+    }
+
     return null;
   }
   if (doc && params.textDocument.uri.includes("GbvChatClient.mez")) {
@@ -1356,6 +1389,27 @@ connection.onDefinition((params: DefinitionParams): Location | Location[] | null
   }
   return projectManager.getDefinition(params);
 });
+
+function resolveVxmlQualified(
+  raw: string,
+  fallbackUnitName: string | undefined
+): { unitName: string | null; memberName: string | null } | null {
+  const trimmed = (raw ?? "").trim();
+  if (!trimmed) return null;
+  const colon = trimmed.indexOf(":");
+  if (colon !== -1) {
+    const unitName = trimmed.slice(0, colon).trim();
+    const memberName = trimmed.slice(colon + 1).trim();
+    return {
+      unitName: unitName || null,
+      memberName: memberName || null,
+    };
+  }
+  return {
+    unitName: fallbackUnitName ?? null,
+    memberName: trimmed,
+  };
+}
 
 connection.onTypeDefinition((params: TypeDefinitionParams): Location | Location[] | null => {
   const doc = documents.get(params.textDocument.uri);

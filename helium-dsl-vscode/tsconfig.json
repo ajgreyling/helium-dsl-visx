@@ -1,15 +1,15 @@
 {
   "compilerOptions": {
-    "target": "ES2024",
-    "module": "NodeNext",
-    "lib": ["ES2024"],
+    "target": "ES2022",
+    "module": "CommonJS",
+    "lib": ["ES2022"],
     "outDir": "out",
     "rootDir": "src",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "types": ["node", "vscode"],
-    "moduleResolution": "NodeNext"
+    "moduleResolution": "Node"
   },
   "include": ["src/**/*"]
 }
