@@ -57,7 +57,6 @@ import { URI } from "vscode-uri";
 import * as path from "path";
 import * as fs from "fs";
 import { createDiagnostics } from "./diagnostics.js";
-import { buildSymbolTable } from "./symbols/symbolTable.js";
 import { buildFileAst } from "./ast/builder.js";
 import { runLints } from "./linter/engine.js";
 import { ProjectManager } from "./index/projectManager.js";
@@ -375,7 +374,7 @@ function getFunctionSignature(
   return null;
 }
 
-connection.onHover((params: HoverParams): Hover | null => {
+connection.onHover(async (params: HoverParams): Promise<Hover | null> => {
   const doc = documents.get(params.textDocument.uri);
   if (!doc) {
     return null;
@@ -418,8 +417,75 @@ connection.onHover((params: HoverParams): Hover | null => {
     return null;
   }
 
-  const symbolTable = buildSymbolTable(text);
   const content: string[] = [];
+  
+  const formatFunctionSignatureFromAst = (fn: any): string => {
+    const params = (fn.params || [])
+      .map((p: any) => `${p.typeName} ${p.name}`.trim())
+      .join(", ");
+    return `${fn.returnType} ${fn.name}(${params})`;
+  };
+
+  const isBeforeOrAt = (a: Position, b: Position): boolean => {
+    if (a.line !== b.line) return a.line < b.line;
+    return a.character <= b.character;
+  };
+
+  const findLocalVariable = (ast: any, name: string, pos: Position): { typeName: string; decl: any } | null => {
+    const containingUnit = (ast.units || []).find((unit: any) =>
+      (unit.functions || []).some(
+        (fn: any) =>
+          fn.bodyRange &&
+          pos &&
+          fn.bodyRange.start &&
+          fn.bodyRange.end &&
+          (pos.line > fn.bodyRange.start.line ||
+            (pos.line === fn.bodyRange.start.line && pos.character >= fn.bodyRange.start.character)) &&
+          (pos.line < fn.bodyRange.end.line ||
+            (pos.line === fn.bodyRange.end.line && pos.character <= fn.bodyRange.end.character))
+      )
+    );
+    const containingFn = containingUnit?.functions?.find(
+      (fn: any) =>
+        fn.bodyRange &&
+        (pos.line > fn.bodyRange.start.line ||
+          (pos.line === fn.bodyRange.start.line && pos.character >= fn.bodyRange.start.character)) &&
+        (pos.line < fn.bodyRange.end.line ||
+          (pos.line === fn.bodyRange.end.line && pos.character <= fn.bodyRange.end.character))
+    );
+    if (containingFn) {
+      const param = (containingFn.params || []).find((p: any) => p.name === name);
+      if (param) return { typeName: param.typeName, decl: param };
+      const locals = (containingFn.locals || [])
+        .filter((v: any) => v.name === name && v.nameRange?.start && isBeforeOrAt(v.nameRange.start, pos))
+        .sort((a: any, b: any) => {
+          if (a.nameRange.start.line !== b.nameRange.start.line) {
+            return b.nameRange.start.line - a.nameRange.start.line;
+          }
+          return b.nameRange.start.character - a.nameRange.start.character;
+        });
+      if (locals.length > 0) return { typeName: locals[0].typeName, decl: locals[0] };
+    }
+    if (containingUnit) {
+      const unitVar = (containingUnit.variables || []).find((v: any) => v.name === name);
+      if (unitVar) return { typeName: unitVar.typeName, decl: unitVar };
+    }
+    return null;
+  };
+
+  const findFunctionDecl = (ast: any, name: string, unitName?: string): any | null => {
+    const units = ast.units || [];
+    if (unitName) {
+      const unit = units.find((u: any) => u.name === unitName);
+      const fn = unit?.functions?.find((f: any) => f.name === name);
+      return fn || null;
+    }
+    for (const unit of units) {
+      const fn = (unit.functions || []).find((f: any) => f.name === name);
+      if (fn) return fn;
+    }
+    return null;
+  };
 
   // Check if it's a unit reference
   if (looksLikeUnitRef) {
@@ -445,8 +511,10 @@ connection.onHover((params: HoverParams): Hover | null => {
             try {
               const unitFilePath = URI.parse(unitLocation.uri).fsPath;
               const unitFileContent = fs.readFileSync(unitFilePath, "utf8");
-              const signature = getFunctionSignature(methodName, unitFileContent, fullWord);
-              if (signature) {
+              const unitAst = await buildFileAst(unitFileContent, unitLocation.uri);
+              const fn = findFunctionDecl(unitAst, methodName, fullWord);
+              if (fn) {
+                const signature = formatFunctionSignatureFromAst(fn);
                 content.push(`\`\`\`mez\n${signature}\n\`\`\``);
                 content.push(`\nFunction in unit \`${fullWord}\`.`);
               } else {
@@ -485,59 +553,30 @@ connection.onHover((params: HoverParams): Hover | null => {
         content.push(`\nDefined at line ${unitLocation.range.start.line + 1}.`);
       }
     } else {
-      // Check if it's a variable
-      const relevantSymbols = symbolTable.symbols
-        .filter(
-          (s) =>
-            s.name === fullWord &&
-            s.kind === "variable" &&
-            s.location &&
-            s.type &&
-            (s.location.line < position.line ||
-              (s.location.line === position.line &&
-                s.location.character <= position.character))
-        )
-        .sort((a, b) => {
-          if (a.location!.line !== b.location!.line) {
-            return b.location!.line - a.location!.line;
+      // Variable / function hover from AST (no heuristic symbol table).
+      try {
+        const ast = await buildFileAst(text, doc.uri);
+        const localVar = findLocalVariable(ast, fullWord, position);
+        if (localVar) {
+          content.push(`**Variable**: \`${fullWord}\``);
+          content.push(`**Type**: \`${localVar.typeName}\``);
+          const declLine = localVar.decl?.nameRange?.start?.line;
+          if (typeof declLine === "number") {
+            content.push(`\nDeclared at line ${declLine + 1}.`);
           }
-          return b.location!.character - a.location!.character;
-        });
-
-      if (relevantSymbols.length > 0) {
-        const symbol = relevantSymbols[0];
-        content.push(`**Variable**: \`${fullWord}\``);
-        if (symbol.type) {
-          content.push(`**Type**: \`${symbol.type}\``);
-        }
-        if (symbol.location) {
-          content.push(`\nDeclared at line ${symbol.location.line + 1}.`);
-        }
-      } else {
-        // Check if it's a function
-        const funcSymbols = symbolTable.symbols.filter(
-          (s) =>
-            s.name === fullWord &&
-            s.kind === "function" &&
-            s.location &&
-            (s.location.line < position.line ||
-              (s.location.line === position.line &&
-                s.location.character <= position.character))
-        );
-
-        if (funcSymbols.length > 0) {
-          const funcSymbol = funcSymbols[0];
-          const funcLine = lines[funcSymbol.location!.line] || "";
-          const signature = extractFunctionSignature(funcLine, fullWord);
-          if (signature) {
+        } else {
+          const fn = findFunctionDecl(ast, fullWord);
+          if (fn) {
+            const signature = formatFunctionSignatureFromAst(fn);
             content.push(`\`\`\`mez\n${signature}\n\`\`\``);
-          } else {
-            content.push(`**Function**: \`${fullWord}()\``);
-          }
-          if (funcSymbol.location) {
-            content.push(`\nDefined at line ${funcSymbol.location.line + 1}.`);
+            const defLine = fn.nameRange?.start?.line;
+            if (typeof defLine === "number") {
+              content.push(`\nDefined at line ${defLine + 1}.`);
+            }
           }
         }
+      } catch {
+        // Ignore parse errors for hover.
       }
     }
   }
@@ -913,7 +952,7 @@ connection.onSelectionRanges((params: SelectionRangeParams): SelectionRange[] =>
   return ranges;
 });
 
-connection.languages.callHierarchy.onPrepare((params: CallHierarchyPrepareParams): CallHierarchyItem[] | null => {
+connection.languages.callHierarchy.onPrepare(async (params: CallHierarchyPrepareParams): Promise<CallHierarchyItem[] | null> => {
   const doc = documents.get(params.textDocument.uri);
   if (!doc) {
     return null;
@@ -939,7 +978,7 @@ connection.languages.callHierarchy.onPrepare((params: CallHierarchyPrepareParams
     return null; // Function names start with lowercase
   }
 
-  const definition = findFunctionDefinition(doc, functionName);
+  const definition = await findFunctionDefinition(doc, functionName);
   if (!definition) {
     return null;
   }
@@ -955,96 +994,87 @@ connection.languages.callHierarchy.onPrepare((params: CallHierarchyPrepareParams
   ];
 });
 
-connection.languages.callHierarchy.onIncomingCalls((params: CallHierarchyIncomingCallsParams): CallHierarchyIncomingCall[] => {
+connection.languages.callHierarchy.onIncomingCalls(async (params: CallHierarchyIncomingCallsParams): Promise<CallHierarchyIncomingCall[]> => {
   const item = params.item;
   const functionName = item.name;
   const calls: CallHierarchyIncomingCall[] = [];
 
   // Search all open documents
-  for (const doc of documents.all()) {
-    const foundCalls = findFunctionCalls(doc, functionName);
-    for (const call of foundCalls) {
-      calls.push({
-        from: item,
-        fromRanges: [call.range],
-      });
+  const allDocs = documents.all();
+  const perDocCalls = await Promise.all(allDocs.map((d) => findFunctionCalls(d, functionName)));
+  for (const docCalls of perDocCalls) {
+    for (const call of docCalls) {
+      calls.push({ from: item, fromRanges: [call.range] });
     }
   }
 
   return calls;
 });
 
-connection.languages.callHierarchy.onOutgoingCalls((params: CallHierarchyOutgoingCallsParams): CallHierarchyOutgoingCall[] => {
+connection.languages.callHierarchy.onOutgoingCalls(async (params: CallHierarchyOutgoingCallsParams): Promise<CallHierarchyOutgoingCall[]> => {
   const doc = documents.get(params.item.uri);
   if (!doc) {
     return [];
   }
 
   const text = doc.getText();
-  const symbolTable = buildSymbolTable(text);
   const calls: CallHierarchyOutgoingCall[] = [];
 
-  // Find all function calls in the function body
+  // Find all function calls in the function body (AST-based)
   const functionName = params.item.name;
-  const definition = findFunctionDefinition(doc, functionName);
-  if (!definition) {
+  let ast: any;
+  try {
+    ast = await buildFileAst(text, doc.uri);
+  } catch {
     return [];
   }
 
-  // Extract function body (simplified - find braces)
-  const lines = text.split(/\r?\n/);
-  let inFunction = false;
-  let braceDepth = 0;
-  let functionStartLine = definition.range.start.line;
+  const decl = (ast.units || [])
+    .flatMap((u: any) => u.functions || [])
+    .find((fn: any) => fn.name === functionName);
+  if (!decl?.bodyRange) return [];
 
-  for (let i = functionStartLine; i < lines.length; i++) {
-    const line = lines[i] || "";
-    for (const char of line) {
-      if (char === "{") {
-        if (!inFunction) {
-          inFunction = true;
-        }
-        braceDepth++;
-      }
-      if (char === "}") {
-        braceDepth--;
-        if (braceDepth === 0 && inFunction) {
-          // Found end of function
-          // Find all function calls in this range
-          const functionText = lines.slice(functionStartLine, i + 1).join("\n");
-          const funcSymbolTable = buildSymbolTable(functionText);
+  const resolveCalledFunction = (name: string, unitName?: string): any | null => {
+    const units = ast.units || [];
+    if (unitName) {
+      const unit = units.find((u: any) => u.name === unitName);
+      return unit?.functions?.find((f: any) => f.name === name) || null;
+    }
+    for (const unit of units) {
+      const fn = (unit.functions || []).find((f: any) => f.name === name);
+      if (fn) return fn;
+    }
+    return null;
+  };
 
-          for (const symbol of funcSymbolTable.symbols) {
-            if (symbol.kind === "function" && symbol.name !== functionName && symbol.location) {
-              const def = findFunctionDefinition(doc, symbol.name);
-              if (def) {
-                const toItem: CallHierarchyItem = {
-                  name: symbol.name,
-                  kind: SymbolKind.Function,
-                  uri: def.uri,
-                  range: def.range,
-                  selectionRange: def.range,
-                };
-                calls.push({
-                  to: toItem,
-                  fromRanges: [params.item.range],
-                });
-              }
-            }
-          }
-          break;
-        }
-      }
-    }
-    if (braceDepth === 0 && inFunction) {
-      break;
-    }
+  const inBody = (range: any): boolean => {
+    const s = decl.bodyRange.start;
+    const e = decl.bodyRange.end;
+    const p = range.start;
+    if (p.line < s.line || (p.line === s.line && p.character < s.character)) return false;
+    if (p.line > e.line || (p.line === e.line && p.character > e.character)) return false;
+    return true;
+  };
+
+  for (const call of ast.functionCalls || []) {
+    if (!call?.nameRange || !inBody(call.nameRange)) continue;
+    if (call.name === functionName) continue;
+    const called = resolveCalledFunction(call.name, call.unitName);
+    if (!called?.nameRange) continue;
+    const toItem: CallHierarchyItem = {
+      name: called.name,
+      kind: SymbolKind.Function,
+      uri: doc.uri,
+      range: called.nameRange,
+      selectionRange: called.nameRange,
+    };
+    calls.push({ to: toItem, fromRanges: [call.nameRange] });
   }
 
   return calls;
 });
 
-connection.languages.inlayHint.on((params: InlayHintParams): InlayHint[] => {
+connection.languages.inlayHint.on(async (params: InlayHintParams): Promise<InlayHint[]> => {
   const doc = documents.get(params.textDocument.uri);
   if (!doc) {
     return [];
@@ -1054,76 +1084,43 @@ connection.languages.inlayHint.on((params: InlayHintParams): InlayHint[] => {
   const lines = text.split(/\r?\n/);
   const hints: InlayHint[] = [];
 
-  // System/primitive types that indicate function definitions
-  const systemTypes = [
-    "int", "decimal", "bigint", "uuid", "blob", "bool",
-    "string", "void", "date", "datetime", "json", "jsonarray"
-  ];
-  const systemTypesRegex = new RegExp(`\\b(${systemTypes.join("|")})\\s+$`);
+  let ast: any;
+  try {
+    ast = await buildFileAst(text, doc.uri);
+  } catch {
+    return [];
+  }
 
-  // Find function calls and add parameter name hints
-  for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
-    const line = lines[lineIndex];
-
-    // Match function calls: functionName( or UnitName:functionName(
-    const funcCallPattern = /\b([a-z][A-Za-z0-9_]*)\s*\(/g;
-    let match: RegExpExecArray | null;
-
-    while ((match = funcCallPattern.exec(line)) !== null) {
-      const funcName = match[1];
-      const openParenIndex = match.index + match[1].length;
-      const matchStart = match.index;
-
-      // Check if this is a function definition by looking for a type name before the function name
-      // Function definitions have the pattern: ReturnType functionName(
-      const textBeforeFunc = line.substring(0, matchStart);
-      
-      // Check if preceded by a system type or PascalCase identifier (user-defined type)
-      // Note: Check before trimming to catch trailing space after type name
-      const isFunctionDefinition = 
-        systemTypesRegex.test(textBeforeFunc) ||
-        /\b([A-Z][A-Za-z0-9_]*)\s+$/.test(textBeforeFunc);
-
-      // Skip function definitions - only add hints for function calls
-      if (isFunctionDefinition) {
-        continue;
-      }
-
-      // Find function definition to get parameter names
-      const symbolTable = buildSymbolTable(text);
-      const funcSymbol = symbolTable.symbols.find(
-        (s) => s.name === funcName && s.kind === "function" && s.location
-      );
-
-      if (funcSymbol && funcSymbol.location) {
-        const funcLine = lines[funcSymbol.location.line] || "";
-        const paramMatch = funcLine.match(/\(([^)]*)\)/);
-        if (paramMatch && paramMatch[1]) {
-          const params = paramMatch[1]
-            .split(",")
-            .map((p) => p.trim())
-            .filter((p) => p.length > 0);
-
-          // Extract parameter names (type name)
-          const paramNames: string[] = [];
-          for (const param of params) {
-            const nameMatch = param.match(/\b([a-z][A-Za-z0-9_]*)\s*$/);
-            if (nameMatch) {
-              paramNames.push(nameMatch[1]);
-            }
-          }
-
-          // Add hints for parameters (simplified - just show first parameter name)
-          if (paramNames.length > 0) {
-            hints.push({
-              position: { line: lineIndex, character: openParenIndex + 1 },
-              label: paramNames[0] + ":",
-              kind: 1, // Parameter
-            });
-          }
-        }
-      }
+  const findFunctionDecl = (name: string, unitName?: string): any | null => {
+    const units = ast.units || [];
+    if (unitName) {
+      const unit = units.find((u: any) => u.name === unitName);
+      return unit?.functions?.find((f: any) => f.name === name) || null;
     }
+    for (const unit of units) {
+      const fn = (unit.functions || []).find((f: any) => f.name === name);
+      if (fn) return fn;
+    }
+    return null;
+  };
+
+  for (const call of ast.functionCalls || []) {
+    const fn = findFunctionDecl(call.name, call.unitName);
+    const firstParam = fn?.params?.[0];
+    if (!firstParam?.name) continue;
+
+    const lineIndex = call.nameRange?.start?.line;
+    if (typeof lineIndex !== "number") continue;
+    const line = lines[lineIndex] || "";
+    const searchFrom = call.nameRange?.end?.character ?? 0;
+    const openParenIndex = line.indexOf("(", searchFrom);
+    if (openParenIndex === -1) continue;
+
+    hints.push({
+      position: { line: lineIndex, character: openParenIndex + 1 },
+      label: `${firstParam.name}:`,
+      kind: 1, // Parameter
+    });
   }
 
   return hints;
