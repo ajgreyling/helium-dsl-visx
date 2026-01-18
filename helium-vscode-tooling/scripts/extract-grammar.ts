@@ -5,7 +5,52 @@ import crypto from "node:crypto";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
-const sourceGrammar = "/Users/ajgreyling/code/appexec-dsl-commons/WebDSLParser-lib/src/main/antlr3/com/mezzanine/dsl/web/MezDSL.g";
+
+const DEFAULT_GRAMMAR_RELATIVE_PATH =
+  "WebDSLParser-lib/src/main/antlr3/com/mezzanine/dsl/web/MezDSL.g";
+
+function readArgValue(flag: string): string | undefined {
+  const idx = process.argv.indexOf(flag);
+  if (idx === -1) return undefined;
+  const value = process.argv[idx + 1];
+  if (!value || value.startsWith("-")) return undefined;
+  return value;
+}
+
+function resolveSourceGrammar(): string {
+  const grammarFromArgs = readArgValue("--grammar");
+  if (grammarFromArgs) return path.resolve(grammarFromArgs);
+
+  const dslCommonsFromArgs = readArgValue("--dsl-commons");
+  if (dslCommonsFromArgs) {
+    return path.resolve(dslCommonsFromArgs, DEFAULT_GRAMMAR_RELATIVE_PATH);
+  }
+
+  const grammarFromEnv = process.env.GRAMMAR_FILE;
+  if (grammarFromEnv) return path.resolve(grammarFromEnv);
+
+  const dslCommonsFromEnv = process.env.DSL_COMMONS_PATH;
+  if (dslCommonsFromEnv) {
+    return path.resolve(dslCommonsFromEnv, DEFAULT_GRAMMAR_RELATIVE_PATH);
+  }
+
+  throw new Error(
+    [
+      "No grammar source configured.",
+      "",
+      "Provide one of:",
+      '  - CLI: "--grammar <path-to-MezDSL.g>"',
+      '  - CLI: "--dsl-commons <path-to-appexec-dsl-commons>"',
+      "  - Env: GRAMMAR_FILE=<path-to-MezDSL.g>",
+      "  - Env: DSL_COMMONS_PATH=<path-to-appexec-dsl-commons>",
+      "",
+      "Example:",
+      "  DSL_COMMONS_PATH=/path/to/appexec-dsl-commons npx tsx scripts/extract-grammar.ts",
+    ].join("\n")
+  );
+}
+
+const sourceGrammar = resolveSourceGrammar();
 const targetGrammar = path.join(root, "generated/grammar/MezDSL.g3");
 const hashFile = path.join(root, "generated/grammar/MezDSL.g3.hash");
 
@@ -16,7 +61,14 @@ async function fileHash(file: string) {
 
 async function main() {
   if (!(await fs.pathExists(sourceGrammar))) {
-    throw new Error(`Source grammar not found: ${sourceGrammar}`);
+    throw new Error(
+      [
+        `Source grammar not found: ${sourceGrammar}`,
+        "",
+        "If you passed --dsl-commons / DSL_COMMONS_PATH, expected grammar at:",
+        `  ${DEFAULT_GRAMMAR_RELATIVE_PATH}`,
+      ].join("\n")
+    );
   }
 
   await fs.ensureDir(path.dirname(targetGrammar));

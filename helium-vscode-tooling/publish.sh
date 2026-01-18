@@ -95,103 +95,10 @@ if [ -z "$OVSX_TOKEN" ]; then
     exit 1
 fi
 
-# Update script configurations with provided paths
 echo ""
-echo -e "${BLUE}=== Configuring paths ===${NC}"
+echo -e "${BLUE}=== Configuration ===${NC}"
 echo "DSL Commons: $DSL_COMMONS_PATH"
-echo ""
-
-# Update extract-grammar.ts
-echo -e "${BLUE}Updating extract-grammar.ts...${NC}"
-cat > "$SCRIPT_DIR/scripts/extract-grammar.ts" << EOF
-import path from "node:path";
-import fs from "fs-extra";
-import crypto from "node:crypto";
-
-const root = path.resolve(__dirname, "..");
-const sourceGrammar = "$GRAMMAR_FILE";
-const targetGrammar = path.join(root, "generated/grammar/MezDSL.g3");
-const hashFile = path.join(root, "generated/grammar/MezDSL.g3.hash");
-
-async function fileHash(file: string) {
-  const buf = await fs.readFile(file);
-  return crypto.createHash("sha256").update(buf).digest("hex");
-}
-
-async function main() {
-  if (!(await fs.pathExists(sourceGrammar))) {
-    throw new Error(\`Source grammar not found: \${sourceGrammar}\`);
-  }
-
-  await fs.ensureDir(path.dirname(targetGrammar));
-  await fs.copyFile(sourceGrammar, targetGrammar);
-
-  const hash = await fileHash(targetGrammar);
-  await fs.writeFile(hashFile, hash, "utf8");
-
-  console.log(\`Extracted grammar to \${targetGrammar}\`);
-  console.log(\`SHA256: \${hash}\`);
-}
-
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
-EOF
-
-# Update extract-rules.ts
-echo -e "${BLUE}Updating extract-rules.ts...${NC}"
-cat > "$SCRIPT_DIR/scripts/extract-rules.ts" << 'EOF'
-import path from "node:path";
-import fs from "fs-extra";
-
-const root = path.resolve(__dirname, "..");
-const output = path.join(root, "generated/rules/dsl-rules.json");
-
-type Rule = {
-  id: string;
-  severity: "error" | "warning" | "info";
-  message: string;
-  category: string;
-  sourceLines?: number[];
-};
-
-async function main() {
-  // Define linting rules directly
-  const rules: Record<string, Rule> = {
-    "no-var-in-else": {
-      id: "no-var-in-else",
-      severity: "error",
-      message: "Variables cannot be declared in else blocks. Declare before if statement.",
-      category: "variables",
-    },
-    "dot-notation-limit": {
-      id: "dot-notation-limit",
-      severity: "warning",
-      message: "Dot notation can only be used once per statement.",
-      category: "syntax",
-    },
-    "naming-conventions": {
-      id: "naming-conventions",
-      severity: "warning",
-      message: "Follow naming conventions",
-      category: "style",
-    },
-  };
-
-  await fs.ensureDir(path.dirname(output));
-  await fs.writeJSON(output, rules, { spaces: 2 });
-  console.log(`Wrote lint rule metadata to ${output} (${Object.keys(rules).length} rules)`);
-}
-
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
-EOF
-
-echo ""
-echo -e "${GREEN}=== Configuration Complete ===${NC}"
+echo -e "${GREEN}✓ Using configured paths (no file rewrites)${NC}"
 echo ""
 
 # Uninstall extension from Cursor if present (before building)
@@ -228,7 +135,7 @@ fi
 # Run the build pipeline
 echo -e "${BLUE}=== Step 1: Extract Grammar ===${NC}"
 cd "$SCRIPT_DIR"
-npm run build:extract
+DSL_COMMONS_PATH="$DSL_COMMONS_PATH" npm run build:extract
 
 echo ""
 echo -e "${BLUE}=== Step 2: Convert ANTLR3 to ANTLR4 ===${NC}"

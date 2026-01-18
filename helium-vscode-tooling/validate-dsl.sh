@@ -65,200 +65,12 @@ if [ ! -f "$GRAMMAR_FILE" ]; then
     exit 1
 fi
 
-# Update script configurations with provided paths
-echo -e "${BLUE}=== Configuring paths ===${NC}"
+# Configuration (no script rewrites)
+echo -e "${BLUE}=== Configuration ===${NC}"
 echo "DSL Commons: $DSL_COMMONS_PATH"
 echo "Sample Project: $SAMPLE_PROJECT_PATH"
+echo -e "${GREEN}✓ Using configured paths (no file rewrites)${NC}"
 echo ""
-
-# Update extract-grammar.ts
-echo -e "${BLUE}Updating extract-grammar.ts...${NC}"
-cat > "$SCRIPT_DIR/scripts/extract-grammar.ts" << EOF
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import fs from "fs-extra";
-import crypto from "node:crypto";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const root = path.resolve(__dirname, "..");
-const sourceGrammar = "$GRAMMAR_FILE";
-const targetGrammar = path.join(root, "generated/grammar/MezDSL.g3");
-const hashFile = path.join(root, "generated/grammar/MezDSL.g3.hash");
-
-async function fileHash(file: string) {
-  const buf = await fs.readFile(file);
-  return crypto.createHash("sha256").update(buf).digest("hex");
-}
-
-async function main() {
-  if (!(await fs.pathExists(sourceGrammar))) {
-    throw new Error(\`Source grammar not found: \${sourceGrammar}\`);
-  }
-
-  await fs.ensureDir(path.dirname(targetGrammar));
-  await fs.copyFile(sourceGrammar, targetGrammar);
-
-  const hash = await fileHash(targetGrammar);
-  await fs.writeFile(hashFile, hash, "utf8");
-
-  console.log(\`Extracted grammar to \${targetGrammar}\`);
-  console.log(\`SHA256: \${hash}\`);
-}
-
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
-EOF
-
-# Update extract-rules.ts
-echo -e "${BLUE}Updating extract-rules.ts...${NC}"
-cat > "$SCRIPT_DIR/scripts/extract-rules.ts" << 'EOF'
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import fs from "fs-extra";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const root = path.resolve(__dirname, "..");
-const output = path.join(root, "generated/rules/dsl-rules.json");
-
-type Rule = {
-  id: string;
-  severity: "error" | "warning" | "info";
-  message: string;
-  category: string;
-  sourceLines?: number[];
-};
-
-async function main() {
-  // Define linting rules directly
-  const rules: Record<string, Rule> = {
-    "no-var-in-else": {
-      id: "no-var-in-else",
-      severity: "error",
-      message: "Variables cannot be declared in else blocks. Declare before if statement.",
-      category: "variables",
-    },
-    "dot-notation-limit": {
-      id: "dot-notation-limit",
-      severity: "warning",
-      message: "Dot notation can only be used once per statement.",
-      category: "syntax",
-    },
-    "naming-conventions": {
-      id: "naming-conventions",
-      severity: "warning",
-      message: "Follow naming conventions",
-      category: "style",
-    },
-  };
-
-  await fs.ensureDir(path.dirname(output));
-  await fs.writeJSON(output, rules, { spaces: 2 });
-  console.log(`Wrote lint rule metadata to ${output} (${Object.keys(rules).length} rules)`);
-}
-
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
-EOF
-
-# Update watch.ts
-echo -e "${BLUE}Updating watch.ts...${NC}"
-cat > "$SCRIPT_DIR/scripts/watch.ts" << EOF
-import chokidar from "chokidar";
-import { execSync } from "node:child_process";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const root = path.resolve(__dirname, "..");
-const grammarFile = "$GRAMMAR_FILE";
-const rulesFile = "$RULES_FILE";
-
-console.log("Watching for changes...");
-console.log("  Grammar:", grammarFile);
-console.log("  Rules:", rulesFile);
-
-const watcher = chokidar.watch([grammarFile, rulesFile], {
-  persistent: true,
-});
-
-watcher.on("change", (filepath) => {
-  console.log(\`\nFile changed: \${filepath}\`);
-  console.log("Running build pipeline...");
-  try {
-    execSync("npm run build:all", { cwd: root, stdio: "inherit" });
-    console.log("Build completed successfully!");
-  } catch (err) {
-    console.error("Build failed:", err);
-  }
-});
-
-console.log("Press Ctrl+C to stop watching");
-EOF
-
-# Update version-check.ts
-echo -e "${BLUE}Updating version-check.ts...${NC}"
-cat > "$SCRIPT_DIR/scripts/version-check.ts" << EOF
-import { execSync } from "node:child_process";
-import fs from "fs-extra";
-import crypto from "node:crypto";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const root = path.resolve(__dirname, "..");
-const dslCommonsPath = "$DSL_COMMONS_PATH";
-
-async function fileHash(file: string) {
-  const buf = await fs.readFile(file);
-  return crypto.createHash("sha256").update(buf).digest("hex");
-}
-
-async function main() {
-  console.log("Version Check Report");
-  console.log("===================");
-
-  // Git hash of appexec-dsl-commons
-  try {
-    const gitHash = execSync("git rev-parse HEAD", {
-      cwd: dslCommonsPath,
-      encoding: "utf8",
-    }).trim();
-    console.log(\`DSL Commons Git Hash: \${gitHash}\`);
-  } catch (err) {
-    console.log("DSL Commons Git Hash: N/A (not a git repo)");
-  }
-
-  // Grammar file hash
-  const grammarFile = "$GRAMMAR_FILE";
-  if (await fs.pathExists(grammarFile)) {
-    const hash = await fileHash(grammarFile);
-    console.log(\`Grammar File Hash: \${hash.substring(0, 12)}...\`);
-  }
-
-  // Rules file hash
-  const rulesFile = "$RULES_FILE";
-  if (await fs.pathExists(rulesFile)) {
-    const hash = await fileHash(rulesFile);
-    console.log(\`Rules File Hash: \${hash.substring(0, 12)}...\`);
-  }
-
-  // Last generated timestamp
-  const generatedDir = path.join(root, "generated");
-  if (await fs.pathExists(generatedDir)) {
-    const stats = await fs.stat(generatedDir);
-    console.log(\`Last Generated: \${stats.mtime.toISOString()}\`);
-  }
-}
-
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
-EOF
 
 # Update test configuration to use the sample project path
 echo -e "${BLUE}Updating test configuration...${NC}"
@@ -281,7 +93,9 @@ const SAMPLE_PROJECT_PATH = "$SAMPLE_PROJECT_PATH";
 
 describe("Sample DSL Codebase Validation", () => {
   it("should validate all .mez files in sample project", async function() {
-    this.timeout(10000); // Increase timeout for large codebases
+    // Default to 10 minutes for large codebases; override with HELIUM_VALIDATE_TIMEOUT_MS if needed
+    const timeoutMs = Number(process.env.HELIUM_VALIDATE_TIMEOUT_MS ?? "") || 10 * 60 * 1000;
+    this.timeout(timeoutMs);
 
     const mezFiles: string[] = [];
 
@@ -477,7 +291,7 @@ echo ""
 # Run the build pipeline
 echo -e "${BLUE}=== Step 1: Extract Grammar ===${NC}"
 cd "$SCRIPT_DIR"
-npm run build:extract
+DSL_COMMONS_PATH="$DSL_COMMONS_PATH" npm run build:extract
 
 echo ""
 echo -e "${BLUE}=== Step 2: Convert ANTLR3 to ANTLR4 ===${NC}"
@@ -493,7 +307,7 @@ npm run build:parser
 
 echo ""
 echo -e "${BLUE}=== Step 5: Extract Rules ===${NC}"
-RULES_FILE="$RULES_FILE" npm run build:rules
+npm run build:rules
 
 echo ""
 echo -e "${BLUE}=== Step 6: Generate BIF Metadata ===${NC}"
