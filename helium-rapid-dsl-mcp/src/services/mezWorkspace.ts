@@ -86,9 +86,6 @@ export class MezWorkspaceService {
         },
       ]);
     })();
-    // #region agent log
-    (globalThis as any).fetch('http://127.0.0.1:7243/ingest/f8eecc7d-5d84-4f56-8e99-5ad9d9836767',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'mcp-symbols-1',hypothesisId:'H1',location:'helium-rapid-dsl-mcp/src/services/mezWorkspace.ts:53',message:'mez_workspace_init',data:{workspaceRoot,projectRoots:this.projectManager.getProjectRoots(),projectIndexObjects:(this.projectIndex as any).getObjectNames?.()?.length ?? -1,projectIndexUnits:(this.projectIndex as any).getUnitNames?.()?.length ?? -1},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion agent log
   }
 
   getWorkspaceRoot(): string {

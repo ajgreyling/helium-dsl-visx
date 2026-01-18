@@ -85,14 +85,8 @@ export function createMezToolHandlers() {
         helium_mez_symbols: async (args) => {
             const root = asString(args.workspaceRoot) ?? process.cwd();
             const query = asString(args.query) ?? undefined;
-            // #region agent log
-            globalThis.fetch('http://127.0.0.1:7243/ingest/f8eecc7d-5d84-4f56-8e99-5ad9d9836767', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: 'debug-session', runId: 'mcp-symbols-1', hypothesisId: 'H2', location: 'helium-rapid-dsl-mcp/src/tools/mezHandlers.ts:87', message: 'mez_symbols_request', data: { workspaceRootArg: args.workspaceRoot, resolvedRoot: root, cwd: process.cwd(), queryProvided: typeof args.query === "string", queryLength: (query?.length ?? 0) }, timestamp: Date.now() }) }).catch(() => { });
-            // #endregion agent log
             const svc = getSvcForRoot(root);
             const result = await svc.getSymbols(query);
-            // #region agent log
-            globalThis.fetch('http://127.0.0.1:7243/ingest/f8eecc7d-5d84-4f56-8e99-5ad9d9836767', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: 'debug-session', runId: 'mcp-symbols-1', hypothesisId: 'H3', location: 'helium-rapid-dsl-mcp/src/tools/mezHandlers.ts:90', message: 'mez_symbols_result', data: { workspaceRoot: svc.getWorkspaceRoot(), projectRootsCount: result.projectRoots.length, typesCount: result.types.length, unitsCount: result.units.length, workspaceSymbolsCount: result.workspaceSymbols.length }, timestamp: Date.now() }) }).catch(() => { });
-            // #endregion agent log
             return jsonResult(result);
         },
         helium_mez_definition: async (args) => {
