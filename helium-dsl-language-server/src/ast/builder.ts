@@ -178,18 +178,6 @@ class AstListener {
     if (!ctx) {
       return;
     }
-    
-    // #region agent log
-    const uri = this.ast.uri;
-    const isConversation = uri && uri.includes("Conversation.mez");
-    if (isConversation) {
-      const ruleName = ctx.constructor?.name || 'unknown';
-      // Only log specific rules to avoid spam
-      if (ruleName.includes('Object') || ruleName.includes('Persistent') || ruleName.includes('Simple')) {
-        (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'ast-1',hypothesisId:'E',location:'builder.ts:158',message:'enterEveryRule_object_related',data:{uri,ruleName,hasEnterSimpleObject:typeof this.enterSimpleObject === 'function'},timestamp:Date.now()})}).catch(()=>{});
-      }
-    }
-    // #endregion agent log
   }
 
   exitEveryRule(ctx: ParserRuleContext) {
@@ -198,16 +186,6 @@ class AstListener {
 
   enterPersistentObject(ctx: any) {
     this.persistentDepth += 1;
-    console.error(`[AST] enterPersistentObject: persistentDepth=${this.persistentDepth}`);
-    
-    // #region agent log
-    const uri = this.ast.uri;
-    const isConversation = uri && uri.includes("Conversation.mez");
-    if (isConversation) {
-      console.error("[DEBUG] enterPersistentObject_called for Conversation.mez");
-      (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'ast-1',hypothesisId:'A',location:'builder.ts:169',message:'enterPersistentObject_called',data:{uri,persistentDepth:this.persistentDepth,hasCtx:!!ctx,ctxText:ctx?.getText?.()?.substring(0,100)},timestamp:Date.now()})}).catch((err: any)=>console.error("[DEBUG] Fetch error in enterPersistentObject:", err));
-    }
-    // #endregion agent log
     
     // Backup: Try to extract object name from persistentObject context
     // This is a fallback in case enterSimpleObject fails
@@ -259,14 +237,6 @@ class AstListener {
     // The object name should be at startToken.tokenIndex + 1
     let nameToken = ctx.ID();
     const isPersistent = this.persistentDepth > 0;
-    
-    // #region agent log
-    const uri = this.ast.uri;
-    const isConversation = uri && uri.includes("Conversation.mez");
-    if (isConversation) {
-      (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'ast-1',hypothesisId:'A',location:'builder.ts:217',message:'enterSimpleObject_start',data:{uri,isPersistent,hasNameToken:!!nameToken,nameTokenText:nameToken?.text,hasTokenStream:!!this.tokenStream,tokenFillSucceeded:this.tokenFillSucceeded},timestamp:Date.now()})}).catch(()=>{});
-    }
-    // #endregion agent log
     
     // Debug logging
     if (!nameToken) {
@@ -419,22 +389,12 @@ class AstListener {
     
     if (!nameToken) {
       console.error(`[AST] enterSimpleObject: Failed to extract object name, isPersistent=${isPersistent}`);
-      // #region agent log
-      if (isConversation) {
-        (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'ast-1',hypothesisId:'B',location:'builder.ts:373',message:'enterSimpleObject_failed_no_token',data:{uri,isPersistent,ctxText:ctx.getText?.()?.substring(0,100)},timestamp:Date.now()})}).catch(()=>{});
-      }
-      // #endregion agent log
       return;
     }
     
     // Validate that nameToken.text is not just whitespace
     if (!nameToken.text || nameToken.text.trim().length === 0) {
       console.error(`[AST] enterSimpleObject: nameToken.text is empty or whitespace`);
-      // #region agent log
-      if (isConversation) {
-        (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'ast-1',hypothesisId:'B',location:'builder.ts:380',message:'enterSimpleObject_failed_empty_text',data:{uri,isPersistent,nameTokenText:nameToken.text},timestamp:Date.now()})}).catch(()=>{});
-      }
-      // #endregion agent log
       return;
     }
     
@@ -450,12 +410,6 @@ class AstListener {
     
     console.error(`[AST] enterSimpleObject: Successfully extracted object "${objectName}", isPersistent=${isPersistent}`);
     
-    // #region agent log
-    if (isConversation) {
-      (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'ast-1',hypothesisId:'A',location:'builder.ts:394',message:'enterSimpleObject_success',data:{uri,objectName,isPersistent,currentObjectCount:this.ast.objects.length},timestamp:Date.now()})}).catch(()=>{});
-    }
-    // #endregion agent log
-    
     const objectDecl: ObjectDecl = {
       kind: "ObjectDecl",
       name: objectName,
@@ -466,12 +420,6 @@ class AstListener {
     };
     this.ast.objects.push(objectDecl);
     this.currentObject = objectDecl;
-    
-    // #region agent log
-    if (isConversation) {
-      (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'ast-1',hypothesisId:'A',location:'builder.ts:405',message:'enterSimpleObject_object_added',data:{uri,objectName,isPersistent,finalObjectCount:this.ast.objects.length},timestamp:Date.now()})}).catch(()=>{});
-    }
-    // #endregion agent log
   }
 
   exitSimpleObject() {
@@ -650,15 +598,6 @@ class AstListener {
     const token = idToken || enumToken;
     if (!token) return;
     
-    // #region agent log
-    const uri = this.ast.uri;
-    const isGbvChatClient = uri && uri.includes("GbvChatClient.mez");
-    if (isGbvChatClient) {
-      console.error(`[DEBUG] enterTypeName: token.text="${token.text}", ctx.getText()="${ctx.getText?.()}"`);
-      (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'ast-1',hypothesisId:'F',location:'builder.ts:648',message:'enterTypeName_called',data:{uri,tokenText:token.text,ctxText:ctx.getText?.(),hasIdToken:!!idToken,hasEnumToken:!!enumToken},timestamp:Date.now()})}).catch(()=>{});
-    }
-    // #endregion agent log
-    
     this.ast.typeReferences.push({
       kind: "TypeReference",
       name: token.text,
@@ -738,18 +677,10 @@ class AstListener {
 }
 
 export async function buildFileAst(text: string, uri: string): Promise<FileAst> {
-  const isConversationFile = uri && uri.includes("Conversation.mez");
-  if (isConversationFile) {
-    console.error("[DEBUG] buildFileAst called for Conversation.mez");
-  }
-  
   const MezDSLLexer = await loadGenerated("MezDSLLexer");
   const MezDSLParser = await loadGenerated("MezDSLParser");
 
   if (!MezDSLLexer || !MezDSLParser) {
-    if (isConversationFile) {
-      console.error("[DEBUG] buildFileAst: MezDSLLexer or MezDSLParser is null");
-    }
     return {
       uri,
       objects: [],
@@ -790,17 +721,8 @@ export async function buildFileAst(text: string, uri: string): Promise<FileAst> 
     parser.removeErrorListeners();
     let tree;
     try {
-      if (isConversationFile) {
-        console.error("[DEBUG] buildFileAst: Calling parser.script() for Conversation.mez");
-      }
       tree = parser.script();
-      if (isConversationFile) {
-        console.error(`[DEBUG] buildFileAst: parser.script() succeeded, tree=${tree ? 'exists' : 'null'}`);
-      }
     } catch (parseErr) {
-      if (isConversationFile) {
-        console.error(`[DEBUG] buildFileAst: parser.script() threw error: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}`);
-      }
       if (parseErr instanceof Error && parseErr.message.includes('Maximum call stack')) {
         console.error("[DEBUG] Parser failed with stack overflow for:", uri);
         // Return empty AST if parsing fails with stack overflow
@@ -821,9 +743,6 @@ export async function buildFileAst(text: string, uri: string): Promise<FileAst> 
     }
     
     if (!tree) {
-      if (isConversationFile) {
-        console.error("[DEBUG] buildFileAst: tree is null, returning empty AST");
-      }
       return {
         uri,
         objects: [],
@@ -841,10 +760,6 @@ export async function buildFileAst(text: string, uri: string): Promise<FileAst> 
     const listener = new AstListener(uri);
     listener.tokenStream = tokens; // Store token stream for listener to access
     listener.tokenFillSucceeded = tokenFillSucceeded; // Track if fill succeeded
-    
-    if (isConversationFile) {
-      console.error("[DEBUG] buildFileAst: Created AstListener, about to walk tree");
-    }
     
     // Validate tree structure - check for nodes with undefined ruleContext
     // ParseTreeWalker.enterRule calls ctx.enterRule(listener) where ctx = r.ruleContext
@@ -933,7 +848,6 @@ export async function buildFileAst(text: string, uri: string): Promise<FileAst> 
     const originalWalk = ParseTreeWalker.DEFAULT.walk.bind(ParseTreeWalker.DEFAULT);
     // CRITICAL: Bind originalEnterRule BEFORE we replace it, otherwise we'll bind the replaced method!
     const originalEnterRule = (ParseTreeWalker.DEFAULT as any).enterRule.bind(ParseTreeWalker.DEFAULT);
-    const isConversation = uri && uri.includes("Conversation.mez");
     const walkerProxy = {
       walk: (listener: any, tree: any) => {
         // Create a wrapper around enterRule to catch the failing node
@@ -949,16 +863,6 @@ export async function buildFileAst(text: string, uri: string): Promise<FileAst> 
               return;
             }
             stats.processedCount++;
-            
-            // #region agent log
-            if (isConversation && stats.processedCount <= 50) { // Log first 50 rules to avoid spam
-              const ruleName = ctx.constructor?.name || 'unknown';
-              if (ruleName.includes('Object') || ruleName.includes('Persistent') || ruleName.includes('Simple')) {
-                (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'ast-1',hypothesisId:'E',location:'builder.ts:887',message:'walker_enterRule_object_related',data:{uri,ruleName,processedCount:stats.processedCount},timestamp:Date.now()})}).catch(()=>{});
-              }
-            }
-            // #endregion agent log
-            
             return originalEnterRule(listener, r);
           } catch (err) {
             console.error("[DEBUG] Walker enterRule error:", {
@@ -971,15 +875,7 @@ export async function buildFileAst(text: string, uri: string): Promise<FileAst> 
           }
         };
         try {
-          const result = originalWalk(listener, tree);
-          
-          // #region agent log
-          if (isConversation) {
-            (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'ast-1',hypothesisId:'E',location:'builder.ts:904',message:'walker_walk_stats',data:{uri,processedCount:stats.processedCount,skippedCount:stats.skippedCount},timestamp:Date.now()})}).catch(()=>{});
-          }
-          // #endregion agent log
-          
-          return result;
+          return originalWalk(listener, tree);
         } finally {
           // Restore original enterRule
           (ParseTreeWalker.DEFAULT as any).enterRule = originalEnterRule;
@@ -998,30 +894,11 @@ export async function buildFileAst(text: string, uri: string): Promise<FileAst> 
       }
     });
     
-    // #region agent log
-    if (isConversation) {
-      console.error("[DEBUG] walker_walk_start for Conversation.mez");
-      (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'ast-1',hypothesisId:'E',location:'builder.ts:911',message:'walker_walk_start',data:{uri,hasTree:!!tree,hasListener:!!listener,hasEnterSimpleObject:typeof listener.enterSimpleObject === 'function',hasEnterPersistentObject:typeof listener.enterPersistentObject === 'function'},timestamp:Date.now()})}).catch((err: any)=>console.error("[DEBUG] Fetch error in walker_walk_start:", err));
-    }
-    // #endregion agent log
-    
     // Try calling walker - keep minimal logging for current "enterRule" error
     try {
       // Walker wrapper will handle nodes without ruleContext (TerminalNodes)
       walkerProxy.walk(listenerProxy as any, tree);
-      
-      // #region agent log
-      if (isConversation) {
-        (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'ast-1',hypothesisId:'E',location:'builder.ts:916',message:'walker_walk_complete',data:{uri,objectCount:listener.ast.objects.length},timestamp:Date.now()})}).catch(()=>{});
-      }
-      // #endregion agent log
     } catch (walkErr) {
-      // #region agent log
-      if (isConversation) {
-        (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'ast-1',hypothesisId:'E',location:'builder.ts:920',message:'walker_walk_error',data:{uri,error:walkErr instanceof Error ? walkErr.message : String(walkErr),isStackOverflow:walkErr instanceof Error && walkErr.message.includes('Maximum call stack')},timestamp:Date.now()})}).catch(()=>{});
-      }
-      // #endregion agent log
-      
       if (walkErr instanceof Error && walkErr.message.includes('Maximum call stack')) {
         console.error("[DEBUG] Walker failed with stack overflow for:", uri);
         // Return AST as-is (may be partially populated) if walker fails with stack overflow
@@ -1044,23 +921,9 @@ export async function buildFileAst(text: string, uri: string): Promise<FileAst> 
         listenerProtoKeys: Object.keys(listenerProto)
       });
     }
-    
-    // #region agent log
-    if (isConversation) {
-      console.error(`[DEBUG] buildFileAst_complete for Conversation.mez: ${listener.ast.objects.length} objects`);
-      (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'ast-1',hypothesisId:'A',location:'builder.ts:938',message:'buildFileAst_complete',data:{uri,objectCount:listener.ast.objects.length,objectNames:listener.ast.objects.map(o=>o.name),unitCount:listener.ast.units.length,enumCount:listener.ast.enums.length},timestamp:Date.now()})}).catch((err: any)=>console.error("[DEBUG] Fetch error in buildFileAst_complete:", err));
-    }
-    // #endregion agent log
-    
     return listener.ast;
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
-    // #region agent log
-    const isConversationErr = uri && uri.includes("Conversation.mez");
-    if (isConversationErr) {
-      (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'ast-1',hypothesisId:'D',location:'builder.ts:940',message:'buildFileAst_error',data:{uri,error:errorMsg,isStackOverflow:errorMsg.includes('Maximum call stack')},timestamp:Date.now()})}).catch(()=>{});
-    }
-    // #endregion agent log
     
     if (errorMsg.includes('Maximum call stack')) {
       console.error("[DEBUG] Stack overflow in buildFileAst for:", uri, "- This may indicate a grammar issue or very deep nesting");

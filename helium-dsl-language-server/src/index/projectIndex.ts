@@ -141,119 +141,41 @@ export class ProjectIndex {
   }
 
   async updateFile(uri: string, text: string, skipRebuild?: boolean) {
-    // #region agent log
-    const isConversation = uri.includes("Conversation.mez");
-    if (isConversation) {
-      (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'update-1',hypothesisId:'A',location:'projectIndex.ts:143',message:'updateFile_called',data:{uri,skipRebuild,isIndexing:this.isIndexing,fileCount:this.files.size},timestamp:Date.now()})}).catch(()=>{});
-    }
-    // #endregion agent log
-    
     const ast = await buildFileAst(text, uri);
-    
-    // #region agent log
-    if (isConversation) {
-        (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'update-1',hypothesisId:'A',location:'projectIndex.ts:147',message:'updateFile_ast_built',data:{uri,objectCount:ast.objects.length,objectNames:ast.objects.map(o=>o.name),hasEnterSimpleObjectLog:false},timestamp:Date.now()})}).catch(()=>{});
-    }
-    // #endregion agent log
-    
     this.files.set(uri, ast);
     // Don't rebuild if explicitly skipped, or if we're in the middle of initial indexing
     // (the final rebuild will happen after all files are indexed)
     
     if (!skipRebuild && !this.isIndexing) {
-      // #region agent log
-      if (isConversation) {
-        (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'update-1',hypothesisId:'C',location:'projectIndex.ts:149',message:'updateFile_rebuilding',data:{uri,fileCount:this.files.size},timestamp:Date.now()})}).catch(()=>{});
-      }
-      // #endregion agent log
       this.rebuildIndexes();
-    } else {
-      // #region agent log
-      if (isConversation) {
-        (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'update-1',hypothesisId:'C',location:'projectIndex.ts:152',message:'updateFile_skipping_rebuild',data:{uri,skipRebuild,isIndexing:this.isIndexing},timestamp:Date.now()})}).catch(()=>{});
-      }
-      // #endregion agent log
     }
   }
 
   removeFile(uri: string) {
-    // #region agent log
-    const isConversation = uri.includes("Conversation.mez");
-    if (isConversation) {
-      (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'remove-1',hypothesisId:'C',location:'projectIndex.ts:171',message:'removeFile_called',data:{uri,isIndexing:this.isIndexing},timestamp:Date.now()})}).catch(()=>{});
-    }
-    // #endregion agent log
-    
     this.files.delete(uri);
     // Don't rebuild if we're in the middle of initial indexing
     if (!this.isIndexing) {
-      // #region agent log
-      if (isConversation) {
-        (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'remove-1',hypothesisId:'C',location:'projectIndex.ts:177',message:'removeFile_rebuilding',data:{uri},timestamp:Date.now()})}).catch(()=>{});
-      }
-      // #endregion agent log
       this.rebuildIndexes();
-    } else {
-      // #region agent log
-      if (isConversation) {
-        (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'remove-1',hypothesisId:'C',location:'projectIndex.ts:182',message:'removeFile_skipping_rebuild',data:{uri,isIndexing:this.isIndexing},timestamp:Date.now()})}).catch(()=>{});
-      }
-      // #endregion agent log
     }
   }
 
   async indexFileFromDisk(filePath: string, skipRebuild?: boolean) {
-    const isConversation = filePath.includes("Conversation.mez");
-      // #region agent log
-      if (isConversation) {
-        (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'index-1',hypothesisId:'B',location:'projectIndex.ts:155',message:'indexing_conversation_start',data:{filePath},timestamp:Date.now()})}).catch(()=>{});
-      }
-      // #endregion agent log
-    
     try {
       const text = fs.readFileSync(filePath, "utf8");
       const uri = URI.file(filePath).toString();
-      
-      // #region agent log
-      if (isConversation) {
-        (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'index-1',hypothesisId:'B',location:'projectIndex.ts:160',message:'conversation_file_read',data:{filePath,textLength:text.length,first100Chars:text.substring(0,100)},timestamp:Date.now()})}).catch(()=>{});
-      }
-      // #endregion agent log
-      
       await this.updateFile(uri, text, skipRebuild);
-      
-      // #region agent log
-      if (isConversation) {
-        const ast = this.files.get(uri);
-        (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'index-1',hypothesisId:'A',location:'projectIndex.ts:167',message:'conversation_ast_built',data:{filePath,hasAst:!!ast,objectCount:ast?.objects.length ?? 0,objectNames:ast?.objects.map(o=>o.name) ?? []},timestamp:Date.now()})}).catch(()=>{});
-      }
-      // #endregion agent log
     } catch (err) {
       // Log parser errors but continue indexing other files
       if (err instanceof Error) {
         console.error(`[ProjectIndex] Error indexing file ${filePath}: ${err.message}`);
       }
-      // #region agent log
-      if (isConversation) {
-        (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'index-1',hypothesisId:'D',location:'projectIndex.ts:172',message:'conversation_index_error',data:{filePath,error:err instanceof Error ? err.message : String(err)},timestamp:Date.now()})}).catch(()=>{});
-      }
-      // #endregion agent log
       // ignore and continue
     }
   }
 
   async indexProjectFiles() {
-    // #region agent log
-    (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'index-1',hypothesisId:'B',location:'projectIndex.ts:195',message:'indexProjectFiles_start',data:{projectRoot:this.projectRoot,wasIndexing:this.isIndexing},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion agent log
-    
     // Set flag to prevent rebuilds during indexing
     this.isIndexing = true;
-    
-    // #region agent log
-    (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'index-1',hypothesisId:'B',location:'projectIndex.ts:201',message:'isIndexing_set',data:{isIndexing:this.isIndexing},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion agent log
-    
     try {
       this.files.clear();
       this.objects.clear();
@@ -264,55 +186,24 @@ export class ProjectIndex {
       // Collect all .mez files first
       const filePaths: string[] = [];
       this.collectMezFiles(this.projectRoot, filePaths);
-      console.error(`[ProjectIndex] Found ${filePaths.length} .mez files to index in ${this.projectRoot}`);
-      
-      // Log if Conversation.mez is found
-      const conversationFile = filePaths.find(p => p.includes("Conversation.mez"));
-      if (conversationFile) {
-        console.error(`[ProjectIndex] Found Conversation.mez at: ${conversationFile}`);
-      }
-      
-      // #region agent log
-      (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'index-1',hypothesisId:'B',location:'projectIndex.ts:182',message:'files_collected',data:{fileCount:filePaths.length,hasConversationFile:!!conversationFile,conversationFilePath:conversationFile},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion agent log
       
       // Index all files in parallel, but wait for completion
       const indexingPromises = filePaths.map(filePath => 
         this.indexFileFromDisk(filePath, true).catch(err => {
           console.error(`[ProjectIndex] Failed to index ${filePath}:`, err);
-          // #region agent log
-          (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'index-1',hypothesisId:'D',location:'projectIndex.ts:189',message:'index_file_error',data:{filePath,error:err instanceof Error ? err.message : String(err),isConversation:filePath.includes('Conversation.mez')},timestamp:Date.now()})}).catch(()=>{});
-          // #endregion agent log
           return null; // Continue with other files
         })
       );
       
       await Promise.all(indexingPromises);
       
-      // #region agent log
-      (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'index-1',hypothesisId:'C',location:'projectIndex.ts:197',message:'before_rebuild',data:{fileCount:this.files.size,astObjectCounts:Array.from(this.files.entries()).map(([uri,ast])=>({uri:uri.includes('Conversation')?'Conversation':uri.substring(uri.lastIndexOf('/')+1),objectCount:ast.objects.length,objectNames:ast.objects.map(o=>o.name)})).slice(0,10)},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion agent log
-      
       // Rebuild indexes after all files are indexed (only once)
       this.rebuildIndexes();
     } finally {
       // Always clear the flag, even if indexing fails
-    // #region agent log
-    (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'index-1',hypothesisId:'B',location:'projectIndex.ts:250',message:'isIndexing_cleared',data:{wasIndexing:this.isIndexing},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion agent log
       this.isIndexing = false;
     }
     
-    // Log final state
-    if (this.objects.has("Conversation")) {
-      console.error(`[ProjectIndex] ✓ Conversation type is now in index`);
-    } else {
-      console.error(`[ProjectIndex] ✗ Conversation type NOT found in index after indexing`);
-    }
-    
-    // #region agent log
-    (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'index-1',hypothesisId:'C',location:'projectIndex.ts:206',message:'indexProjectFiles_complete',data:{objectCount:this.objects.size,hasConversation:this.objects.has('Conversation'),allObjects:Array.from(this.objects.keys()).slice(0,10)},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion agent log
   }
 
   private collectMezFiles(dir: string, filePaths: string[]) {
@@ -334,10 +225,6 @@ export class ProjectIndex {
   }
 
   private rebuildIndexes() {
-    // #region agent log
-    (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'rebuild-1',hypothesisId:'C',location:'projectIndex.ts:226',message:'rebuildIndexes_start',data:{fileCount:this.files.size,astObjectCounts:Array.from(this.files.entries()).map(([uri,ast])=>({uri:uri.includes('Conversation')?'Conversation':uri.substring(uri.lastIndexOf('/')+1),objectCount:ast.objects.length,objectNames:ast.objects.map(o=>o.name)})).slice(0,10)},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion agent log
-    
     this.objects = new Map();
     this.units = new Map();
     this.enums = new Map();
@@ -345,11 +232,6 @@ export class ProjectIndex {
     for (const ast of this.files.values()) {
       ast.objects.forEach((obj) => {
         this.objects.set(obj.name, obj);
-        // #region agent log
-        if (obj.name === "Conversation") {
-          (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'rebuild-1',hypothesisId:'C',location:'projectIndex.ts:233',message:'conversation_object_added',data:{objectName:obj.name,uri:ast.uri},timestamp:Date.now()})}).catch(()=>{});
-        }
-        // #endregion agent log
       });
       ast.units.forEach((unit) => {
         this.units.set(unit.name, unit);
@@ -362,11 +244,6 @@ export class ProjectIndex {
       });
       ast.enums.forEach((enm) => this.enums.set(enm.name, enm));
     }
-    console.error(`[ProjectIndex] Rebuilt indexes: ${this.objects.size} objects, ${this.units.size} units, ${this.enums.size} enums`);
-    
-    // #region agent log
-    (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'rebuild-1',hypothesisId:'C',location:'projectIndex.ts:246',message:'rebuildIndexes_complete',data:{objectCount:this.objects.size,hasConversation:this.objects.has('Conversation'),allObjects:Array.from(this.objects.keys()).slice(0,10)},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion agent log
   }
 
   getWorkspaceSymbols(query: string): SymbolInformation[] {
@@ -417,31 +294,15 @@ export class ProjectIndex {
   }
 
   resolveDefinitionAt(uri: string, position: Position): Location | null {
-    const isConversation = uri.includes("GbvChatClient.mez");
-    if (isConversation) {
-      console.error(`[DEBUG] resolveDefinitionAt: uri=${uri}, position=(${position.line},${position.character})`);
-    }
     const ast = this.files.get(uri);
     if (!ast) {
-      if (isConversation) {
-        console.error(`[DEBUG] resolveDefinitionAt: No AST found for ${uri}`);
-      }
       return null;
     }
     const match = findSymbolMatch(ast, position);
     if (!match) {
-      if (isConversation) {
-        console.error(`[DEBUG] resolveDefinitionAt: No symbol match found at position`);
-      }
       return null;
     }
-    if (isConversation) {
-      console.error(`[DEBUG] resolveDefinitionAt: Match type=${match.type}`);
-    }
     if (match.type === "declaration") {
-      if (isConversation) {
-        console.error(`[DEBUG] resolveDefinitionAt: Returning declaration location`);
-      }
       return {
         uri,
         range: toLspRange(match.symbol.range),
@@ -449,16 +310,7 @@ export class ProjectIndex {
     }
     const resolved = this.resolveReference(match, uri, position);
     if (!resolved) {
-      if (isConversation) {
-        console.error(`[DEBUG] resolveDefinitionAt: Reference resolution failed`);
-        if (match.type === "typeRef") {
-          console.error(`[DEBUG] resolveDefinitionAt: TypeRef name=${(match as any).ref.name}, objects in index=${Array.from(this.objects.keys()).slice(0, 10).join(', ')}`);
-        }
-      }
       return null;
-    }
-    if (isConversation) {
-      console.error(`[DEBUG] resolveDefinitionAt: Returning resolved location: ${resolved.uri}`);
     }
     return {
       uri: resolved.uri,
@@ -548,17 +400,8 @@ export class ProjectIndex {
   private resolveReference(match: SymbolMatch, uri: string, position: Position): ResolvedSymbol | null {
     if (match.type === "typeRef") {
       const typeName = match.ref.name;
-      const isConversation = uri.includes("GbvChatClient.mez") && typeName === "Conversation";
-      if (isConversation) {
-        console.error(`[DEBUG] resolveReference: Looking up typeRef "${typeName}"`);
-        console.error(`[DEBUG] resolveReference: Objects in index: ${Array.from(this.objects.keys()).slice(0, 20).join(', ')}`);
-        console.error(`[DEBUG] resolveReference: Has Conversation: ${this.objects.has("Conversation")}`);
-      }
       const obj = this.objects.get(typeName);
       if (obj) {
-        if (isConversation) {
-          console.error(`[DEBUG] resolveReference: Found object "${typeName}"`);
-        }
         return {
           kind: "object",
           name: obj.name,
@@ -568,18 +411,12 @@ export class ProjectIndex {
       }
       const enm = this.enums.get(typeName);
       if (enm) {
-        if (isConversation) {
-          console.error(`[DEBUG] resolveReference: Found enum "${typeName}"`);
-        }
         return {
           kind: "enum",
           name: enm.name,
           uri: findUriForDecl(enm, this.files),
           range: enm.nameRange,
         };
-      }
-      if (isConversation) {
-        console.error(`[DEBUG] resolveReference: Type "${typeName}" not found in objects or enums`);
       }
       return null;
     }
