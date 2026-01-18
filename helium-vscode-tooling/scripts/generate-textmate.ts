@@ -7,6 +7,8 @@ const root = path.resolve(__dirname, "..");
 const grammarPath = path.join(root, "generated/grammar/MezDSL.g4");
 const bifMetaPath = path.join(root, "generated/bifs/bif-metadata.json");
 const output = path.join(root, "generated/syntaxes/helium-dsl.tmLanguage.json");
+const vxmlXsdPath = path.join(root, "assets", "vxml", "View.xsd");
+const vxmlOutput = path.join(root, "generated/syntaxes/helium-vxml.tmLanguage.json");
 
 // System/primitive types
 const systemTypes = [
@@ -36,6 +38,19 @@ const commonBifNamespaces = [
   "Uuid",
   "api",
 ];
+
+function escapeRegex(lit: string): string {
+  return lit.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function toAlternation(values: Iterable<string>): string {
+  return Array.from(values)
+    .filter(Boolean)
+    // Prefer longer-first to avoid partial matches when values overlap
+    .sort((a, b) => b.length - a.length)
+    .map(escapeRegex)
+    .join("|");
+}
 
 async function main() {
   if (!(await fs.pathExists(grammarPath))) {
@@ -333,6 +348,124 @@ async function main() {
   await fs.ensureDir(path.dirname(output));
   await fs.writeJson(output, tmLanguage, { spaces: 2 });
   console.log(`Generated TextMate grammar at ${output}`);
+
+  // -------------------------------------------------------------------------------------------
+  // VXML (XML + Helium overlays)
+  // -------------------------------------------------------------------------------------------
+  if (!(await fs.pathExists(vxmlXsdPath))) {
+    throw new Error(`Missing VXML schema: ${vxmlXsdPath}`);
+  }
+
+  const xsd = await fs.readFile(vxmlXsdPath, "utf8");
+  const elementNames = new Set<string>();
+  const attributeNames = new Set<string>();
+
+  // Very small, robust extraction: mine element/attribute names from XSD.
+  // (We don't need a full XSD parser for syntax highlighting.)
+  {
+    const elementRe = /<element\s+name\s*=\s*"([^"]+)"/g;
+    let match: RegExpExecArray | null;
+    while ((match = elementRe.exec(xsd)) !== null) {
+      elementNames.add(match[1]);
+    }
+  }
+  {
+    const attrRe = /<attribute\s+name\s*=\s*"([^"]+)"/g;
+    let match: RegExpExecArray | null;
+    while ((match = attrRe.exec(xsd)) !== null) {
+      attributeNames.add(match[1]);
+    }
+  }
+
+  const elementAlt = toAlternation(elementNames);
+  const attrAlt = toAlternation(attributeNames);
+
+  const vxmlTmLanguage = {
+    $schema: "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+    name: "Helium VXML",
+    scopeName: "text.xml.helium-vxml",
+    patterns: [
+      { include: "#helium-vxml-wiring" },
+      { include: "#helium-vxml-vocabulary" },
+      // Base XML highlighting
+      { include: "text.xml" },
+    ],
+    repository: {
+      "helium-vxml-wiring": {
+        patterns: [
+          // Highlight the presenter unit name in <view unit="...">
+          {
+            name: "meta.helium.vxml.view.unit",
+            match: `<view\\b[^>]*\\b(unit)\\s*=\\s*\"([^\"]+)\"`,
+            captures: {
+              1: { name: "entity.other.attribute-name" },
+              2: { name: "support.class" },
+            },
+          },
+
+          // Function wiring: init/action/function="(Unit:)?name"
+          {
+            name: "meta.helium.vxml.wired.function",
+            match:
+              `\\b(init|action|function)\\s*=\\s*\"(?:([A-Z][A-Za-z0-9_]*)\\:)?([A-Za-z_][A-Za-z0-9_]*)\"`,
+            captures: {
+              1: { name: "entity.other.attribute-name" },
+              2: { name: "support.class" },
+              3: { name: "support.function" },
+            },
+          },
+
+          // Variable wiring: variable="(Unit:)?name"
+          {
+            name: "meta.helium.vxml.wired.variable",
+            match:
+              `\\b(variable)\\s*=\\s*\"(?:([A-Z][A-Za-z0-9_]*)\\:)?([A-Za-z_][A-Za-z0-9_]*)\"`,
+            captures: {
+              1: { name: "entity.other.attribute-name" },
+              2: { name: "support.class" },
+              3: { name: "variable.other" },
+            },
+          },
+        ],
+      },
+
+      "helium-vxml-vocabulary": {
+        patterns: [
+          // Known VXML tags (widgets / elements) from XSD
+          ...(elementAlt
+            ? [
+                {
+                  name: "meta.helium.vxml.tag",
+                  match: `</?(${elementAlt})(?=[\\s>/])`,
+                  captures: {
+                    1: { name: "support.function" },
+                  },
+                },
+              ]
+            : []),
+
+          // Known VXML attribute names from XSD (including hyphenated attrs)
+          ...(attrAlt
+            ? [
+                {
+                  name: "meta.helium.vxml.attribute",
+                  match: `(?:^|[\\s<])(${attrAlt})(?=\\s*=)`,
+                  captures: {
+                    1: { name: "entity.other.attribute-name" },
+                  },
+                },
+              ]
+            : []),
+        ],
+      },
+    },
+    fileTypes: ["vxml"],
+    uuid: "f3a1a6b9-0a52-4d0f-a14c-7bb25f5f5e8a",
+  };
+
+  await fs.ensureDir(path.dirname(vxmlOutput));
+  await fs.writeJson(vxmlOutput, vxmlTmLanguage, { spaces: 2 });
+  console.log(`Generated TextMate grammar at ${vxmlOutput}`);
 }
 
 main().catch((err) => {

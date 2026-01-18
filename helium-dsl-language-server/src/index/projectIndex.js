@@ -143,6 +143,8 @@ export class ProjectIndex {
             ast.units.forEach((unit) => {
                 this.units.set(unit.name, unit);
                 unit.functions.forEach((fn) => {
+                    if (!fn.unitName)
+                        fn.unitName = unit.name;
                     if (!this.functionsByName.has(fn.name)) {
                         this.functionsByName.set(fn.name, []);
                     }
@@ -281,6 +283,20 @@ export class ProjectIndex {
                     }
                 });
             }
+            if (symbol.kind === "attribute" || symbol.kind === "relationship") {
+                (ast.propertyReferences || []).forEach((ref) => {
+                    const resolved = this.resolveReference({ type: "propertyRef", ref }, uri, ref.nameRange.start);
+                    if (!resolved)
+                        return;
+                    if (resolved.kind !== symbol.kind)
+                        return;
+                    if (resolved.name !== symbol.name)
+                        return;
+                    if (symbol.objectName && resolved.objectName !== symbol.objectName)
+                        return;
+                    addLocation(ref.nameRange);
+                });
+            }
         }
         if (includeDeclaration) {
             locations.push({
@@ -384,6 +400,39 @@ export class ProjectIndex {
             const symbol = resolveVariableReference(match.ref, this.files.get(uri), this.units, position);
             return symbol;
         }
+        if (match.type === "propertyRef") {
+            const receiver = match.ref.receiverName;
+            if (!receiver)
+                return null;
+            const receiverType = this.getVariableType(receiver, uri, position);
+            if (!receiverType)
+                return null;
+            const baseType = receiverType.replace(/\[\]$/, "");
+            const obj = this.objects.get(baseType);
+            if (!obj)
+                return null;
+            const attr = (obj.attributes || []).find((a) => a.name === match.ref.name);
+            if (attr) {
+                return {
+                    kind: "attribute",
+                    name: attr.name,
+                    uri: findUriForDecl(obj, this.files),
+                    range: attr.nameRange,
+                    objectName: obj.name,
+                };
+            }
+            const rel = (obj.relationships || []).find((r) => r.name === match.ref.name);
+            if (rel) {
+                return {
+                    kind: "relationship",
+                    name: rel.name,
+                    uri: findUriForDecl(obj, this.files),
+                    range: rel.nameRange,
+                    objectName: obj.name,
+                };
+            }
+            return null;
+        }
         return null;
     }
 }
@@ -425,6 +474,11 @@ function findSymbolMatch(ast, position) {
             return { type: "variableRef", ref };
         }
     }
+    for (const ref of ast.propertyReferences || []) {
+        if (rangeContains(ref.nameRange, position.line, position.character)) {
+            return { type: "propertyRef", ref };
+        }
+    }
     return null;
 }
 function findDeclarationAt(ast, position) {
@@ -439,6 +493,7 @@ function findDeclarationAt(ast, position) {
                     name: attr.name,
                     uri: ast.uri,
                     range: attr.nameRange,
+                    objectName: obj.name,
                 };
             }
         }
@@ -449,6 +504,7 @@ function findDeclarationAt(ast, position) {
                     name: rel.name,
                     uri: ast.uri,
                     range: rel.nameRange,
+                    objectName: obj.name,
                 };
             }
         }

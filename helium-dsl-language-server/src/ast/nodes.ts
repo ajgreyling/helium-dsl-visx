@@ -123,4 +123,6 @@ export type PropertyReference = {
   kind: "PropertyReference";
   name: string;
   nameRange: SourceRange;
+  receiverName?: string;
+  receiverRange?: SourceRange;
 };

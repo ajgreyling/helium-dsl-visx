@@ -190,6 +190,48 @@ export class ProjectManager {
         }
         return items;
     }
+
+    getFunctionDeclForSignatureHelp(uri, position, functionName, unitName) {
+        // Unit-qualified lookup across all known project indexes
+        if (unitName) {
+            for (const index of this.indexes.values()) {
+                const unit = index.getUnit?.(unitName);
+                if (!unit)
+                    continue;
+                const fn = (unit.functions || []).find((f) => f.name === functionName);
+                if (fn)
+                    return fn;
+            }
+            return null;
+        }
+        // Unqualified: prefer current unit context
+        const index = this.getIndexForUri(uri);
+        if (!index)
+            return null;
+        const ast = index.getFileAst?.(uri);
+        if (ast) {
+            const containingUnit = (ast.units || []).find((unit) => (unit.functions || []).some((fn) => fn.bodyRange &&
+                rangeContains(fn.bodyRange, position.line, position.character)));
+            if (containingUnit) {
+                const fn = (containingUnit.functions || []).find((f) => f.name === functionName);
+                if (fn)
+                    return fn;
+            }
+        }
+        // Fallback: resolve only if unique within the project index
+        const candidates = [];
+        const units = index.getUnits ? index.getUnits() : [];
+        for (const unit of units) {
+            const fn = (unit.functions || []).find((f) => f.name === functionName);
+            if (fn)
+                candidates.push(fn);
+            if (candidates.length > 1)
+                break;
+        }
+        if (candidates.length === 1)
+            return candidates[0];
+        return null;
+    }
     getIndexForUri(uri) {
         const filePath = URI.parse(uri).fsPath;
         const root = findProjectRootForFile(filePath, this.projectRoots);

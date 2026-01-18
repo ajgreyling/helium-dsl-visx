@@ -6,9 +6,16 @@ import {
   InitializeResult,
   CompletionItem,
   CompletionItemKind,
+  Diagnostic,
+  DiagnosticSeverity,
   SemanticTokensBuilder,
   SemanticTokensLegend,
   SemanticTokensParams,
+  SemanticTokensRangeParams,
+  SignatureHelp,
+  SignatureHelpParams,
+  SignatureInformation,
+  ParameterInformation,
   Hover,
   HoverParams,
   Location,
@@ -52,13 +59,16 @@ import {
   ColorInformation,
   ColorPresentationParams,
   Color,
+  DocumentHighlight,
+  DocumentHighlightKind,
+  DocumentHighlightParams,
 } from "vscode-languageserver/node.js";
 import { TextDocument } from "vscode-languageserver-textdocument";
 import { URI } from "vscode-uri";
 import * as path from "path";
 import * as fs from "fs";
 import { createDiagnostics } from "./diagnostics.js";
-import { buildFileAst } from "./ast/builder.js";
+import { rangeContains, buildFileAst } from "./ast/builder.js";
 import { runLints } from "./linter/engine.js";
 import { ProjectManager } from "./index/projectManager.js";
 import { initializeLogger, TraceLevel, logVerbose } from "./utils/logger.js";
@@ -73,6 +83,9 @@ import {
   findFunctionCalls,
   findFunctionDefinition,
 } from "./callHierarchy/callHierarchy.js";
+import { buildSignatureHelpFromLabel, findCallAtPosition } from "./utils/signatureHelp.js";
+import { buildVxmlAst } from "./vxml/parser.js";
+import { validateVxml, type VxmlDiagnostic } from "./vxml/validator.js";
 
 // Log immediately when server module loads
 console.error("[Server] ===== Language Server Module Loading =====");
@@ -88,6 +101,36 @@ const semanticLegend: SemanticTokensLegend = {
   tokenTypes: ["type", "function", "variable", "namespace"],
   tokenModifiers: [],
 };
+
+type BifMetadata = {
+  namespaces?: Record<
+    string,
+    Array<{
+      name: string;
+      signature?: string;
+      description?: string;
+    }>
+  >;
+};
+
+let bifMetadataCache: BifMetadata | null = null;
+function loadBifMetadata(): BifMetadata | null {
+  if (bifMetadataCache) return bifMetadataCache;
+  try {
+    const bundledPath = path.join(process.cwd(), "generated", "bifs", "bif-metadata.json");
+    const devPath = path.join(process.cwd(), "..", "generated", "bifs", "bif-metadata.json");
+    let bifPath = bundledPath;
+    if (!fs.existsSync(bifPath)) {
+      bifPath = devPath;
+    }
+    if (!fs.existsSync(bifPath)) return null;
+    const data = JSON.parse(fs.readFileSync(bifPath, "utf8")) as BifMetadata;
+    bifMetadataCache = data;
+    return data;
+  } catch {
+    return null;
+  }
+}
 
 connection.onInitialize(async (params: InitializeParams): Promise<InitializeResult> => {
   console.error("[Server] ===== onInitialize Called =====");
@@ -133,15 +176,20 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
         resolveProvider: true,
         triggerCharacters: ['.', ':']
       },
+      signatureHelpProvider: {
+        triggerCharacters: ["(", ","],
+        retriggerCharacters: [","],
+      },
       hoverProvider: true,
       semanticTokensProvider: {
         legend: semanticLegend,
-        range: false,
+        range: true,
         full: true,
       },
       definitionProvider: true,
       typeDefinitionProvider: true,
       referencesProvider: true,
+      documentHighlightProvider: true,
       codeActionProvider: {
         codeActionKinds: [
           CodeActionKind.QuickFix,
@@ -209,12 +257,16 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
 
 documents.onDidChangeContent((change) => {
   validateDocument(change.document);
-  projectManager.updateDocument(change.document);
+  if (isMezDocument(change.document)) {
+    projectManager.updateDocument(change.document);
+  }
 });
 
 documents.onDidOpen((change) => {
   validateDocument(change.document);
-  projectManager.updateDocument(change.document);
+  if (isMezDocument(change.document)) {
+    projectManager.updateDocument(change.document);
+  }
 });
 
 // Listen for watched file changes (add/remove) and refresh index as needed
@@ -243,15 +295,58 @@ documents.onDidOpen((change) => {
 
 async function validateDocument(document: TextDocument) {
   const text = document.getText();
+  if (isVxmlDocument(document)) {
+    // VXML is XML, not Helium DSL: avoid ANTLR parser/lints and validate via VXML rules.
+    const ast = buildVxmlAst(text, document.uri);
+    const vxmlDiagnostics = validateVxml(ast, projectManager);
+    connection.sendDiagnostics({
+      uri: document.uri,
+      diagnostics: vxmlDiagnostics.map(toLspDiagnostic),
+    });
+    return;
+  }
+
   const syntaxDiagnostics = await createDiagnostics(text);
   const lintDiagnostics = await runLints(text);
   const diagnostics = [...syntaxDiagnostics, ...lintDiagnostics];
   connection.sendDiagnostics({ uri: document.uri, diagnostics });
 }
 
+function isVxmlDocument(document: TextDocument): boolean {
+  const fsPath = safeFsPath(document.uri);
+  return fsPath.endsWith(".vxml");
+}
+
+function isMezDocument(document: TextDocument): boolean {
+  const fsPath = safeFsPath(document.uri);
+  return fsPath.endsWith(".mez");
+}
+
+function safeFsPath(uri: string): string {
+  try {
+    return URI.parse(uri).fsPath;
+  } catch {
+    // Best-effort fallback: the URI itself might be a path-like string.
+    return uri;
+  }
+}
+
+function toLspDiagnostic(d: VxmlDiagnostic): Diagnostic {
+  return {
+    message: d.message,
+    range: {
+      start: { line: d.range.start.line, character: d.range.start.character },
+      end: { line: d.range.end.line, character: d.range.end.character },
+    },
+    severity: (d.severity ?? DiagnosticSeverity.Error) as DiagnosticSeverity,
+    source: d.source ?? "helium-vxml",
+  };
+}
+
 connection.onCompletion(async (params): Promise<CompletionItem[]> => {
   const doc = documents.get(params.textDocument.uri);
   if (!doc) return [];
+  if (isVxmlDocument(doc)) return [];
   return projectManager.getCompletions(params, doc);
 });
 
@@ -535,6 +630,68 @@ connection.onHover(async (params: HoverParams): Promise<Hover | null> => {
   return {
     contents: markupContent,
   };
+});
+
+connection.onSignatureHelp(async (params: SignatureHelpParams): Promise<SignatureHelp | null> => {
+  const doc = documents.get(params.textDocument.uri);
+  if (!doc) return null;
+
+  const text = doc.getText();
+  const call = findCallAtPosition(text, params.position);
+  if (!call) return null;
+
+  // 1) Namespaced call: BIF namespace, Unit:method, or ModelType:modelBif
+  if (call.namespace) {
+    const bifMeta = loadBifMetadata();
+    const bif = bifMeta?.namespaces?.[call.namespace]?.find((f) => f.name === call.callee);
+    if (bif?.signature) {
+      return buildSignatureHelpFromLabel(
+        bif.signature,
+        call.activeParameter,
+        bif.description
+      );
+    }
+
+    // Unit method signature (workspace index)
+    if (projectManager.isUnit(call.namespace)) {
+      const decl = (projectManager as any).getFunctionDeclForSignatureHelp(
+        params.textDocument.uri,
+        params.position,
+        call.callee,
+        call.namespace
+      );
+      if (decl) {
+        const label =
+          `${decl.returnType} ${call.namespace}:${decl.name}(` +
+          (decl.params || [])
+            .map((p: { typeName: string; name: string }) => `${p.typeName} ${p.name}`.trim())
+            .join(", ") +
+          ")";
+        return buildSignatureHelpFromLabel(label, call.activeParameter);
+      }
+    }
+
+    // Model BIF (TypeName:method()) – we don’t have full parameter metadata here.
+    if (projectManager.isUserDefinedType(call.namespace) && isModelBif(call.callee)) {
+      const label = `${call.namespace}:${call.callee}()`;
+      return buildSignatureHelpFromLabel(label, call.activeParameter);
+    }
+  }
+
+  // 2) Unqualified call: function in current unit or unique in project.
+  const decl = (projectManager as any).getFunctionDeclForSignatureHelp(
+    params.textDocument.uri,
+    params.position,
+    call.callee
+  );
+  if (!decl) return null;
+  const label =
+    `${decl.returnType} ${decl.name}(` +
+    (decl.params || [])
+      .map((p: { typeName: string; name: string }) => `${p.typeName} ${p.name}`.trim())
+      .join(", ") +
+    ")";
+  return buildSignatureHelpFromLabel(label, call.activeParameter);
 });
 
 connection.onCodeAction((params: CodeActionParams): CodeAction[] => {
@@ -1173,6 +1330,15 @@ function isModelBif(methodName: string): boolean {
 
 connection.onDefinition((params: DefinitionParams): Location | Location[] | null => {
   const doc = documents.get(params.textDocument.uri);
+  if (doc && isVxmlDocument(doc)) {
+    const ast = buildVxmlAst(doc.getText(), doc.uri);
+    const viewUnitRef = ast.references.find((r) => r.kind === "unit");
+    if (viewUnitRef && rangeContains(viewUnitRef.range as any, params.position.line, params.position.character)) {
+      const loc = projectManager.getUnitLocation(viewUnitRef.name);
+      return loc ? [loc] : null;
+    }
+    return null;
+  }
   if (doc && params.textDocument.uri.includes("GbvChatClient.mez")) {
     const line = doc.getText().split(/\r?\n/)[params.position.line] || "";
     const wordAtPos = extractTypeNameAtPosition(doc, params.position);
@@ -1282,6 +1448,33 @@ connection.languages.semanticTokens.on(async (params: SemanticTokensParams) => {
       }
     }
 
+    // Also highlight enum declaration identifiers (helps when TextMate scopes don't theme them well).
+    for (const enm of ast.enums) {
+      pushRange(enm.nameRange, 0); // 0 = "type"
+    }
+
+    // Highlight function declarations and function call sites.
+    for (const unit of ast.units) {
+      for (const fn of unit.functions) {
+        pushRange(fn.nameRange, 1); // 1 = "function"
+      }
+    }
+    for (const call of ast.functionCalls) {
+      pushRange(call.nameRange, 1); // 1 = "function"
+    }
+
+    // Highlight variable declarations (unit vars, params, locals) and variable references.
+    for (const unit of ast.units) {
+      for (const v of unit.variables) pushRange(v.nameRange, 2); // 2 = "variable"
+      for (const fn of unit.functions) {
+        for (const p of fn.params) pushRange(p.nameRange, 2);
+        for (const local of fn.locals) pushRange(local.nameRange, 2);
+      }
+    }
+    for (const vr of ast.variableReferences) {
+      pushRange(vr.nameRange, 2);
+    }
+
     // Highlight user-defined types in declarations (attributes, relationships, variables, params, return types).
     // These are fully parsed spans and avoid heuristic token scanning.
     for (const obj of ast.objects) {
@@ -1327,6 +1520,110 @@ connection.languages.semanticTokens.on(async (params: SemanticTokensParams) => {
   const tokenCount = result.data.length / 5;
   logVerbose(`[SemanticTokens] ===== Returning ${tokenCount} tokens =====`);
   return result;
+});
+
+connection.languages.semanticTokens.onRange(async (params: SemanticTokensRangeParams) => {
+  // Reuse the full-token code path by filtering to the requested range.
+  logVerbose(`[SemanticTokensRange] URI: ${params.textDocument.uri}`);
+  const doc = documents.get(params.textDocument.uri);
+  const builder = new SemanticTokensBuilder();
+  if (!doc) return builder.build();
+
+  const text = doc.getText();
+  const userTypes = new Set(projectManager.getUserTypes());
+
+  const rangeIntersects = (
+    token: { start: Position; end: Position },
+    requested: Range
+  ): boolean => {
+    if (token.end.line < requested.start.line || token.start.line > requested.end.line) return false;
+    if (token.start.line === requested.start.line && token.end.character < requested.start.character)
+      return false;
+    if (token.end.line === requested.end.line && token.start.character > requested.end.character)
+      return false;
+    return true;
+  };
+
+  const pushRange = (
+    range: { start: Position; end: Position },
+    tokenTypeIndex: number
+  ) => {
+    if (!rangeIntersects(range, params.range)) return;
+    if (range.start.line !== range.end.line) return;
+    const length = range.end.character - range.start.character;
+    if (length <= 0) return;
+    builder.push(range.start.line, range.start.character, length, tokenTypeIndex, 0);
+  };
+
+  const isUserType = (name: string): boolean => {
+    const base = name.replace(/\[\]$/, "");
+    return userTypes.has(base);
+  };
+
+  try {
+    const ast = await buildFileAst(text, params.textDocument.uri);
+    for (const ref of ast.typeReferences) {
+      if (isUserType(ref.name)) pushRange(ref.nameRange, 0);
+    }
+
+    for (const enm of ast.enums) {
+      pushRange(enm.nameRange, 0);
+    }
+
+    for (const unit of ast.units) {
+      for (const fn of unit.functions) pushRange(fn.nameRange, 1); // function decl
+    }
+    for (const call of ast.functionCalls) pushRange(call.nameRange, 1); // call site
+
+    for (const unit of ast.units) {
+      for (const v of unit.variables) pushRange(v.nameRange, 2);
+      for (const fn of unit.functions) {
+        for (const p of fn.params) pushRange(p.nameRange, 2);
+        for (const local of fn.locals) pushRange(local.nameRange, 2);
+      }
+    }
+    for (const vr of ast.variableReferences) pushRange(vr.nameRange, 2);
+
+    for (const obj of ast.objects) {
+      for (const attr of obj.attributes) {
+        if (isUserType(attr.typeName)) pushRange(attr.typeRange, 0);
+      }
+      for (const rel of obj.relationships) {
+        if (isUserType(rel.targetType)) pushRange(rel.targetRange, 0);
+      }
+    }
+    for (const unit of ast.units) {
+      for (const v of unit.variables) {
+        if (isUserType(v.typeName)) pushRange(v.typeRange, 0);
+      }
+      for (const fn of unit.functions) {
+        if (isUserType(fn.returnType)) pushRange(fn.returnTypeRange, 0);
+        for (const p of fn.params) if (isUserType(p.typeName)) pushRange(p.typeRange, 0);
+        for (const local of fn.locals) if (isUserType(local.typeName)) pushRange(local.typeRange, 0);
+      }
+    }
+    for (const ref of ast.unitReferences) {
+      if (isUserType(ref.name)) pushRange(ref.nameRange, 0);
+    }
+  } catch {
+    return builder.build();
+  }
+
+  return builder.build();
+});
+
+connection.onDocumentHighlight((params: DocumentHighlightParams): DocumentHighlight[] => {
+  const locations = projectManager.getReferences({
+    textDocument: params.textDocument,
+    position: params.position,
+    context: { includeDeclaration: true },
+  } as any);
+  return locations
+    .filter((loc) => loc.uri === params.textDocument.uri)
+    .map((loc) => ({
+      range: loc.range,
+      kind: DocumentHighlightKind.Read,
+    }));
 });
 
 // Note: Workspace folder change handler is now registered in onInitialized callback

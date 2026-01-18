@@ -18,7 +18,7 @@ import { URI } from "vscode-uri";
 import { getLanguageMetadataSync } from "../language/metadata.js";
 import { discoverProjectRoots, findProjectRootForFile, WorkspaceFolder } from "../projects/projectDiscovery.js";
 import { ProjectIndex } from "./projectIndex.js";
-import { FileAst } from "../ast/nodes.js";
+import { FileAst, FunctionDecl } from "../ast/nodes.js";
 import { rangeContains } from "../ast/builder.js";
 
 export class ProjectManager {
@@ -61,6 +61,7 @@ export class ProjectManager {
     const types: string[] = [];
     for (const index of this.indexes.values()) {
       types.push(...index.getObjectNames());
+      types.push(...index.getEnums().map((e) => e.name));
     }
     return Array.from(new Set(types));
   }
@@ -97,6 +98,16 @@ export class ProjectManager {
 
   isUnit(name: string): boolean {
     return this.getUnitNames().includes(name);
+  }
+
+  hasUnitFunction(unitName: string, functionName: string): boolean {
+    for (const index of this.indexes.values()) {
+      const functions = index.getUnitFunctions(unitName);
+      if (functions.some((f) => f.name === functionName)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   getObjectLocation(name: string): Location | null {
@@ -168,16 +179,36 @@ export class ProjectManager {
       const dotIndex = beforeCursor.lastIndexOf(".");
       if (dotIndex !== -1) {
         const beforeDot = beforeCursor.substring(0, dotIndex).trim();
-        const identifierMatch = beforeDot.match(/([a-z][A-Za-z0-9_]*)\s*$/);
+        const identifierMatch = beforeDot.match(/([A-Za-z_][A-Za-z0-9_]*)\s*$/);
         if (identifierMatch) {
-          const variableName = identifierMatch[1];
-          const variableType = index.getVariableType(variableName, doc.uri, position);
+          const identifier = identifierMatch[1];
+
+          // First: treat it as a variable receiver (e.g. `chatClient.`).
+          const variableType = index.getVariableType(identifier, doc.uri, position);
           if (variableType) {
             const baseType = variableType.replace(/\[\]$/, "");
+
+            const enm = index.getEnum(baseType);
+            if (enm) {
+              return enm.values.map((v) => ({
+                label: v.name,
+                kind: CompletionItemKind.EnumMember,
+              }));
+            }
+
             const properties = index.getObjectMembers(baseType);
             return properties.map((prop) => ({
               label: prop,
               kind: CompletionItemKind.Property,
+            }));
+          }
+
+          // Second: allow enum-qualified access (e.g. `CHAT_CLIENT.`).
+          const enm = index.getEnum(identifier);
+          if (enm) {
+            return enm.values.map((v) => ({
+              label: v.name,
+              kind: CompletionItemKind.EnumMember,
             }));
           }
         }
@@ -225,6 +256,48 @@ export class ProjectManager {
     }
 
     return items;
+  }
+
+  getFunctionDeclForSignatureHelp(
+    uri: string,
+    position: Position,
+    functionName: string,
+    unitName?: string
+  ): FunctionDecl | null {
+    // Unit-qualified lookup across all known project indexes
+    if (unitName) {
+      for (const index of this.indexes.values()) {
+        const unit = index.getUnit(unitName);
+        if (!unit) continue;
+        const fn = unit.functions.find((f) => f.name === functionName);
+        if (fn) return fn;
+      }
+      return null;
+    }
+
+    // Unqualified: prefer current unit context
+    const index = this.getIndexForUri(uri);
+    if (!index) return null;
+    const ast = index.getFileAst(uri);
+    if (ast) {
+      const containingUnit = ast.units.find((unit) =>
+        unit.functions.some((fn) => fn.bodyRange && rangeContains(fn.bodyRange, position.line, position.character))
+      );
+      if (containingUnit) {
+        const fn = containingUnit.functions.find((f) => f.name === functionName);
+        if (fn) return fn;
+      }
+    }
+
+    // Fallback: resolve only if unique within the project index
+    const candidates: FunctionDecl[] = [];
+    for (const unit of index.getUnits()) {
+      const fn = unit.functions.find((f) => f.name === functionName);
+      if (fn) candidates.push(fn);
+      if (candidates.length > 1) break;
+    }
+    if (candidates.length === 1) return candidates[0];
+    return null;
   }
 
   private getIndexForUri(uri: string): ProjectIndex | null {

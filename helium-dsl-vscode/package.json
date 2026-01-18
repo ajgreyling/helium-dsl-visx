@@ -77,6 +77,11 @@
         "language": "helium-dsl",
         "scopeName": "source.helium-dsl",
         "path": "./generated/syntaxes/helium-dsl.tmLanguage.json"
+      },
+      {
+        "language": "helium-vxml",
+        "scopeName": "text.xml.helium-vxml",
+        "path": "./generated/syntaxes/helium-vxml.tmLanguage.json"
       }
     ],
     "iconThemes": [

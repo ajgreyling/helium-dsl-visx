@@ -1,0 +1,923 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schema targetNamespace="http://uiprogram.mezzanine.com/View"
+	elementFormDefault="qualified" xmlns="http://www.w3.org/2001/XMLSchema"
+	xmlns:v="http://uiprogram.mezzanine.com/View">
+
+    <!-- Run  xjc -Xlocator com/mezzanine/dsl/web/View.xsd on this schema -->
+
+    <!-- ========================================================================================= -->
+    <!-- Widget Types -->
+    <!-- ========================================================================================= -->
+    <include schemaLocation=""></include>
+    
+    
+    <complexType name="WidgetGroup">
+	<complexContent>
+	    <extension base="v:Widget">
+		<sequence>
+		    <choice minOccurs="0" maxOccurs="unbounded">
+			<element name="button" type="v:Button" />
+			<element name="submit" type="v:SubmitButton" />
+			<element name="textfield" type="v:TextField" />
+			<element name="textarea" type="v:TextArea" />
+			<element name="table" type="v:Table" />
+			<element name="gallery" type="v:Gallery" />
+			<element name="datefield" type="v:DateSelect" />
+			<element name="select" type="v:SelectBox" />
+			<element name="map" type="v:Map" />
+			<element name="break" type="v:LayoutBreak" />
+			<element name="checkbox" type="v:CheckBox" />
+			<element name="info" type="v:InfoField"/>
+			<element name="code" type="v:CodeArea"/>
+			<element name="fileupload" type="v:FileUploadField"/>
+			<element name="filebrowser" type="v:FileBrowser"/>
+			<element name="wall" type="v:Wall"></element>
+			<element name="raw" type="v:RawWidget"></element>
+		    </choice>
+		</sequence>
+		<attribute name="title" type="string"></attribute>
+		<attribute name="pdfExport" type="boolean" default="false"></attribute>
+		<attribute name="print" type="boolean" default="false"></attribute>
+		<attribute name="border" type="boolean" default="false"></attribute>
+	    </extension>
+	</complexContent>
+    </complexType>
+    
+    <element name="widgetgroup" type="v:WidgetGroup"></element>
+
+    <complexType name="Widget" abstract="true">
+	<sequence>
+	    <element name="visible" type="v:Binding" maxOccurs="1" minOccurs="0"></element>
+	</sequence>
+	<attribute name="id" type="string"></attribute>
+	
+	<attribute name="cols-xs" type="int"></attribute>
+	<attribute name="cols-sm" type="int"></attribute>
+	<attribute name="cols-md" type="int"></attribute>
+	<attribute name="cols-lg" type="int"></attribute>
+	<attribute name="cols-xl" type="int"></attribute>
+	<attribute name="cols-xxl" type="int"></attribute>
+	
+	<attribute name="offset-xs" type="int"></attribute>
+	<attribute name="offset-sm" type="int"></attribute>
+	<attribute name="offset-md" type="int"></attribute>
+	<attribute name="offset-lg" type="int"></attribute>
+	<attribute name="offset-xl" type="int"></attribute>
+	<attribute name="offset-xxl" type="int"></attribute>
+    </complexType>
+
+    <complexType name="MenuItemWidget" abstract="true">
+	<complexContent>
+	    <extension base="v:Widget">
+		<attribute name="outcome" type="string"></attribute>
+		<attribute name="label" type="string"></attribute>
+	    </extension>
+	</complexContent>
+    </complexType>
+
+    <complexType name="IconMenuItemWidget">
+	<complexContent>
+	    <extension base="v:MenuItemWidget">
+		<attribute name="icon" type="string"></attribute>
+	    </extension>
+	</complexContent>
+    </complexType>
+
+    <!-- ========================================================================================= -->
+    <!-- Navigation Rule Type -->
+    <!-- ========================================================================================= -->
+
+    <complexType name="NavigationRule">
+	<attribute name="outcome" type="string" use="required" />
+	<attribute name="target" type="string" use="required" />
+    </complexType>
+
+    <!-- ========================================================================================= -->
+    <!-- Menu Item Type -->
+    <!-- ========================================================================================= -->
+
+    <complexType name="MenuItem">
+	
+	<sequence>
+	    <element name="userRole" type="string" minOccurs="0" maxOccurs="unbounded" />
+	    <element name="dynamicUserRoles" type="v:Binding" maxOccurs="1" minOccurs="0" />
+	    <element name="dynamicIcon" type="v:Binding" maxOccurs="1" minOccurs="0" />
+	    <element name="dynamicLabel" type="v:Binding" maxOccurs="1" minOccurs="0" />
+	    <element name="dynamicOrder" type="v:Binding" maxOccurs="1" minOccurs="0" />
+	    <element name="subMenuItem" type="v:SubMenuItem" maxOccurs="unbounded" minOccurs="0"/>
+	</sequence>
+	
+	<attribute name="label" type="string" use="optional" />
+	<attribute name="icon" type="string" use="optional" />
+	<attribute name="order" type="int" use="optional" />
+    </complexType>
+    
+    <complexType name="SubMenuItem">
+	
+	<sequence>
+	    <element name="visible" type="v:Binding" maxOccurs="1" minOccurs="0"></element>
+	</sequence>
+	
+	<attribute name="label" type="string" use="required"></attribute>
+	<attribute name="action" type="v:QualifiedName" use="required"></attribute>
+	<attribute name="order" type="int" use="optional" />
+    </complexType>
+    
+    <!-- ========================================================================================= -->
+    <!-- View Types -->
+    <!-- ========================================================================================= -->
+
+    <complexType name="View" abstract="true">
+	<attribute name="label" type="string" use="required"></attribute>
+    </complexType>
+
+    <complexType name="SimpleView">
+	<complexContent>
+	    <extension base="v:View">
+		<sequence minOccurs="1" maxOccurs="unbounded">
+		    <any processContents="strict" />
+		</sequence>
+		<attribute name="init" type="v:QualifiedName" use="optional"></attribute>
+		<attribute name="destroy" type="v:QualifiedName" use="optional"></attribute>
+		<attribute name="unit" type="string" use="optional"></attribute>
+		<attribute name="actionsLabel" type="string" use="optional"></attribute>
+		<attribute name="actionsDisplay" type="v:ActionsDisplayType" use="optional" default="toggle"></attribute>
+		<attribute name="hideMenu" type="boolean" use="optional" default="false"></attribute>
+		<attribute name="pdfExport" type="boolean" use="optional" default="false"></attribute>
+		<attribute name="print" type="boolean" use="optional" default="false"></attribute>
+		<attribute name="hideTopBar" type="boolean" use="optional" default="false"></attribute>
+		<attribute name="hideFooter" type="boolean" use="optional" default="false"></attribute>
+		<attribute name="initialScroll" type="v:InitialScrollType" use="optional" default="default"></attribute>
+	    </extension>
+	</complexContent>
+    </complexType>
+    
+    <complexType name="SensorView">
+	<complexContent>
+	    <extension base="v:View">
+		<choice maxOccurs="unbounded">
+		    <element name="binding" type="v:Binding" maxOccurs="1" minOccurs="0"/>
+		    <element name="action" type="v:ViewAction" minOccurs="1" maxOccurs="unbounded"/>
+		    <element name="navigation" type="v:NavigationRule" minOccurs="1" maxOccurs="unbounded"/>
+		</choice>
+		<attribute name="init" type="v:QualifiedName" use="optional"/>
+		<attribute name="destroy" type="v:QualifiedName" use="optional"/>
+		<attribute name="unit" type="string" use="optional"/>
+		<attribute name="id" type="string" use="required"/>
+		<attribute name="type" type="string" use="required"/>
+	    </extension>
+	</complexContent>
+    </complexType>
+
+    <complexType name="GlobalView">
+	<complexContent>
+	    <extension base="v:View">
+		<choice maxOccurs="unbounded">
+		    <element name="globalAction" type="v:GlobalAction" minOccurs="1" maxOccurs="unbounded"/>
+		</choice>
+		
+		<attribute name="unit" type="string" use="optional"></attribute>
+		<attribute name="actionsDisplay" type="v:ActionsDisplayType" fixed="toggle"></attribute>
+		<attribute name="hideMenu" type="boolean" fixed="false"></attribute>
+		<attribute name="pdfExport" type="boolean" fixed="false"></attribute>
+		<attribute name="print" type="boolean" fixed="false"></attribute>
+		<attribute name="hideTopBar" type="boolean" fixed="false"></attribute>
+		<attribute name="hideFooter" type="boolean" fixed="false"></attribute>
+		<attribute name="initialScroll" type="v:InitialScrollType" fixed="default"></attribute>
+	    </extension>
+	</complexContent>
+    </complexType>
+
+    <complexType name="Field" abstract="true">
+	<complexContent>
+	    <extension base="v:Widget">
+		<sequence>
+		    <element name="binding" type="v:Binding" maxOccurs="1" minOccurs="0"></element>
+		</sequence>
+		<attribute name="label" type="string"></attribute>
+		<attribute name="tooltip" type="string" use="optional"></attribute>
+		<attribute name="description" type="string" use="optional"></attribute>
+	    </extension>
+	</complexContent>
+    </complexType>
+
+    <complexType name="Binding" abstract="false">
+	<sequence>
+	    <element name="attribute" type="v:Attribute" minOccurs="0"
+		     maxOccurs="1">
+	    </element>
+	</sequence>
+	<attribute name="function" type="v:QualifiedName"
+		   use="optional">
+	</attribute>
+	<attribute name="variable" type="v:QualifiedName" use="optional"></attribute>
+    </complexType>
+
+    <simpleType name="QualifiedName">
+	<restriction base="string">
+	    <pattern value="([A-Za-z][A-Za-z0-9_]*:)?[A-Za-z][A-Za-z0-9_]*">
+	    </pattern>
+	</restriction>
+    </simpleType>
+    
+    <complexType name="LayoutBreak">
+	<complexContent>
+	    <extension base="v:Field">
+		<attribute name="render" type="v:LayoutBreakRenderType" use="optional" default="none"/>
+	    </extension>
+	</complexContent>
+    </complexType>
+
+    <complexType name="TextField">
+	<complexContent>
+	    <extension base="v:Field">
+		<attribute name="datatype" type="v:DataType" use="optional"
+			   default="text">
+		</attribute>
+	    </extension>
+	</complexContent>
+    </complexType>
+    
+    <complexType name="CodeArea">
+	<complexContent>
+	    <extension base="v:Field" />
+	</complexContent>
+    </complexType>
+
+    <complexType name="TextArea">
+	<complexContent>
+	    <extension base="v:Field">
+	    </extension>
+	</complexContent>
+    </complexType>
+
+    <complexType name="SelectBox">
+	<complexContent>
+	    <extension base="v:Field">
+		<choice>
+		    <element name="collectionSource"
+			     type="v:SelectCollectionSource">
+		    </element>
+		    <element name="enum" type="v:EnumName"></element>
+		</choice>
+		<attribute name="submitOnChange" type="boolean" use="optional" default="false">
+		</attribute>
+	    </extension>
+	</complexContent>
+    </complexType>
+
+    <complexType name="CheckBox">
+	<complexContent>
+	    <extension base="v:Field"></extension>
+	</complexContent>
+    </complexType>
+
+    <complexType name="DateSelect">
+	<complexContent>
+	    <extension base="v:Field">
+	    </extension>
+	</complexContent>
+    </complexType>
+
+
+    <simpleType name="EnumName">
+	<restriction base="string">
+	    <pattern value="[A-Z][A-Z_]*[A-Z]"></pattern>
+	</restriction>
+    </simpleType>
+
+    <complexType name="InfoField">
+	<complexContent>
+	    <extension base="v:Field">
+		<attribute name="value" type="string" use="optional"></attribute>
+		<attribute name="allowMarkdown" type="boolean" use="optional" default="false"></attribute>
+		<attribute name="variant" type="v:InfoVariantType" use="optional" default="default"></attribute>
+	    </extension>
+	</complexContent>
+    </complexType>
+
+    <complexType name="Attribute">
+	<attribute name="name" type="string" use="required"></attribute>
+    </complexType>
+
+    <complexType name="Button">
+	<complexContent>
+	    <extension base="v:ActionWidget">
+		<attribute name="label" type="string" use="required"></attribute>
+		<attribute name="tooltip" type="string" use="optional"></attribute>
+		<attribute name="pill" type="string" use="optional"></attribute>
+	    </extension>
+	</complexContent>
+    </complexType>
+
+    <simpleType name="DataType">
+	<restriction base="string">
+	    <enumeration value="color"></enumeration>
+	    <enumeration value="email"></enumeration>
+	    <enumeration value="number"></enumeration>
+	    <enumeration value="password"></enumeration>
+	    <enumeration value="tel"></enumeration>
+	    <enumeration value="text"></enumeration>
+	    <enumeration value="url"></enumeration>
+	</restriction>
+    </simpleType>
+    
+    <simpleType name="LayoutBreakRenderType">
+	<restriction base="string">
+	    <enumeration value="none"></enumeration>
+	    <enumeration value="line"></enumeration>
+	    <enumeration value="dash"></enumeration>
+	</restriction>
+    </simpleType>
+    
+    <simpleType name="ActionsDisplayType">
+	<restriction base="string">
+	    <enumeration value="close"></enumeration>
+	    <enumeration value="open"></enumeration>
+	    <enumeration value="toggle"></enumeration>
+	</restriction>
+    </simpleType>
+    
+    <simpleType name="InitialScrollType">
+	<restriction base="string">
+	    <enumeration value="top"></enumeration>
+	    <enumeration value="default"></enumeration>
+	</restriction>
+    </simpleType>
+    
+    <simpleType name="InfoVariantType">
+	<restriction base="string">
+	    <enumeration value="default"></enumeration>
+	    <enumeration value="clear"></enumeration>
+	    <enumeration value="info"></enumeration>
+	    <enumeration value="warning"></enumeration>
+	    <enumeration value="error"></enumeration>
+	</restriction>
+    </simpleType>
+
+    <simpleType name="PrimitiveType">
+	<restriction base="string">
+	    <enumeration value="int"></enumeration>
+	    <enumeration value="uuid"></enumeration>
+	    <enumeration value="decimal"></enumeration>
+	    <enumeration value="date"></enumeration>
+	    <enumeration value="boolean"></enumeration>
+	    <enumeration value="string"></enumeration>
+	</restriction>
+    </simpleType>
+
+    <simpleType name="SortDirectionType">
+	<restriction base="string">
+	    <enumeration value="ascending"></enumeration>
+	    <enumeration value="descending"></enumeration>
+	</restriction>
+    </simpleType>
+    
+    <simpleType name="CsvExportType">
+	<restriction base="string">
+	    <enumeration value="enabled"></enumeration>
+	    <enumeration value="disabled"></enumeration>
+	</restriction>
+    </simpleType>
+    
+    <simpleType name="MapMarkerClusteringType">
+	<restriction base="string">
+	    <enumeration value="enabled"></enumeration>
+	    <enumeration value="disabled"></enumeration>
+	</restriction>
+    </simpleType>
+    
+    <simpleType name="MapLegendPositionType">
+	<restriction base="string">
+	    <enumeration value="top-center"></enumeration>
+	    <enumeration value="top-left"></enumeration>
+	    <enumeration value="top-right"></enumeration>
+	    <enumeration value="bottom-center"></enumeration>
+	    <enumeration value="bottom-left"></enumeration>
+	    <enumeration value="bottom-right"></enumeration>
+	    <enumeration value="left-top"></enumeration>
+	    <enumeration value="left-center"></enumeration>
+	    <enumeration value="left-bottom"></enumeration>
+	    <enumeration value="right-top"></enumeration>
+	    <enumeration value="right-center"></enumeration>
+	    <enumeration value="right-bottom"></enumeration>
+	</restriction>
+    </simpleType>
+    
+    <simpleType name="MapGestureHandlingType">
+	<restriction base="string">
+	    <enumeration value="greedy"></enumeration>
+	    <enumeration value="cooperative"></enumeration>
+	    <enumeration value="none"></enumeration>
+	    <enumeration value="auto"></enumeration>
+	</restriction>
+    </simpleType>
+    
+    <simpleType name="MapSizeType">
+	<restriction base="string">
+	    <enumeration value="small"></enumeration>
+	    <enumeration value="medium"></enumeration>
+	    <enumeration value="large"></enumeration>
+	    <enumeration value="default"></enumeration>
+	</restriction>
+    </simpleType>
+
+    <complexType name="ActionWidget" abstract="true">
+	<complexContent>
+	    <extension base="v:Widget">
+		<sequence>
+		    <element name="confirm" type="v:Confirmation" minOccurs="0" maxOccurs="1"></element>
+		    <element name="appearance" type="v:Binding" maxOccurs="1" minOccurs="0"></element>
+		    <element name="variant" type="v:Binding" maxOccurs="1" minOccurs="0"></element>
+		    <element name="pillVariant" type="v:Binding" maxOccurs="1" minOccurs="0"></element>
+		</sequence>
+		<attribute name="outcome" type="string"></attribute>
+		<attribute name="action" type="v:QualifiedName"></attribute>
+		<attribute name="icon" type="string" use="optional"></attribute>
+		<attribute name="prependIcon" type="string" use="optional"></attribute>
+		<attribute name="appendIcon" type="string" use="optional"></attribute>
+	    </extension>
+	</complexContent>
+    </complexType>
+
+    <complexType name="SubmitButton">
+	<complexContent>
+	    <extension base="v:Button"></extension>
+	</complexContent>
+    </complexType>
+
+    <complexType name="Table">
+	<complexContent>
+	    <extension base="v:DataWidget">
+		<sequence>
+		    <element name="collectionSource" type="v:Binding" maxOccurs="1" minOccurs="1">
+		    </element>
+		    <element name="searchEnabled" type="v:Binding" maxOccurs="1" minOccurs="0">
+		    </element>
+		    <element name="column" type="v:Column" maxOccurs="unbounded">
+		    </element>
+		    <element name="rowAction" type="v:DataAction" maxOccurs="unbounded"
+			     minOccurs="0">
+		    </element>
+		    <element name="cellAction" type="v:DataAction" maxOccurs="unbounded"
+			     minOccurs="0">
+		    </element>
+		    <element name="filterDestination" type="v:Binding" maxOccurs="1" minOccurs="0">
+		    </element>
+		</sequence>
+
+		<attribute name="defaultSort" type="string"></attribute>
+		<attribute name="defaultSortColumn" type="int"></attribute>
+		<attribute name="defaultSortDirection" type="v:SortDirectionType" default="ascending"></attribute>
+		<attribute name="defaultMaxRows" type="int" default="10"></attribute>
+		<attribute name="csvExport" type="v:CsvExportType" default="enabled"></attribute>
+		<attribute name="csvColumnHeader" type="boolean" use="optional" default="true"></attribute>
+		<attribute name="resetFilters" type="boolean" use="optional" default="false"></attribute>
+		<attribute name="searchRowLimit" type="int" use="optional" default="100000"></attribute>
+	    </extension>
+	</complexContent>
+    </complexType>
+    
+    <complexType name="Gallery">
+	<complexContent>
+	    <extension base="v:DataWidget">
+		<sequence>
+		    <element name="collectionSource" type="v:Binding" maxOccurs="1" minOccurs="1">
+		    </element>
+		    <element name="binding" type="v:Binding" maxOccurs="1" minOccurs="0"></element>
+		</sequence>
+                
+		<attribute name="imageAttribute" type="string"></attribute>
+		<attribute name="descriptionAttribute" type="string" use="optional"></attribute>
+		<attribute name="carousel" type="boolean" use="optional" default="false"></attribute>
+           
+	    </extension>
+	</complexContent>
+    </complexType>
+    
+    <complexType name="StaticContent">
+	<attribute name="source" type="string"></attribute>
+    </complexType>
+    
+    <complexType name="DataWidget">
+	<complexContent>
+	    <extension base="v:Widget">
+		<attribute name="title" type="string"></attribute>
+		<attribute name="refreshIntervalSeconds" type="int"></attribute>
+		<attribute name="actionsLabel" type="string" use="optional"></attribute>
+		<attribute name="actionsDisplay" type="v:ActionsDisplayType" use="optional" default="toggle"></attribute>
+	    </extension>
+	</complexContent>
+    </complexType>
+
+    <complexType name="RawWidget">
+	<complexContent>
+	    <extension base="v:Widget">
+		<sequence>
+		    <element name="content" type="v:Binding" maxOccurs="1" minOccurs="0"></element>
+		</sequence>
+		<attribute name="type" type="string" use="required"/>
+		<attribute name="action" type="v:QualifiedName" use="optional"/>
+		<attribute name="submit" type="boolean" use="optional" default="false"/>
+		<attribute name="refreshIntervalSeconds" type="int"></attribute>
+	    </extension>
+	</complexContent>
+    </complexType>
+
+    <element name="raw" type="v:RawWidget"/>
+
+    <complexType name="Column">
+	<sequence>
+	    <element name="attributeName" type="string" maxOccurs="unbounded"></element>
+	    <element name="visible" type="v:Binding" maxOccurs="1" minOccurs="0"></element>
+	    <element name="cellAction" type="v:DataAction" maxOccurs="unbounded" minOccurs="0"></element>
+	</sequence>
+	<attribute name="heading" type="string" use="required"></attribute>
+	<attribute name="csvIgnore" type="boolean" use="optional" default="false"></attribute>
+	<attribute name="allowMarkdown" type="boolean" use="optional" default="false"></attribute>
+    </complexType>
+
+
+    <complexType name="DataAction">
+	<sequence>
+	    <element name="binding" type="v:Binding" minOccurs="0"></element>
+	    <element name="field" type="v:Binding" maxOccurs="1" minOccurs="0"></element>
+	    <element name="confirm" type="v:Confirmation" minOccurs="0" maxOccurs="1"></element>
+	    <element name="visible" type="v:Binding" maxOccurs="1" minOccurs="0"></element>
+	    <element name="variant" type="v:Binding" maxOccurs="1" minOccurs="0"></element>
+	    <element name="pillVariant" type="v:Binding" maxOccurs="1" minOccurs="0"></element>
+	</sequence>
+	<attribute name="label" type="string" use="optional"></attribute>
+	<attribute name="tooltip" type="string" use="optional"></attribute>
+	<attribute name="pill" type="string" use="optional"></attribute>
+	<attribute name="action" type="v:QualifiedName" use="required"></attribute>
+	<attribute name="icon" type="string" use="optional"></attribute>
+	<attribute name="prependIcon" type="string" use="optional"></attribute>
+	<attribute name="appendIcon" type="string" use="optional"></attribute>
+	<attribute name="submit" type="boolean" use="optional" default="false"/>
+    </complexType>
+
+    <complexType name="Map">
+	<complexContent>
+	    <extension base="v:DataWidget">
+		<sequence>
+		    <element name="collectionSource" type="v:Binding" maxOccurs="1" minOccurs="1">
+		    </element>
+		    <element name="markerAction" type="v:MarkerAction"
+			     minOccurs="0" maxOccurs="unbounded">
+		    </element>
+		    <element name="locationAction" type="v:LocationAction"
+			     minOccurs="0" maxOccurs="unbounded">
+		    </element>
+		    
+		    <element name="markerTitle" type="v:MarkerTitle"
+			     minOccurs="1" maxOccurs="1">
+		    </element>
+		    <element name="markerIcon" type="v:MarkerIcon"
+			     minOccurs="1" maxOccurs="1">
+		    </element>
+		    <element name="markerDesc" type="v:MarkerDesc"
+			     minOccurs="1" maxOccurs="1">
+		    </element>
+		    <element name="markerAnimation" type="v:MarkerAnimation"
+			     minOccurs="0" maxOccurs="1">
+		    </element>
+		    <element name="markerPriority" type="v:MarkerPriority"
+			     minOccurs="0" maxOccurs="1">
+		    </element>
+		    <choice minOccurs="0">
+			<element name="legendKey" type="v:LegendKey"
+				 minOccurs="0" maxOccurs="unbounded">
+			</element>
+			<element name="legend" type="v:Binding"
+				 minOccurs="0" maxOccurs="1">
+			</element>
+		    </choice>
+		    <element name="filterDestination" type="v:Binding" maxOccurs="1" minOccurs="0">
+		    </element>
+		</sequence>
+
+		<attribute name="latitudeAttribute" type="string"></attribute>
+		<attribute name="longituteAttribute" type="string"></attribute>
+                
+		<attribute name="lat" type="string"></attribute>
+		<attribute name="long" type="string"></attribute>
+                
+		<attribute name="gestureHandling" type="v:MapGestureHandlingType" default="auto"></attribute>
+		<attribute name="maxDefaultZoom" type="int" default="20"></attribute>
+		<attribute name="size" type="v:MapSizeType" default="default"></attribute>
+		<attribute name="height" type="string" default="100%"></attribute>
+		<attribute name="markerClustering" type="v:MapMarkerClusteringType" default="disabled"></attribute>
+		<attribute name="legendPosition" type="v:MapLegendPositionType" default="right-center"></attribute>
+		<attribute name="maintainState" type="boolean" use="optional" default="false"></attribute>
+		<attribute name="allowSearch" type="boolean" use="optional" default="false"></attribute>
+		<attribute name="locationActionTitle" type="string"></attribute>
+	    </extension>
+	</complexContent>
+    </complexType>
+
+    <complexType name="MarkerAction">
+	<complexContent>
+	    <extension base="v:DataAction"></extension>
+	</complexContent>
+    </complexType>
+    
+    <complexType name="LocationAction">
+	<complexContent>
+	    <extension base="v:DataAction"></extension>
+	</complexContent>
+    </complexType>
+    
+    <complexType name="LegendKey">
+	<sequence>
+	    <element name="visible" type="v:Binding" maxOccurs="1" minOccurs="0"></element>
+	</sequence>
+	<attribute name="label" type="string"></attribute>
+	<attribute name="icon" type="string"></attribute>
+    </complexType>
+
+    <element name="ui">
+	<complexType>
+	    <choice minOccurs="1" maxOccurs="1">
+		<element name="view" type="v:SimpleView" maxOccurs="unbounded"/>
+		<element name="sensorview" type="v:SensorView" maxOccurs="unbounded"/>
+		<element name="globalview" type="v:GlobalView" maxOccurs="1"/>
+	    </choice>
+	</complexType>
+    </element>
+
+    <element name="button" type="v:Button" />
+    <element name="submit" type="v:SubmitButton" />
+    <element name="textfield" type="v:TextField" />
+    <element name="textarea" type="v:TextArea" />
+    <element name="table" type="v:Table" />
+    <element name="gallery" type="v:Gallery" />
+    <element name="datefield" type="v:DateSelect" />
+    <element name="select" type="v:SelectBox" />
+    <element name="map" type="v:Map" />
+    <element name="menuitem" type="v:MenuItem" />
+    <element name="break" type="v:LayoutBreak" />
+    <element name="navigation" type="v:NavigationRule" />
+    <element name="view" type="v:SimpleView" />
+    <element name="sensorview" type="v:SensorView" />
+    <element name="globalview" type="v:GlobalView" />
+    <element name="invite" type="v:Invite" />
+    <element name="checkbox" type="v:CheckBox" />
+    <element name="static" type="v:StaticContent"/>
+
+
+    <complexType name="Invite">
+	<complexContent>
+	    <extension base="v:Field">
+		<sequence>
+		    <element name="role" type="string" maxOccurs="unbounded" minOccurs="1"></element>
+		</sequence>
+	    </extension>
+	</complexContent>
+    </complexType>
+
+    <complexType name="MarkerTitle">
+	<attribute name="value" type="v:QualifiedName"></attribute>
+    </complexType>
+
+    <complexType name="MarkerIcon">
+	<attribute name="value" type="v:QualifiedName"></attribute>
+    </complexType>
+	
+    <complexType name="MarkerDesc">
+	<attribute name="value" type="v:QualifiedName"></attribute>
+    </complexType>
+    
+    <complexType name="MarkerAnimation">
+	<attribute name="value" type="v:QualifiedName"></attribute>
+    </complexType>
+    
+    <complexType name="MarkerPriority">
+	<attribute name="value" type="v:QualifiedName"></attribute>
+    </complexType>
+
+    <complexType name="Confirmation">
+	<attribute name="subject" type="string" />
+	<attribute name="body" type="string" />
+    </complexType>
+
+    <complexType name="Wall">
+	<complexContent>
+	    <extension base="v:DataWidget">
+		<sequence>
+		    <element name="collectionSource"
+			     type="v:Binding" maxOccurs="1" minOccurs="1">
+		    </element>
+		    <element name="itemTitle" type="v:WalltemTitle"
+			     maxOccurs="1" minOccurs="1">
+		    </element>
+		    <element name="itemText" type="v:WallItemText"
+			     maxOccurs="1" minOccurs="0">
+		    </element>
+		    <element name="itemOwner" type="v:WallItemOwner"
+			     maxOccurs="1" minOccurs="0">
+		    </element>
+		    <element name="itemTime" type="v:WallItemTimestamp"
+			     maxOccurs="1" minOccurs="0">
+		    </element>
+		    <element name="itemIcon" type="v:WallItemIcon"
+			     maxOccurs="1" minOccurs="0">
+		    </element>
+		    <element name="itemLatitude"
+			     type="v:WallItemLatitude" maxOccurs="1" minOccurs="0">
+		    </element>
+		    <element name="itemLongitude"
+			     type="v:WallItemLongitude" maxOccurs="1" minOccurs="0">
+		    </element>
+		    <element name="itemAction" type="v:DataAction" maxOccurs="unbounded" minOccurs="0"></element>
+		</sequence>
+		<attribute name="commentHandler" type="v:QualifiedName"
+			   use="optional">
+		</attribute>
+		<attribute name="defaultSort" type="string"
+			   use="optional">
+		</attribute>
+		<attribute name="buttonLabel" type="string" 
+			   use="optional">
+		</attribute>
+		<attribute name="commentAttribute" type="v:QualifiedName"></attribute>
+                
+	    </extension>
+	</complexContent>
+    </complexType>
+
+    <complexType name="WallItemIcon">
+	<attribute name="value" type="v:QualifiedName"></attribute>
+    </complexType>
+
+    <complexType name="WalltemTitle">
+	<attribute name="value" type="v:QualifiedName"></attribute>
+    </complexType>
+
+    <complexType name="WallItemText">
+	<attribute name="value" type="v:QualifiedName"></attribute>
+    </complexType>
+
+    <complexType name="WallItemOwner">
+	<attribute name="value" type="v:QualifiedName"></attribute>
+    </complexType>
+
+    <complexType name="WallItemTimestamp">
+	<attribute name="value" type="v:QualifiedName"></attribute>
+    </complexType>
+
+    <complexType name="WallItemLatitude">
+	<attribute name="value" type="v:QualifiedName"></attribute>
+    </complexType>
+    
+    <complexType name="WallItemLongitude">
+	<attribute name="value" type="v:QualifiedName"></attribute>
+    </complexType>
+
+    <element name="wall" type="v:Wall"></element>
+
+    <complexType name="SelectCollectionSource">
+	<complexContent>
+	    <extension base="v:Binding">
+		<sequence>
+		    <element name="displayAttribute" type="v:Attribute" maxOccurs="unbounded" minOccurs="0"></element>
+		</sequence>
+	    </extension>
+	</complexContent>
+    </complexType>
+
+    <complexType name="ViewAction">
+	<sequence>
+	    <element name="visible" type="v:Binding" maxOccurs="1" minOccurs="0"></element>
+	    <element name="confirm" type="v:Confirmation" minOccurs="0" maxOccurs="1"></element>
+	    <element name="appearance" type="v:Binding" maxOccurs="1" minOccurs="0"></element>
+	    <element name="variant" type="v:Binding" maxOccurs="1" minOccurs="0"></element>
+	    <element name="pillVariant" type="v:Binding" maxOccurs="1" minOccurs="0"></element>
+	</sequence>
+	<attribute name="outcome" type="string"></attribute>
+	<attribute name="action" type="v:QualifiedName"></attribute>
+	<attribute name="label" type="string"></attribute>
+	<attribute name="tooltip" type="string" use="optional"></attribute>
+	<attribute name="pill" type="string" use="optional"></attribute>
+	<attribute name="icon" type="string" use="optional"></attribute>
+	<attribute name="prependIcon" type="string" use="optional"></attribute>
+	<attribute name="appendIcon" type="string" use="optional"></attribute>
+    </complexType>
+
+    <element name="action" type="v:ViewAction"></element>
+    
+    <complexType name="GlobalAction">
+	<sequence>
+	    <element name="visible" type="v:Binding" maxOccurs="1" minOccurs="0"></element>
+	    <element name="confirm" type="v:Confirmation" minOccurs="0" maxOccurs="1"></element>
+	    <element name="appearance" type="v:Binding" maxOccurs="1" minOccurs="0"></element>
+	    <element name="variant" type="v:Binding" maxOccurs="1" minOccurs="0"></element>
+	    <element name="pillVariant" type="v:Binding" maxOccurs="1" minOccurs="0"></element>
+	</sequence>
+	<attribute name="outcome" type="string" ></attribute>
+	<attribute name="action" type="v:QualifiedName"></attribute>
+	<attribute name="label" type="string"></attribute>
+	<attribute name="tooltip" type="string" use="optional"></attribute>
+	<attribute name="pill" type="string" use="optional"></attribute>
+	<attribute name="icon" type="string" use="optional"></attribute>
+	<attribute name="prependIcon" type="string" use="optional"></attribute>
+	<attribute name="appendIcon" type="string" use="optional"></attribute>
+    </complexType>
+    
+    <complexType name="BreadcrumbAction">
+	<sequence>
+	    <element name="visible" type="v:Binding" maxOccurs="1" minOccurs="0"></element>
+	    <element name="confirm" type="v:Confirmation" minOccurs="0" maxOccurs="1"></element>
+	    <element name="appearance" type="v:Binding" maxOccurs="1" minOccurs="0"></element>
+	</sequence>
+	<attribute name="action" type="v:QualifiedName"></attribute>
+	<attribute name="label" type="string"></attribute>
+	<attribute name="tooltip" type="string" use="optional"></attribute>
+	<attribute name="backAction" type="boolean" use="optional" default="false"></attribute>
+    </complexType>
+
+    <element name="breadcrumbAction" type="v:BreadcrumbAction"></element>
+
+    <element name="info" type="v:InfoField"></element>
+    
+    <element name="code" type="v:CodeArea"></element>
+
+    <complexType name="BarcodeField">
+	<complexContent>
+	    <extension base="v:Field">
+		<attribute name="readOnly" type="boolean" use="optional"></attribute>
+	    </extension>
+	</complexContent>
+    </complexType>
+
+    <element name="barcode" type="v:BarcodeField"></element>
+
+    <complexType name="DrawImageField">
+	<complexContent>
+	    <extension base="v:Field"></extension>
+	</complexContent>
+    </complexType>
+
+    <element name="drawimage" type="v:DrawImageField"></element>
+
+    <complexType name="FileUploadField">
+	<complexContent>
+	    <extension base="v:Field"></extension>
+	</complexContent>
+    </complexType>
+
+    <element name="fileupload" type="v:FileUploadField"></element>
+
+    <complexType name="CanvasField">
+	<complexContent>
+	    <extension base="v:Field"></extension>
+	</complexContent>
+    </complexType>
+
+    <complexType name="ImageField">
+	<complexContent>
+	    <extension base="v:Field"></extension>
+	</complexContent>
+    </complexType>
+
+    <element name="canvas" type="v:CanvasField"></element>
+
+    <element name="image" type="v:ImageField"></element>
+
+    <complexType name="GPSField">
+	<complexContent>
+	    <extension base="v:Field">
+		<sequence>
+		    <element name="latitude" type="v:Binding"
+			     maxOccurs="1" minOccurs="1">
+		    </element>
+		    <element name="longitude" type="v:Binding"
+			     maxOccurs="1" minOccurs="1">
+		    </element>
+		</sequence>
+		<attribute name="readonly" type="boolean"></attribute>
+		<attribute name="accuracy" type="int"></attribute>
+	    </extension>
+	</complexContent>
+    </complexType>
+    
+    <element name="gpsfield" type="v:GPSField"></element>
+
+    <complexType name="FileBrowser">
+	<complexContent>
+	    <extension base="v:DataWidget">
+		<sequence>
+		    <element name="collectionSource" type="v:Binding"
+			     maxOccurs="1" minOccurs="1">
+		    </element>
+		    <element name="rowAction" type="v:DataAction" maxOccurs="unbounded"
+			     minOccurs="0">
+		    </element>
+		</sequence>
+		<attribute name="dataAttribute" type="string" use="required"></attribute>
+	    </extension>
+	</complexContent>
+    </complexType>
+
+    <element name="filebrowser" type="v:FileBrowser"></element>
+</schema>

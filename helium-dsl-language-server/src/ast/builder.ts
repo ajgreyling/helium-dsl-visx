@@ -629,10 +629,55 @@ class AstListener {
   enterMemberAttribute(ctx: any) {
     const nameToken = ctx.ID();
     if (!nameToken) return;
+    let receiverName: string | undefined;
+    let receiverRange: SourceRange | undefined;
+
+    // Best-effort: look backward in the token stream for `receiver . <thisProperty>`
+    if (this.tokenStream && this.tokenFillSucceeded && nameToken.symbol?.tokenIndex != null) {
+      try {
+        const allTokens = this.tokenStream.getTokens();
+        const propertyTokenIndex: number = nameToken.symbol.tokenIndex;
+
+        const isDefaultChannel = (t: any) => (t?.channel ?? 0) === 0;
+
+        // Find the dot immediately before this property token.
+        let dotIndex = -1;
+        for (let i = propertyTokenIndex - 1; i >= 0; i--) {
+          const t = allTokens[i];
+          if (!isDefaultChannel(t)) continue;
+          if (t.text === ".") {
+            dotIndex = i;
+            break;
+          }
+          // If we hit another identifier or delimiter before '.', give up (not a simple member access).
+          if (t.text && /[A-Za-z0-9_]/.test(t.text[0])) break;
+          if (t.text && /[;(){}[\],]/.test(t.text)) break;
+        }
+
+        if (dotIndex !== -1) {
+          // Find receiver identifier before dot.
+          for (let i = dotIndex - 1; i >= 0; i--) {
+            const t = allTokens[i];
+            if (!isDefaultChannel(t)) continue;
+            if (t.text && /^[A-Za-z_][A-Za-z0-9_]*$/.test(t.text)) {
+              receiverName = t.text;
+              receiverRange = rangeFromTokens(t, t);
+              break;
+            }
+            if (t.text && /[;(){}[\],]/.test(t.text)) break;
+          }
+        }
+      } catch {
+        // Ignore token stream issues; property ref will still be recorded without receiver.
+      }
+    }
+
     this.ast.propertyReferences.push({
       kind: "PropertyReference",
       name: nameToken.text,
       nameRange: rangeFromTokens(nameToken.symbol, nameToken.symbol),
+      receiverName,
+      receiverRange,
     });
   }
 
