@@ -137,6 +137,11 @@ If you need to modify the packaging process:
 ### Entry point
 - The compiled MCP entrypoint is `helium-rapid-dsl-mcp/out/src/index.js` (not `out/index.js`).
 
+### Cursor MCP registration (extension)
+- Cursor **does not** support `lm.registerMcpServerDefinitionProvider` (it logs a warning and ignores it).
+- To register a bundled MCP server from the extension in Cursor, use `vscode.cursor.mcp.registerServer(...)`.
+- Note: Cursor’s MCP Extension API does not currently accept `cwd`, so if your server requires a working directory, launch via a shell wrapper (`bash -lc "cd ... && node ..."`).
+
 ### Node ESM strictness (Cursor)
 - Cursor may run a strict ESM Node runtime (e.g. Node 25). In that environment, **imports must use explicit `.js` suffixes** for certain packages.
   - Use `vscode-languageserver/node.js` (not `vscode-languageserver/node`)

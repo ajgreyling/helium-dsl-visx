@@ -120,15 +120,15 @@ export class MezWorkspaceService {
 
   async validate(filePath: string, textOverride?: string): Promise<MezDiagnostic[]> {
     const text = this.getText(filePath, textOverride);
-    const parserDiags = createDiagnostics(text) as unknown as MezDiagnostic[];
+    const parserDiags = (await createDiagnostics(text)) as unknown as MezDiagnostic[];
     const lintDiags = (await runLints(text)) as unknown as MezDiagnostic[];
     return [...parserDiags, ...lintDiags];
   }
 
-  getAstSummary(filePath: string, textOverride?: string) {
+  async getAstSummary(filePath: string, textOverride?: string) {
     const text = this.getText(filePath, textOverride);
     const uri = this.toUri(filePath);
-    const ast = buildFileAst(text, uri);
+    const ast = await buildFileAst(text, uri);
     return {
       uri: ast.uri,
       objects: ast.objects.map((o: ObjectDecl) => ({

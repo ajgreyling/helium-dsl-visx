@@ -100,6 +100,8 @@ npm install
 
 This repo includes a TypeScript MCP server for Cursor agents that can analyze and validate `.mez` and `.vxml` files using the existing language-server AST/index.
 
+When you install the packaged VSIX in Cursor, the extension registers the bundled MCP server via `vscode.cursor.mcp.registerServer(...)`.
+
 Quick start:
 
 ```bash

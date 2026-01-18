@@ -51,14 +51,14 @@ export class MezWorkspaceService {
     }
     async validate(filePath, textOverride) {
         const text = this.getText(filePath, textOverride);
-        const parserDiags = createDiagnostics(text);
+        const parserDiags = (await createDiagnostics(text));
         const lintDiags = (await runLints(text));
         return [...parserDiags, ...lintDiags];
     }
-    getAstSummary(filePath, textOverride) {
+    async getAstSummary(filePath, textOverride) {
         const text = this.getText(filePath, textOverride);
         const uri = this.toUri(filePath);
-        const ast = buildFileAst(text, uri);
+        const ast = await buildFileAst(text, uri);
         return {
             uri: ast.uri,
             objects: ast.objects.map((o) => ({

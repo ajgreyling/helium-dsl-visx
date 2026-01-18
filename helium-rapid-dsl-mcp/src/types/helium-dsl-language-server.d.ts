@@ -28,8 +28,8 @@ declare module "helium-dsl-language-server/api" {
     getEnum(enumName: string): EnumDecl | undefined;
   }
 
-  export function buildFileAst(text: string, uri: string): FileAst;
-  export function createDiagnostics(text: string): any[];
+  export function buildFileAst(text: string, uri: string): Promise<FileAst>;
+  export function createDiagnostics(text: string): Promise<any[]>;
   export function runLints(text: string): Promise<any[]>;
   export function formatDocument(doc: any, options: any, range?: any): any[];
   export function getLanguageMetadataSync(): any;

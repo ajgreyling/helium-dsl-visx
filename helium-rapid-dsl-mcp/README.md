@@ -52,7 +52,7 @@ node out/src/index.js
 
 ### Bundled in VSIX (Cursor)
 
-When packaged, the MCP server is bundled inside the Helium Rapid DSL (ANTLR4) extension and registered via the MCP server definition provider. The bundled entrypoint is:
+When packaged, the MCP server is bundled inside the Helium Rapid DSL (ANTLR4) extension and registered in Cursor via `vscode.cursor.mcp.registerServer(...)`. The bundled entrypoint is:
 
 - `helium-dsl-vscode/server/mcp/out/src/index.js`
 

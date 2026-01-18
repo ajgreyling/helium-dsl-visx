@@ -11,7 +11,7 @@ Language support for the Helium Rapid DSL (ANTLR4) in Cursor IDE and VS Code.
 - 🔎 **Symbol Navigation** - Navigate to definitions and find references across your workspace
 - 💡 **Hover Information** - Get helpful information by hovering over code elements
 - 📁 **Custom Folder Icons** - Distinctive icons for Helium Rapid DSL (ANTLR4) project folders (model, services, presenters, utilities, web-app, views, jasper-reports, builtin-reports, images, lang, sql-scripts)
-- 🤖 **MCP Server (Cursor)** - Bundled Helium Rapid DSL MCP server available in Cursor's MCP server list for agent tools
+- 🤖 **MCP Server (Cursor)** - Bundled Helium Rapid DSL MCP server available in Cursor's MCP server list for agent tools (registered via `vscode.cursor.mcp.registerServer`)
 
 ## Installation
 

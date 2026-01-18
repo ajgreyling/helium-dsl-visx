@@ -80,7 +80,7 @@ export function createMezToolHandlers() {
             const text = asString(args.text) ?? undefined;
             const svc = getSvcForFile(filePath);
             svc.updateFile(filePath, text ?? fs.readFileSync(filePath, "utf8"));
-            return jsonResult(svc.getAstSummary(filePath, text));
+            return jsonResult(await svc.getAstSummary(filePath, text));
         },
         helium_mez_symbols: async (args) => {
             const root = asString(args.workspaceRoot) ?? process.cwd();
