@@ -91,6 +91,117 @@ export const tools = [
         }
     },
     {
+        name: "helium_mez_complete",
+        description: "Get completion items for a .mez file at a position.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                filePath: { type: "string" },
+                line: { type: "number", description: "0-based line." },
+                character: { type: "number", description: "0-based character." },
+                text: { type: "string", description: "Optional in-memory text override." },
+                triggerCharacter: { type: "string", description: "Optional trigger character (e.g. '.' or ':')." }
+            },
+            required: ["filePath", "line", "character"]
+        }
+    },
+    {
+        name: "helium_mez_signature_help",
+        description: "Get signature help for a .mez file at a position.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                filePath: { type: "string" },
+                line: { type: "number", description: "0-based line." },
+                character: { type: "number", description: "0-based character." },
+                text: { type: "string", description: "Optional in-memory text override." }
+            },
+            required: ["filePath", "line", "character"]
+        }
+    },
+    {
+        name: "helium_mez_hover",
+        description: "Get hover information for a .mez file at a position.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                filePath: { type: "string" },
+                line: { type: "number", description: "0-based line." },
+                character: { type: "number", description: "0-based character." },
+                text: { type: "string", description: "Optional in-memory text override." }
+            },
+            required: ["filePath", "line", "character"]
+        }
+    },
+    {
+        name: "helium_mez_document_symbols",
+        description: "Get document symbols (outline) for a .mez file.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                filePath: { type: "string" },
+                text: { type: "string", description: "Optional in-memory text override." }
+            },
+            required: ["filePath"]
+        }
+    },
+    {
+        name: "helium_mez_code_actions",
+        description: "Get code actions (quick fixes) for diagnostics in a .mez file.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                filePath: { type: "string" },
+                text: { type: "string", description: "Optional in-memory text override." },
+                diagnostics: { type: "array", description: "Optional LSP-style diagnostics array. If omitted, diagnostics will be computed.", items: { type: "object" } }
+            },
+            required: ["filePath"]
+        }
+    },
+    {
+        name: "helium_mez_call_hierarchy",
+        description: "Call hierarchy for .mez (prepare/incoming/outgoing).",
+        inputSchema: {
+            type: "object",
+            properties: {
+                mode: { type: "string", enum: ["prepare", "incoming", "outgoing"] },
+                filePath: { type: "string", description: "Required for prepare." },
+                line: { type: "number", description: "0-based line (prepare)." },
+                character: { type: "number", description: "0-based character (prepare)." },
+                text: { type: "string", description: "Optional in-memory text override (prepare)." },
+                item: { type: "object", description: "CallHierarchyItem-like object (incoming/outgoing)." }
+            },
+            required: ["mode"]
+        }
+    },
+    {
+        name: "helium_mez_explain_symbol",
+        description: "Agent-friendly symbol explanation (definition, references, signature/hover, context).",
+        inputSchema: {
+            type: "object",
+            properties: {
+                filePath: { type: "string" },
+                line: { type: "number", description: "0-based line." },
+                character: { type: "number", description: "0-based character." },
+                includeReferences: { type: "boolean", default: true },
+                maxReferences: { type: "number", default: 50 }
+            },
+            required: ["filePath", "line", "character"]
+        }
+    },
+    {
+        name: "helium_mez_apply_workspace_edit",
+        description: "Apply a WorkspaceEdit-style change set to disk (scoped to the Helium Rapid project root).",
+        inputSchema: {
+            type: "object",
+            properties: {
+                rootHintFilePath: { type: "string", description: "Absolute path to a file inside the target Helium Rapid project root." },
+                edit: { type: "object", description: "WorkspaceEdit-style object with a 'changes' map keyed by URI." }
+            },
+            required: ["rootHintFilePath", "edit"]
+        }
+    },
+    {
         name: "helium_vxml_ast",
         description: "Return a compact AST summary for a .vxml file.",
         inputSchema: {

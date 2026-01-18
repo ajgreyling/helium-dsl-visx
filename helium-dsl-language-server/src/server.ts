@@ -416,6 +416,10 @@ connection.onHover(async (params: HoverParams): Promise<Hover | null> => {
   if (!doc) {
     return null;
   }
+  // VXML is XML; disable Helium-DSL hover logic to avoid ANTLR lexer noise.
+  if (isVxmlDocument(doc) || !isMezDocument(doc)) {
+    return null;
+  }
 
   const position = params.position;
   const text = doc.getText();
@@ -1115,6 +1119,9 @@ connection.languages.callHierarchy.onOutgoingCalls(async (params: CallHierarchyO
   if (!doc) {
     return [];
   }
+  if (isVxmlDocument(doc) || !isMezDocument(doc)) {
+    return [];
+  }
 
   const text = doc.getText();
   const calls: CallHierarchyOutgoingCall[] = [];
@@ -1176,6 +1183,9 @@ connection.languages.callHierarchy.onOutgoingCalls(async (params: CallHierarchyO
 connection.languages.inlayHint.on(async (params: InlayHintParams): Promise<InlayHint[]> => {
   const doc = documents.get(params.textDocument.uri);
   if (!doc) {
+    return [];
+  }
+  if (isVxmlDocument(doc) || !isMezDocument(doc)) {
     return [];
   }
 
@@ -1419,6 +1429,12 @@ connection.languages.semanticTokens.on(async (params: SemanticTokensParams) => {
     console.error(`[SemanticTokens] ERROR: Document not found for ${params.textDocument.uri}`);
     return builder.build();
   }
+
+  // Important: semantic tokens are only supported for Helium DSL (.mez).
+  // VXML is XML and must not go through the ANTLR lexer/parser (it produces noisy lexer errors).
+  if (isVxmlDocument(doc) || !isMezDocument(doc)) {
+    return builder.build();
+  }
   
   const text = doc.getText();
   const userTypes = new Set(projectManager.getUserTypes());
@@ -1528,6 +1544,12 @@ connection.languages.semanticTokens.onRange(async (params: SemanticTokensRangePa
   const doc = documents.get(params.textDocument.uri);
   const builder = new SemanticTokensBuilder();
   if (!doc) return builder.build();
+
+  // Important: semantic tokens are only supported for Helium DSL (.mez).
+  // VXML is XML and must not go through the ANTLR lexer/parser.
+  if (isVxmlDocument(doc) || !isMezDocument(doc)) {
+    return builder.build();
+  }
 
   const text = doc.getText();
   const userTypes = new Set(projectManager.getUserTypes());

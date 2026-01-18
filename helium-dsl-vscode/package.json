@@ -82,6 +82,13 @@
         "language": "helium-vxml",
         "scopeName": "text.xml.helium-vxml",
         "path": "./generated/syntaxes/helium-vxml.tmLanguage.json"
+      },
+      {
+        "scopeName": "text.xml.helium-vxml.inject",
+        "path": "./generated/syntaxes/helium-vxml-inject.tmLanguage.json",
+        "injectTo": [
+          "text.xml.helium-vxml"
+        ]
       }
     ],
     "iconThemes": [

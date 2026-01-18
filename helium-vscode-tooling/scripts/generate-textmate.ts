@@ -9,6 +9,7 @@ const bifMetaPath = path.join(root, "generated/bifs/bif-metadata.json");
 const output = path.join(root, "generated/syntaxes/helium-dsl.tmLanguage.json");
 const vxmlXsdPath = path.join(root, "assets", "vxml", "View.xsd");
 const vxmlOutput = path.join(root, "generated/syntaxes/helium-vxml.tmLanguage.json");
+const vxmlInjectOutput = path.join(root, "generated/syntaxes/helium-vxml-inject.tmLanguage.json");
 
 // System/primitive types
 const systemTypes = [
@@ -380,55 +381,21 @@ async function main() {
   const elementAlt = toAlternation(elementNames);
   const attrAlt = toAlternation(attributeNames);
 
+  // -------------------------------------------------------------------------------------------
+  // VXML base grammar: use XML grammar + (safe) vocabulary overlays.
+  // NOTE: Wired attribute values (function/variable/etc) are handled via an injection grammar,
+  // because the XML grammar owns tag-attribute contexts.
+  // -------------------------------------------------------------------------------------------
   const vxmlTmLanguage = {
     $schema: "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
     name: "Helium VXML",
     scopeName: "text.xml.helium-vxml",
     patterns: [
-      { include: "#helium-vxml-wiring" },
       { include: "#helium-vxml-vocabulary" },
       // Base XML highlighting
       { include: "text.xml" },
     ],
     repository: {
-      "helium-vxml-wiring": {
-        patterns: [
-          // Highlight the presenter unit name in <view unit="...">
-          {
-            name: "meta.helium.vxml.view.unit",
-            match: `<view\\b[^>]*\\b(unit)\\s*=\\s*\"([^\"]+)\"`,
-            captures: {
-              1: { name: "entity.other.attribute-name" },
-              2: { name: "support.class" },
-            },
-          },
-
-          // Function wiring: init/action/function="(Unit:)?name"
-          {
-            name: "meta.helium.vxml.wired.function",
-            match:
-              `\\b(init|action|function)\\s*=\\s*\"(?:([A-Z][A-Za-z0-9_]*)\\:)?([A-Za-z_][A-Za-z0-9_]*)\"`,
-            captures: {
-              1: { name: "entity.other.attribute-name" },
-              2: { name: "support.class" },
-              3: { name: "support.function" },
-            },
-          },
-
-          // Variable wiring: variable="(Unit:)?name"
-          {
-            name: "meta.helium.vxml.wired.variable",
-            match:
-              `\\b(variable)\\s*=\\s*\"(?:([A-Z][A-Za-z0-9_]*)\\:)?([A-Za-z_][A-Za-z0-9_]*)\"`,
-            captures: {
-              1: { name: "entity.other.attribute-name" },
-              2: { name: "support.class" },
-              3: { name: "variable.other" },
-            },
-          },
-        ],
-      },
-
       "helium-vxml-vocabulary": {
         patterns: [
           // Known VXML tags (widgets / elements) from XSD
@@ -466,6 +433,64 @@ async function main() {
   await fs.ensureDir(path.dirname(vxmlOutput));
   await fs.writeJson(vxmlOutput, vxmlTmLanguage, { spaces: 2 });
   console.log(`Generated TextMate grammar at ${vxmlOutput}`);
+
+  // -------------------------------------------------------------------------------------------
+  // VXML injection grammar: highlight wired attribute values inside XML tag contexts.
+  // -------------------------------------------------------------------------------------------
+  const vxmlInjectTmLanguage = {
+    $schema: "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+    name: "Helium VXML (Inject)",
+    scopeName: "text.xml.helium-vxml.inject",
+    // Inject into our VXML base scope (which includes the XML grammar).
+    // We do NOT exclude strings, because we want to highlight inside attribute value quotes.
+    injectionSelector: "L:text.xml.helium-vxml -comment",
+    patterns: [{ include: "#helium-vxml-wiring" }],
+    repository: {
+      "helium-vxml-wiring": {
+        patterns: [
+          // Highlight unit name in unit="SomeUnit"
+          {
+            name: "meta.helium.vxml.wired.unit",
+            match: `\\b(unit)\\s*=\\s*\"([A-Z][A-Za-z0-9_]*)\"`,
+            captures: {
+              1: { name: "entity.other.attribute-name" },
+              2: { name: "support.class" },
+            },
+          },
+
+          // Highlight wired function values in: init/action/function="(Unit:)?name"
+          // Also handles: function="getSomething" (e.g. <visible function="..."/>).
+          {
+            name: "meta.helium.vxml.wired.function",
+            match:
+              `\\b(init|action|function)\\s*=\\s*\"(?:([A-Z][A-Za-z0-9_]*)\\:)?([A-Za-z_][A-Za-z0-9_]*)\"`,
+            captures: {
+              1: { name: "entity.other.attribute-name" },
+              2: { name: "support.class" },
+              3: { name: "support.function" },
+            },
+          },
+
+          // Highlight wired variable values in: variable="(Unit:)?name"
+          {
+            name: "meta.helium.vxml.wired.variable",
+            match:
+              `\\b(variable)\\s*=\\s*\"(?:([A-Z][A-Za-z0-9_]*)\\:)?([A-Za-z_][A-Za-z0-9_]*)\"`,
+            captures: {
+              1: { name: "entity.other.attribute-name" },
+              2: { name: "support.class" },
+              3: { name: "variable.other" },
+            },
+          },
+        ],
+      },
+    },
+    uuid: "f6f1f6f0-2f9b-4e8a-9ed3-2c2c0a7c7f44",
+  };
+
+  await fs.ensureDir(path.dirname(vxmlInjectOutput));
+  await fs.writeJson(vxmlInjectOutput, vxmlInjectTmLanguage, { spaces: 2 });
+  console.log(`Generated TextMate injection grammar at ${vxmlInjectOutput}`);
 }
 
 main().catch((err) => {

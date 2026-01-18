@@ -28,3 +28,20 @@ export { runLints } from "./linter/engine.js";
 export { formatDocument, formatOnType } from "./formatting/formatter.js";
 export { getLanguageMetadataSync } from "./language/metadata.js";
 
+// LSP-style helpers used by in-repo tooling (e.g. MCP server). Keep this minimal.
+export {
+  buildSignatureHelpFromLabel,
+  findCallAtPosition,
+} from "./utils/signatureHelp.js";
+
+export {
+  createNoVarInElseFix,
+  createNamingConventionFix,
+  createForbiddenOperatorFix,
+} from "./codeActions/quickFixes.js";
+
+export {
+  findFunctionCalls,
+  findFunctionDefinition,
+} from "./callHierarchy/callHierarchy.js";
+
