@@ -421,9 +421,6 @@ export class ProjectIndex {
     if (isConversation) {
       console.error(`[DEBUG] resolveDefinitionAt: uri=${uri}, position=(${position.line},${position.character})`);
     }
-    // #region agent log
-    (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'B',location:'projectIndex.ts:resolveDefinitionAt',message:'resolveDefinitionAt_called',data:{uri,line:position.line,character:position.character,fileAstPresent:this.files.has(uri),objectCount:this.objects.size,unitCount:this.units.size,enumCount:this.enums.size},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion agent log
     const ast = this.files.get(uri);
     if (!ast) {
       if (isConversation) {
@@ -436,17 +433,11 @@ export class ProjectIndex {
       if (isConversation) {
         console.error(`[DEBUG] resolveDefinitionAt: No symbol match found at position`);
       }
-      // #region agent log
-      (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'D',location:'projectIndex.ts:resolveDefinitionAt',message:'resolveDefinitionAt_noMatch',data:{uri,line:position.line,character:position.character,typeRefCount:ast.typeReferences.length,unitRefCount:ast.unitReferences.length,varRefCount:ast.variableReferences.length},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion agent log
       return null;
     }
     if (isConversation) {
       console.error(`[DEBUG] resolveDefinitionAt: Match type=${match.type}`);
     }
-    // #region agent log
-    (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'B',location:'projectIndex.ts:resolveDefinitionAt',message:'resolveDefinitionAt_match',data:{uri,matchType:match.type,matchName:(match.type==='typeRef'?(match as any).ref?.name:match.type==='unitRef'?(match as any).ref?.name:match.type==='functionRef'?(match as any).ref?.name:match.type==='variableRef'?(match as any).ref?.name:match.type==='declaration'?(match as any).symbol?.name:null)},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion agent log
     if (match.type === "declaration") {
       if (isConversation) {
         console.error(`[DEBUG] resolveDefinitionAt: Returning declaration location`);
@@ -464,17 +455,11 @@ export class ProjectIndex {
           console.error(`[DEBUG] resolveDefinitionAt: TypeRef name=${(match as any).ref.name}, objects in index=${Array.from(this.objects.keys()).slice(0, 10).join(', ')}`);
         }
       }
-      // #region agent log
-      (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'B',location:'projectIndex.ts:resolveDefinitionAt',message:'resolveDefinitionAt_unresolved',data:{uri,matchType:match.type,matchName:(match.type==='typeRef'?(match as any).ref?.name:match.type==='unitRef'?(match as any).ref?.name:null),objectKeysSample:Array.from(this.objects.keys()).slice(0,20)},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion agent log
       return null;
     }
     if (isConversation) {
       console.error(`[DEBUG] resolveDefinitionAt: Returning resolved location: ${resolved.uri}`);
     }
-    // #region agent log
-    (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'B',location:'projectIndex.ts:resolveDefinitionAt',message:'resolveDefinitionAt_resolved',data:{uri,resolvedKind:resolved.kind,resolvedName:resolved.name,resolvedUri:resolved.uri,resolvedStartLine:resolved.range.start.line},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion agent log
     return {
       uri: resolved.uri,
       range: toLspRange(resolved.range),

@@ -110,10 +110,6 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
   await projectManager.initialize(params.workspaceFolders || null);
   console.error("[Server] Project manager initialized");
 
-  // #region agent log
-  (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A',location:'server.ts:onInitialize',message:'server_initialized',data:{rootUri:params.rootUri ?? null,workspaceFolders:(params.workspaceFolders ?? []).map(w=>w.uri),projectRoots:projectManager.getProjectRoots(),userTypeCount:projectManager.getUserTypes().length,unitCount:projectManager.getUnitNames().length},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion agent log
-
   // After initializing the index, send a notification with all discovered user-defined types
   try {
     const types = projectManager.getUserTypes();
@@ -1318,9 +1314,6 @@ connection.onDefinition((params: DefinitionParams): Location | Location[] | null
 
 connection.onTypeDefinition((params: TypeDefinitionParams): Location | Location[] | null => {
   const doc = documents.get(params.textDocument.uri);
-  // #region agent log
-  (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'B',location:'server.ts:onTypeDefinition',message:'typeDefinition_request',data:{uri:params.textDocument.uri,line:params.position.line,character:params.position.character,docFound:!!doc},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion agent log
   if (doc && params.textDocument.uri.includes("GbvChatClient.mez")) {
     const line = doc.getText().split(/\r?\n/)[params.position.line] || "";
     const wordAtPos = extractTypeNameAtPosition(doc, params.position);
@@ -1741,10 +1734,6 @@ connection.languages.semanticTokens.on(async (params: SemanticTokensParams) => {
   const text = doc.getText();
   const userTypes = new Set(projectManager.getUserTypes());
 
-  // #region agent log
-  (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'C',location:'server.ts:semanticTokens',message:'semanticTokens_request',data:{uri:params.textDocument.uri,docFound:!!doc,textLength:text.length,userTypeCount:userTypes.size},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion agent log
-
   const pushRange = (range: { start: { line: number; character: number }; end: { line: number; character: number } }, tokenTypeIndex: number) => {
     // SemanticTokensBuilder.push expects a single-line token span.
     // Our AST ranges for identifiers are token-based and should be single-line.
@@ -1762,9 +1751,6 @@ connection.languages.semanticTokens.on(async (params: SemanticTokensParams) => {
   try {
     // Parse the current document text for accurate, up-to-date ranges.
     const ast = await buildFileAst(text, params.textDocument.uri);
-    // #region agent log
-    (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'C',location:'server.ts:semanticTokens',message:'semanticTokens_ast_built',data:{uri:params.textDocument.uri,objectCount:ast.objects.length,unitCount:ast.units.length,typeRefCount:ast.typeReferences.length,unitRefCount:ast.unitReferences.length},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion agent log
 
     // Highlight user-defined types based on structural type references.
     for (const ref of ast.typeReferences) {
@@ -1816,9 +1802,6 @@ connection.languages.semanticTokens.on(async (params: SemanticTokensParams) => {
 
   const result = builder.build();
   const tokenCount = result.data.length / 5;
-  // #region agent log
-  (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'C',location:'server.ts:semanticTokens',message:'semanticTokens_built',data:{uri:params.textDocument.uri,tokenCount},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion agent log
   logVerbose(`[SemanticTokens] ===== Returning ${tokenCount} tokens =====`);
   return result;
 });
