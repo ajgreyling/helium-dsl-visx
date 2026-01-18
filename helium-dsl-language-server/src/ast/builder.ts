@@ -46,7 +46,6 @@ async function loadGenerated(name: string): Promise<any | undefined> {
   }
   // Use __dirname which is already set from import.meta.url
   const currentDir = __dirname;
-  console.error(`[DEBUG] loadGenerated: Loading ${name}, currentDir=${currentDir}`);
   
   // Helper function to try loading a module from a path using dynamic import()
   const tryLoad = async (modulePath: string, withExtension?: string): Promise<any | undefined> => {
@@ -66,28 +65,20 @@ async function loadGenerated(name: string): Promise<any | undefined> {
           const fileUrl = (tryPath.endsWith('.ts') || tryPath.endsWith('.js'))
             ? `file://${resolvedPath}`
             : existsJs ? `file://${resolvedPath}.js` : `file://${resolvedPath}.ts`;
-          console.error(`[DEBUG] loadGenerated: Trying to import ${name} from ${fileUrl}`);
           const mod = await import(fileUrl);
           if (mod) {
             const result = mod[name] || mod.default || mod;
             if (result) {
-              console.error(`[DEBUG] loadGenerated: Successfully loaded ${name} from ${fileUrl}`);
               // Cache the module for future use
               moduleCache.set(name, mod);
               return result;
-            } else {
-              console.error(`[DEBUG] loadGenerated: Module loaded but ${name} not found in exports`);
             }
           }
         } catch (importError) {
-          const importErrorMsg = importError instanceof Error ? importError.message : String(importError);
-          console.error(`[DEBUG] loadGenerated: Import failed for ${tryPath}: ${importErrorMsg}`);
           // Suppress "Cannot require() ES Module" errors - these occur when a module was already touched
           // by require() (e.g., by ts-node internally). We'll try other paths which may succeed.
           // Silently continue to next path on import errors
         }
-      } else {
-        console.error(`[DEBUG] loadGenerated: Path does not exist: ${tryPath} (.ts=${existsTs}, .js=${existsJs})`);
       }
     }
     return undefined;
@@ -95,13 +86,11 @@ async function loadGenerated(name: string): Promise<any | undefined> {
   
   // Try bundled path first (when packaged in extension)
   const bundledPath = path.resolve(currentDir, "../../generated/parser/generated/grammar", name);
-  console.error(`[DEBUG] loadGenerated: Trying bundled path: ${bundledPath}`);
   const bundledResult = await tryLoad(bundledPath);
   if (bundledResult) return bundledResult;
   
   // Fallback to development path
   const devPath = path.resolve(currentDir, "../../../generated/parser/generated/grammar", name);
-  console.error(`[DEBUG] loadGenerated: Trying dev path: ${devPath}`);
   const devResult = await tryLoad(devPath);
   if (devResult) return devResult;
   
@@ -116,33 +105,28 @@ async function loadGenerated(name: string): Promise<any | undefined> {
   
   // Try siblingPath1 first (correct path from TypeScript source: src/ast)
   const siblingPath1 = path.resolve(currentDir, "../../../helium-vscode-tooling/generated/parser/generated/grammar", name);
-  console.error(`[DEBUG] loadGenerated: Trying sibling path 1: ${siblingPath1}`);
   const sibling1Result = await tryLoad(siblingPath1, ".ts");
   if (sibling1Result) return sibling1Result;
   
   // Try siblingPath2 (correct path from compiled output: out/src/ast)
   const siblingPath2 = path.resolve(currentDir, "../../../../helium-vscode-tooling/generated/parser/generated/grammar", name);
-  console.error(`[DEBUG] loadGenerated: Trying sibling path 2: ${siblingPath2}`);
   const sibling2Result = await tryLoad(siblingPath2, ".ts");
   if (sibling2Result) return sibling2Result;
   
   // Try absolute path
-  console.error(`[DEBUG] loadGenerated: Trying absolute path: ${toolingPath}`);
   const absoluteResult = await tryLoad(toolingPath, ".ts");
   if (absoluteResult) return absoluteResult;
   
   // Also try the parser directory directly (not in generated/grammar subdirectory)
   const parserDirPath1 = path.resolve(currentDir, "../../../helium-vscode-tooling/generated/parser", name);
-  console.error(`[DEBUG] loadGenerated: Trying parser dir path 1: ${parserDirPath1}`);
   const parserDirResult1 = await tryLoad(parserDirPath1, ".ts");
   if (parserDirResult1) return parserDirResult1;
   
   const parserDirPath2 = path.resolve(currentDir, "../../../../helium-vscode-tooling/generated/parser", name);
-  console.error(`[DEBUG] loadGenerated: Trying parser dir path 2: ${parserDirPath2}`);
   const parserDirResult2 = await tryLoad(parserDirPath2, ".ts");
   if (parserDirResult2) return parserDirResult2;
 
-  console.error(`[DEBUG] loadGenerated: Failed to load ${name} from all paths`);
+  console.error(`[HeliumDSL] Failed to load generated parser module "${name}"`);
   return undefined;
 }
 
@@ -206,7 +190,6 @@ class AstListener {
                 // Store this for potential use by enterSimpleObject
                 // We'll let enterSimpleObject handle the actual object creation to avoid duplicates
                 // This is just a backup in case enterSimpleObject completely fails
-                console.error(`[AST] enterPersistentObject: Found object name "${objectName}" in child context (backup)`);
               }
             }
           } catch (err) {
@@ -237,11 +220,6 @@ class AstListener {
     // The object name should be at startToken.tokenIndex + 1
     let nameToken = ctx.ID();
     const isPersistent = this.persistentDepth > 0;
-    
-    // Debug logging
-    if (!nameToken) {
-      console.error(`[AST] enterSimpleObject: ctx.ID() returned null, isPersistent=${isPersistent}`);
-    }
     
     // Only try to use token stream if fill() succeeded - otherwise use ctx.ID() directly
     if (nameToken && ctx.start && this.tokenStream && this.tokenFillSucceeded) {
@@ -357,7 +335,6 @@ class AstListener {
               const tokenText = token.text || "";
               if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(tokenText)) {
                 nameToken = { text: tokenText, symbol: token };
-                console.error(`[AST] Fallback: Found object name "${tokenText}" via token stream search`);
                 break;
               }
             }
@@ -379,7 +356,6 @@ class AstListener {
             // Try to get the actual token
             if (child.start && child.stop && child.start === child.stop) {
               nameToken = { text: childText, symbol: child.start };
-              console.error(`[AST] Fallback: Found object name "${childText}" from child context`);
               break;
             }
           }
@@ -403,12 +379,9 @@ class AstListener {
     // Check for duplicates (in case enterPersistentObject backup handler already added it)
     const existing = this.ast.objects.find(obj => obj.name === objectName);
     if (existing) {
-      console.error(`[AST] enterSimpleObject: Object "${objectName}" already exists, updating currentObject reference`);
       this.currentObject = existing;
       return;
     }
-    
-    console.error(`[AST] enterSimpleObject: Successfully extracted object "${objectName}", isPersistent=${isPersistent}`);
     
     const objectDecl: ObjectDecl = {
       kind: "ObjectDecl",

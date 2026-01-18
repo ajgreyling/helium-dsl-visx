@@ -511,15 +511,8 @@ function findUriForDecl(decl: ObjectDecl | UnitDecl | EnumDecl, files: Map<strin
 }
 
 function findSymbolMatch(ast: FileAst, position: Position): SymbolMatch | null {
-  const isGbvChatClient = ast.uri.includes("GbvChatClient.mez");
-  if (isGbvChatClient) {
-    console.error(`[DEBUG] findSymbolMatch: Looking for match at position (${position.line},${position.character})`);
-  }
   const declMatch = findDeclarationAt(ast, position);
   if (declMatch) {
-    if (isGbvChatClient) {
-      console.error(`[DEBUG] findSymbolMatch: Found declaration match: ${declMatch.name}`);
-    }
     return { type: "declaration", symbol: declMatch };
   }
 
@@ -532,11 +525,6 @@ function findSymbolMatch(ast: FileAst, position: Position): SymbolMatch | null {
     if (!rangeContains(range, position.line, position.character)) return null;
     const normalized = normalizeTypeName(name);
     const ref: TypeReference = { kind: "TypeReference", name: normalized, nameRange: range };
-    if (isGbvChatClient) {
-      console.error(
-        `[DEBUG] findSymbolMatch: Found type span match: name="${normalized}", range=(${range.start.line},${range.start.character})-(${range.end.line},${range.end.character})`
-      );
-    }
     return { type: "typeRef", ref };
   };
 
@@ -571,9 +559,6 @@ function findSymbolMatch(ast: FileAst, position: Position): SymbolMatch | null {
 
   for (const ref of ast.typeReferences) {
     if (rangeContains(ref.nameRange, position.line, position.character)) {
-      if (isGbvChatClient) {
-        console.error(`[DEBUG] findSymbolMatch: Found typeRef match: name="${ref.name}", range=(${ref.nameRange.start.line},${ref.nameRange.start.character})-(${ref.nameRange.end.line},${ref.nameRange.end.character})`);
-      }
       return { type: "typeRef", ref };
     }
   }
