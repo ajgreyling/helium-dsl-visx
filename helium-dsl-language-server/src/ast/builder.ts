@@ -46,6 +46,7 @@ async function loadGenerated(name: string): Promise<any | undefined> {
   }
   // Use __dirname which is already set from import.meta.url
   const currentDir = __dirname;
+  console.error(`[DEBUG] loadGenerated: Loading ${name}, currentDir=${currentDir}`);
   
   // Helper function to try loading a module from a path using dynamic import()
   const tryLoad = async (modulePath: string, withExtension?: string): Promise<any | undefined> => {
@@ -54,7 +55,9 @@ async function loadGenerated(name: string): Promise<any | undefined> {
       : [modulePath];
     
     for (const tryPath of pathsToTry) {
-      const exists = fs.existsSync(tryPath + ".ts") || fs.existsSync(tryPath + ".js") || fs.existsSync(tryPath);
+      const existsTs = fs.existsSync(tryPath + ".ts");
+      const existsJs = fs.existsSync(tryPath + ".js");
+      const exists = existsTs || existsJs || fs.existsSync(tryPath);
       if (exists) {
         try {
           // In ESM mode, use import() directly to avoid mixing require() and import()
@@ -62,22 +65,29 @@ async function loadGenerated(name: string): Promise<any | undefined> {
           const resolvedPath = path.resolve(tryPath);
           const fileUrl = (tryPath.endsWith('.ts') || tryPath.endsWith('.js'))
             ? `file://${resolvedPath}`
-            : `file://${resolvedPath}.ts`;
+            : existsJs ? `file://${resolvedPath}.js` : `file://${resolvedPath}.ts`;
+          console.error(`[DEBUG] loadGenerated: Trying to import ${name} from ${fileUrl}`);
           const mod = await import(fileUrl);
           if (mod) {
-            const result = mod[name] || mod;
+            const result = mod[name] || mod.default || mod;
             if (result) {
+              console.error(`[DEBUG] loadGenerated: Successfully loaded ${name} from ${fileUrl}`);
               // Cache the module for future use
               moduleCache.set(name, mod);
               return result;
+            } else {
+              console.error(`[DEBUG] loadGenerated: Module loaded but ${name} not found in exports`);
             }
           }
         } catch (importError) {
           const importErrorMsg = importError instanceof Error ? importError.message : String(importError);
+          console.error(`[DEBUG] loadGenerated: Import failed for ${tryPath}: ${importErrorMsg}`);
           // Suppress "Cannot require() ES Module" errors - these occur when a module was already touched
           // by require() (e.g., by ts-node internally). We'll try other paths which may succeed.
           // Silently continue to next path on import errors
         }
+      } else {
+        console.error(`[DEBUG] loadGenerated: Path does not exist: ${tryPath} (.ts=${existsTs}, .js=${existsJs})`);
       }
     }
     return undefined;
@@ -85,11 +95,13 @@ async function loadGenerated(name: string): Promise<any | undefined> {
   
   // Try bundled path first (when packaged in extension)
   const bundledPath = path.resolve(currentDir, "../../generated/parser/generated/grammar", name);
+  console.error(`[DEBUG] loadGenerated: Trying bundled path: ${bundledPath}`);
   const bundledResult = await tryLoad(bundledPath);
   if (bundledResult) return bundledResult;
   
   // Fallback to development path
   const devPath = path.resolve(currentDir, "../../../generated/parser/generated/grammar", name);
+  console.error(`[DEBUG] loadGenerated: Trying dev path: ${devPath}`);
   const devResult = await tryLoad(devPath);
   if (devResult) return devResult;
   
@@ -104,27 +116,33 @@ async function loadGenerated(name: string): Promise<any | undefined> {
   
   // Try siblingPath1 first (correct path from TypeScript source: src/ast)
   const siblingPath1 = path.resolve(currentDir, "../../../helium-vscode-tooling/generated/parser/generated/grammar", name);
+  console.error(`[DEBUG] loadGenerated: Trying sibling path 1: ${siblingPath1}`);
   const sibling1Result = await tryLoad(siblingPath1, ".ts");
   if (sibling1Result) return sibling1Result;
   
   // Try siblingPath2 (correct path from compiled output: out/src/ast)
   const siblingPath2 = path.resolve(currentDir, "../../../../helium-vscode-tooling/generated/parser/generated/grammar", name);
+  console.error(`[DEBUG] loadGenerated: Trying sibling path 2: ${siblingPath2}`);
   const sibling2Result = await tryLoad(siblingPath2, ".ts");
   if (sibling2Result) return sibling2Result;
   
   // Try absolute path
+  console.error(`[DEBUG] loadGenerated: Trying absolute path: ${toolingPath}`);
   const absoluteResult = await tryLoad(toolingPath, ".ts");
   if (absoluteResult) return absoluteResult;
   
   // Also try the parser directory directly (not in generated/grammar subdirectory)
   const parserDirPath1 = path.resolve(currentDir, "../../../helium-vscode-tooling/generated/parser", name);
+  console.error(`[DEBUG] loadGenerated: Trying parser dir path 1: ${parserDirPath1}`);
   const parserDirResult1 = await tryLoad(parserDirPath1, ".ts");
   if (parserDirResult1) return parserDirResult1;
   
   const parserDirPath2 = path.resolve(currentDir, "../../../../helium-vscode-tooling/generated/parser", name);
+  console.error(`[DEBUG] loadGenerated: Trying parser dir path 2: ${parserDirPath2}`);
   const parserDirResult2 = await tryLoad(parserDirPath2, ".ts");
   if (parserDirResult2) return parserDirResult2;
 
+  console.error(`[DEBUG] loadGenerated: Failed to load ${name} from all paths`);
   return undefined;
 }
 
@@ -160,14 +178,65 @@ class AstListener {
     if (!ctx) {
       return;
     }
+    
+    // #region agent log
+    const uri = this.ast.uri;
+    const isConversation = uri && uri.includes("Conversation.mez");
+    if (isConversation) {
+      const ruleName = ctx.constructor?.name || 'unknown';
+      // Only log specific rules to avoid spam
+      if (ruleName.includes('Object') || ruleName.includes('Persistent') || ruleName.includes('Simple')) {
+        (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'ast-1',hypothesisId:'E',location:'builder.ts:158',message:'enterEveryRule_object_related',data:{uri,ruleName,hasEnterSimpleObject:typeof this.enterSimpleObject === 'function'},timestamp:Date.now()})}).catch(()=>{});
+      }
+    }
+    // #endregion agent log
   }
 
   exitEveryRule(ctx: ParserRuleContext) {
     // No-op - kept for interface compliance
   }
 
-  enterPersistentObject(_ctx: ParserRuleContext) {
+  enterPersistentObject(ctx: any) {
     this.persistentDepth += 1;
+    console.error(`[AST] enterPersistentObject: persistentDepth=${this.persistentDepth}`);
+    
+    // #region agent log
+    const uri = this.ast.uri;
+    const isConversation = uri && uri.includes("Conversation.mez");
+    if (isConversation) {
+      console.error("[DEBUG] enterPersistentObject_called for Conversation.mez");
+      (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'ast-1',hypothesisId:'A',location:'builder.ts:169',message:'enterPersistentObject_called',data:{uri,persistentDepth:this.persistentDepth,hasCtx:!!ctx,ctxText:ctx?.getText?.()?.substring(0,100)},timestamp:Date.now()})}).catch((err: any)=>console.error("[DEBUG] Fetch error in enterPersistentObject:", err));
+    }
+    // #endregion agent log
+    
+    // Backup: Try to extract object name from persistentObject context
+    // This is a fallback in case enterSimpleObject fails
+    // The persistentObject rule contains a simpleObject child, so we can try to find the ID there
+    // Note: This runs before enterSimpleObject, so we store the extracted name and let enterSimpleObject use it
+    // or we can add it here as a backup if enterSimpleObject fails
+    if (ctx && ctx.children) {
+      // Look for simpleObject child
+      for (const child of ctx.children) {
+        if (child && typeof child.getText === 'function') {
+          // Check if this child has an ID() method (simpleObject should)
+          try {
+            const idTokens = child.ID ? child.ID() : null;
+            if (idTokens) {
+              const idToken = Array.isArray(idTokens) ? idTokens[0] : idTokens;
+              if (idToken && idToken.text) {
+                const objectName = idToken.text.trim();
+                // Store this for potential use by enterSimpleObject
+                // We'll let enterSimpleObject handle the actual object creation to avoid duplicates
+                // This is just a backup in case enterSimpleObject completely fails
+                console.error(`[AST] enterPersistentObject: Found object name "${objectName}" in child context (backup)`);
+              }
+            }
+          } catch (err) {
+            // Ignore errors - enterSimpleObject will handle it
+          }
+        }
+      }
+    }
   }
 
   exitPersistentObject(_ctx: ParserRuleContext) {
@@ -189,6 +258,21 @@ class AstListener {
     // We need the ID token that comes right after "object" keyword
     // The object name should be at startToken.tokenIndex + 1
     let nameToken = ctx.ID();
+    const isPersistent = this.persistentDepth > 0;
+    
+    // #region agent log
+    const uri = this.ast.uri;
+    const isConversation = uri && uri.includes("Conversation.mez");
+    if (isConversation) {
+      (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'ast-1',hypothesisId:'A',location:'builder.ts:217',message:'enterSimpleObject_start',data:{uri,isPersistent,hasNameToken:!!nameToken,nameTokenText:nameToken?.text,hasTokenStream:!!this.tokenStream,tokenFillSucceeded:this.tokenFillSucceeded},timestamp:Date.now()})}).catch(()=>{});
+    }
+    // #endregion agent log
+    
+    // Debug logging
+    if (!nameToken) {
+      console.error(`[AST] enterSimpleObject: ctx.ID() returned null, isPersistent=${isPersistent}`);
+    }
+    
     // Only try to use token stream if fill() succeeded - otherwise use ctx.ID() directly
     if (nameToken && ctx.start && this.tokenStream && this.tokenFillSucceeded) {
       try {
@@ -203,10 +287,34 @@ class AstListener {
           objectTokenIndex = ctx.start.tokenIndex;
         } else {
           // If tokenIndex is -1, scan for "object" token
+          // When inside persistentObject, we need to find the "object" token that comes after "persistent"
           for (let i = 0; i < allTokens.length; i++) {
             if (allTokens[i].text === "object") {
-              objectTokenIndex = i;
-              break;
+              // If we're in a persistent context, verify this "object" comes after "persistent"
+              if (isPersistent) {
+                // Check if there's a "persistent" token before this "object" token
+                let foundPersistent = false;
+                for (let k = i - 1; k >= 0; k--) {
+                  const prevToken = allTokens[k];
+                  // Skip whitespace
+                  if (prevToken.type !== 265 && prevToken.channel !== 1) {
+                    if (prevToken.text === "persistent") {
+                      foundPersistent = true;
+                      break;
+                    } else {
+                      // If we hit a non-whitespace token that's not "persistent", this isn't the right "object"
+                      break;
+                    }
+                  }
+                }
+                if (foundPersistent) {
+                  objectTokenIndex = i;
+                  break;
+                }
+              } else {
+                objectTokenIndex = i;
+                break;
+              }
             }
           }
         }
@@ -232,28 +340,138 @@ class AstListener {
         }
       } catch (err) {
         // Ignore token stream errors - fall back to ctx.ID()
+        console.error(`[AST] Token stream error in enterSimpleObject:`, err instanceof Error ? err.message : String(err));
+      }
+    }
+    
+    // Fallback: if nameToken is still null and we have token stream, try to find ID token manually
+    if (!nameToken && ctx.start && this.tokenStream && this.tokenFillSucceeded) {
+      try {
+        const allTokens = this.tokenStream.getTokens();
+        let objectTokenIndex: number | undefined = undefined;
+        
+        // Find "object" token (accounting for "persistent" prefix if needed)
+        for (let i = 0; i < allTokens.length; i++) {
+          if (allTokens[i].text === "object") {
+            if (isPersistent) {
+              // Verify "persistent" comes before "object"
+              let foundPersistent = false;
+              for (let k = i - 1; k >= 0; k--) {
+                const prevToken = allTokens[k];
+                if (prevToken.type !== 265 && prevToken.channel !== 1) {
+                  if (prevToken.text === "persistent") {
+                    foundPersistent = true;
+                    break;
+                  } else {
+                    break;
+                  }
+                }
+              }
+              if (foundPersistent) {
+                objectTokenIndex = i;
+                break;
+              }
+            } else {
+              objectTokenIndex = i;
+              break;
+            }
+          }
+        }
+        
+        // Find ID token after "object"
+        if (objectTokenIndex !== undefined) {
+          for (let j = objectTokenIndex + 1; j < allTokens.length; j++) {
+            const token = allTokens[j];
+            if (token.type !== 265 && token.channel !== 1) {
+              // Check if this looks like an identifier (starts with letter/underscore, contains alphanumeric)
+              const tokenText = token.text || "";
+              if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(tokenText)) {
+                nameToken = { text: tokenText, symbol: token };
+                console.error(`[AST] Fallback: Found object name "${tokenText}" via token stream search`);
+                break;
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error(`[AST] Fallback token stream search failed:`, err instanceof Error ? err.message : String(err));
+      }
+    }
+    
+    // Final fallback: try to get ID from child contexts if ctx.ID() failed
+    if (!nameToken && ctx.children) {
+      for (const child of ctx.children) {
+        if (child && typeof child.getText === 'function') {
+          const childText = child.getText();
+          // Look for ID tokens in children
+          if (child.constructor?.name?.includes('IdContext') || 
+              (childText && /^[A-Za-z_][A-Za-z0-9_]*$/.test(childText) && childText !== "object" && childText !== "persistent")) {
+            // Try to get the actual token
+            if (child.start && child.stop && child.start === child.stop) {
+              nameToken = { text: childText, symbol: child.start };
+              console.error(`[AST] Fallback: Found object name "${childText}" from child context`);
+              break;
+            }
+          }
+        }
       }
     }
     
     if (!nameToken) {
+      console.error(`[AST] enterSimpleObject: Failed to extract object name, isPersistent=${isPersistent}`);
+      // #region agent log
+      if (isConversation) {
+        (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'ast-1',hypothesisId:'B',location:'builder.ts:373',message:'enterSimpleObject_failed_no_token',data:{uri,isPersistent,ctxText:ctx.getText?.()?.substring(0,100)},timestamp:Date.now()})}).catch(()=>{});
+      }
+      // #endregion agent log
       return;
     }
     
     // Validate that nameToken.text is not just whitespace
     if (!nameToken.text || nameToken.text.trim().length === 0) {
+      console.error(`[AST] enterSimpleObject: nameToken.text is empty or whitespace`);
+      // #region agent log
+      if (isConversation) {
+        (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'ast-1',hypothesisId:'B',location:'builder.ts:380',message:'enterSimpleObject_failed_empty_text',data:{uri,isPersistent,nameTokenText:nameToken.text},timestamp:Date.now()})}).catch(()=>{});
+      }
+      // #endregion agent log
       return;
     }
     
+    const objectName = nameToken.text.trim();
+    
+    // Check for duplicates (in case enterPersistentObject backup handler already added it)
+    const existing = this.ast.objects.find(obj => obj.name === objectName);
+    if (existing) {
+      console.error(`[AST] enterSimpleObject: Object "${objectName}" already exists, updating currentObject reference`);
+      this.currentObject = existing;
+      return;
+    }
+    
+    console.error(`[AST] enterSimpleObject: Successfully extracted object "${objectName}", isPersistent=${isPersistent}`);
+    
+    // #region agent log
+    if (isConversation) {
+      (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'ast-1',hypothesisId:'A',location:'builder.ts:394',message:'enterSimpleObject_success',data:{uri,objectName,isPersistent,currentObjectCount:this.ast.objects.length},timestamp:Date.now()})}).catch(()=>{});
+    }
+    // #endregion agent log
+    
     const objectDecl: ObjectDecl = {
       kind: "ObjectDecl",
-      name: nameToken.text.trim(), // Trim whitespace just in case
+      name: objectName,
       nameRange: rangeFromTokens(nameToken.symbol, nameToken.symbol),
-      isPersistent: this.persistentDepth > 0,
+      isPersistent: isPersistent,
       attributes: [],
       relationships: [],
     };
     this.ast.objects.push(objectDecl);
     this.currentObject = objectDecl;
+    
+    // #region agent log
+    if (isConversation) {
+      (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'ast-1',hypothesisId:'A',location:'builder.ts:405',message:'enterSimpleObject_object_added',data:{uri,objectName,isPersistent,finalObjectCount:this.ast.objects.length},timestamp:Date.now()})}).catch(()=>{});
+    }
+    // #endregion agent log
   }
 
   exitSimpleObject() {
@@ -431,6 +649,16 @@ class AstListener {
     const enumToken = ctx.ENUM_ID ? ctx.ENUM_ID() : null;
     const token = idToken || enumToken;
     if (!token) return;
+    
+    // #region agent log
+    const uri = this.ast.uri;
+    const isGbvChatClient = uri && uri.includes("GbvChatClient.mez");
+    if (isGbvChatClient) {
+      console.error(`[DEBUG] enterTypeName: token.text="${token.text}", ctx.getText()="${ctx.getText?.()}"`);
+      (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'ast-1',hypothesisId:'F',location:'builder.ts:648',message:'enterTypeName_called',data:{uri,tokenText:token.text,ctxText:ctx.getText?.(),hasIdToken:!!idToken,hasEnumToken:!!enumToken},timestamp:Date.now()})}).catch(()=>{});
+    }
+    // #endregion agent log
+    
     this.ast.typeReferences.push({
       kind: "TypeReference",
       name: token.text,
@@ -510,10 +738,18 @@ class AstListener {
 }
 
 export async function buildFileAst(text: string, uri: string): Promise<FileAst> {
+  const isConversationFile = uri && uri.includes("Conversation.mez");
+  if (isConversationFile) {
+    console.error("[DEBUG] buildFileAst called for Conversation.mez");
+  }
+  
   const MezDSLLexer = await loadGenerated("MezDSLLexer");
   const MezDSLParser = await loadGenerated("MezDSLParser");
 
   if (!MezDSLLexer || !MezDSLParser) {
+    if (isConversationFile) {
+      console.error("[DEBUG] buildFileAst: MezDSLLexer or MezDSLParser is null");
+    }
     return {
       uri,
       objects: [],
@@ -554,8 +790,17 @@ export async function buildFileAst(text: string, uri: string): Promise<FileAst> 
     parser.removeErrorListeners();
     let tree;
     try {
+      if (isConversationFile) {
+        console.error("[DEBUG] buildFileAst: Calling parser.script() for Conversation.mez");
+      }
       tree = parser.script();
+      if (isConversationFile) {
+        console.error(`[DEBUG] buildFileAst: parser.script() succeeded, tree=${tree ? 'exists' : 'null'}`);
+      }
     } catch (parseErr) {
+      if (isConversationFile) {
+        console.error(`[DEBUG] buildFileAst: parser.script() threw error: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}`);
+      }
       if (parseErr instanceof Error && parseErr.message.includes('Maximum call stack')) {
         console.error("[DEBUG] Parser failed with stack overflow for:", uri);
         // Return empty AST if parsing fails with stack overflow
@@ -576,6 +821,9 @@ export async function buildFileAst(text: string, uri: string): Promise<FileAst> 
     }
     
     if (!tree) {
+      if (isConversationFile) {
+        console.error("[DEBUG] buildFileAst: tree is null, returning empty AST");
+      }
       return {
         uri,
         objects: [],
@@ -593,6 +841,10 @@ export async function buildFileAst(text: string, uri: string): Promise<FileAst> 
     const listener = new AstListener(uri);
     listener.tokenStream = tokens; // Store token stream for listener to access
     listener.tokenFillSucceeded = tokenFillSucceeded; // Track if fill succeeded
+    
+    if (isConversationFile) {
+      console.error("[DEBUG] buildFileAst: Created AstListener, about to walk tree");
+    }
     
     // Validate tree structure - check for nodes with undefined ruleContext
     // ParseTreeWalker.enterRule calls ctx.enterRule(listener) where ctx = r.ruleContext
@@ -681,6 +933,7 @@ export async function buildFileAst(text: string, uri: string): Promise<FileAst> 
     const originalWalk = ParseTreeWalker.DEFAULT.walk.bind(ParseTreeWalker.DEFAULT);
     // CRITICAL: Bind originalEnterRule BEFORE we replace it, otherwise we'll bind the replaced method!
     const originalEnterRule = (ParseTreeWalker.DEFAULT as any).enterRule.bind(ParseTreeWalker.DEFAULT);
+    const isConversation = uri && uri.includes("Conversation.mez");
     const walkerProxy = {
       walk: (listener: any, tree: any) => {
         // Create a wrapper around enterRule to catch the failing node
@@ -696,6 +949,16 @@ export async function buildFileAst(text: string, uri: string): Promise<FileAst> 
               return;
             }
             stats.processedCount++;
+            
+            // #region agent log
+            if (isConversation && stats.processedCount <= 50) { // Log first 50 rules to avoid spam
+              const ruleName = ctx.constructor?.name || 'unknown';
+              if (ruleName.includes('Object') || ruleName.includes('Persistent') || ruleName.includes('Simple')) {
+                (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'ast-1',hypothesisId:'E',location:'builder.ts:887',message:'walker_enterRule_object_related',data:{uri,ruleName,processedCount:stats.processedCount},timestamp:Date.now()})}).catch(()=>{});
+              }
+            }
+            // #endregion agent log
+            
             return originalEnterRule(listener, r);
           } catch (err) {
             console.error("[DEBUG] Walker enterRule error:", {
@@ -709,6 +972,13 @@ export async function buildFileAst(text: string, uri: string): Promise<FileAst> 
         };
         try {
           const result = originalWalk(listener, tree);
+          
+          // #region agent log
+          if (isConversation) {
+            (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'ast-1',hypothesisId:'E',location:'builder.ts:904',message:'walker_walk_stats',data:{uri,processedCount:stats.processedCount,skippedCount:stats.skippedCount},timestamp:Date.now()})}).catch(()=>{});
+          }
+          // #endregion agent log
+          
           return result;
         } finally {
           // Restore original enterRule
@@ -728,11 +998,30 @@ export async function buildFileAst(text: string, uri: string): Promise<FileAst> 
       }
     });
     
+    // #region agent log
+    if (isConversation) {
+      console.error("[DEBUG] walker_walk_start for Conversation.mez");
+      (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'ast-1',hypothesisId:'E',location:'builder.ts:911',message:'walker_walk_start',data:{uri,hasTree:!!tree,hasListener:!!listener,hasEnterSimpleObject:typeof listener.enterSimpleObject === 'function',hasEnterPersistentObject:typeof listener.enterPersistentObject === 'function'},timestamp:Date.now()})}).catch((err: any)=>console.error("[DEBUG] Fetch error in walker_walk_start:", err));
+    }
+    // #endregion agent log
+    
     // Try calling walker - keep minimal logging for current "enterRule" error
     try {
       // Walker wrapper will handle nodes without ruleContext (TerminalNodes)
       walkerProxy.walk(listenerProxy as any, tree);
+      
+      // #region agent log
+      if (isConversation) {
+        (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'ast-1',hypothesisId:'E',location:'builder.ts:916',message:'walker_walk_complete',data:{uri,objectCount:listener.ast.objects.length},timestamp:Date.now()})}).catch(()=>{});
+      }
+      // #endregion agent log
     } catch (walkErr) {
+      // #region agent log
+      if (isConversation) {
+        (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'ast-1',hypothesisId:'E',location:'builder.ts:920',message:'walker_walk_error',data:{uri,error:walkErr instanceof Error ? walkErr.message : String(walkErr),isStackOverflow:walkErr instanceof Error && walkErr.message.includes('Maximum call stack')},timestamp:Date.now()})}).catch(()=>{});
+      }
+      // #endregion agent log
+      
       if (walkErr instanceof Error && walkErr.message.includes('Maximum call stack')) {
         console.error("[DEBUG] Walker failed with stack overflow for:", uri);
         // Return AST as-is (may be partially populated) if walker fails with stack overflow
@@ -756,9 +1045,23 @@ export async function buildFileAst(text: string, uri: string): Promise<FileAst> 
       });
     }
     
+    // #region agent log
+    if (isConversation) {
+      console.error(`[DEBUG] buildFileAst_complete for Conversation.mez: ${listener.ast.objects.length} objects`);
+      (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'ast-1',hypothesisId:'A',location:'builder.ts:938',message:'buildFileAst_complete',data:{uri,objectCount:listener.ast.objects.length,objectNames:listener.ast.objects.map(o=>o.name),unitCount:listener.ast.units.length,enumCount:listener.ast.enums.length},timestamp:Date.now()})}).catch((err: any)=>console.error("[DEBUG] Fetch error in buildFileAst_complete:", err));
+    }
+    // #endregion agent log
+    
     return listener.ast;
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
+    // #region agent log
+    const isConversationErr = uri && uri.includes("Conversation.mez");
+    if (isConversationErr) {
+      (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'ast-1',hypothesisId:'D',location:'builder.ts:940',message:'buildFileAst_error',data:{uri,error:errorMsg,isStackOverflow:errorMsg.includes('Maximum call stack')},timestamp:Date.now()})}).catch(()=>{});
+    }
+    // #endregion agent log
+    
     if (errorMsg.includes('Maximum call stack')) {
       console.error("[DEBUG] Stack overflow in buildFileAst for:", uri, "- This may indicate a grammar issue or very deep nesting");
     } else {

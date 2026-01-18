@@ -26,9 +26,17 @@ export class ProjectManager {
   private indexes = new Map<string, ProjectIndex>();
 
   async initialize(workspaceFolders: WorkspaceFolder[] | null) {
+    // #region agent log
+    (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'init-1',hypothesisId:'B',location:'projectManager.ts:28',message:'initialize_start',data:{workspaceFolderCount:(workspaceFolders ?? []).length},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion agent log
+    
     this.projectRoots = discoverProjectRoots(workspaceFolders);
     const metadata = getLanguageMetadataSync();
     this.indexes.clear();
+    
+    // #region agent log
+    (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'init-1',hypothesisId:'B',location:'projectManager.ts:35',message:'before_indexing',data:{projectRoots:this.projectRoots,indexCount:this.indexes.size},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion agent log
     
     // Index all projects in parallel, but wait for completion
     const indexingPromises = this.projectRoots.map(async (root) => {
@@ -44,12 +52,16 @@ export class ProjectManager {
           console.error(`[ProjectManager] ✓ Found Conversation type in ${root}`);
         }
       }
+      
+      // #region agent log
+      (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'init-1',hypothesisId:'C',location:'projectManager.ts:47',message:'index_complete',data:{root,objectCount:objectNames.length,hasConversation:objectNames.includes('Conversation'),allObjects:objectNames.slice(0,10)},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion agent log
     });
     
     await Promise.all(indexingPromises);
     
     // #region agent log
-    (globalThis as any).fetch('http://127.0.0.1:7243/ingest/f8eecc7d-5d84-4f56-8e99-5ad9d9836767',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'mcp-symbols-1',hypothesisId:'H1',location:'helium-dsl-language-server/src/index/projectManager.ts:28',message:'project_manager_init',data:{workspaceFolderCount:(workspaceFolders ?? []).length,projectRoots:this.projectRoots,projectRootCount:this.projectRoots.length},timestamp:Date.now()})}).catch(()=>{});
+    (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'init-1',hypothesisId:'C',location:'projectManager.ts:54',message:'initialize_complete',data:{indexCount:this.indexes.size,allTypes:this.getUserTypes().slice(0,20),hasConversation:this.getUserTypes().includes('Conversation')},timestamp:Date.now()})}).catch(()=>{});
     // #endregion agent log
   }
 
@@ -103,11 +115,24 @@ export class ProjectManager {
   }
 
   isUserDefinedType(name: string): boolean {
+    // #region agent log
+    (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'check-1',hypothesisId:'C',location:'projectManager.ts:105',message:'isUserDefinedType_called',data:{typeName:name,indexCount:this.indexes.size,projectRoots:this.projectRoots},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion agent log
+    
     const types = this.getUserTypes();
     const isType = types.includes(name);
+    
+    // #region agent log
+    (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'check-1',hypothesisId:'C',location:'projectManager.ts:110',message:'isUserDefinedType_result',data:{typeName:name,isType,typeCount:types.length,hasConversation:types.includes('Conversation'),first20Types:types.slice(0,20)},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion agent log
+    
     if (!isType && name === "Conversation") {
       console.error(`[ProjectManager] Conversation type not found. Available types: ${types.slice(0, 20).join(", ")}${types.length > 20 ? "..." : ""}`);
       console.error(`[ProjectManager] Project roots: ${this.projectRoots.join(", ")}`);
+      
+      // #region agent log
+      (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'check-1',hypothesisId:'C',location:'projectManager.ts:115',message:'conversation_not_found_error',data:{availableTypes:types,indexDetails:Array.from(this.indexes.entries()).map(([root,idx])=>({root,objectCount:idx.getObjectNames().length,objects:idx.getObjectNames().slice(0,10)}))},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion agent log
     }
     return isType;
   }

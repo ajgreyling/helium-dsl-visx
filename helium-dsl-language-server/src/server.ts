@@ -58,6 +58,7 @@ import * as path from "path";
 import * as fs from "fs";
 import { createDiagnostics } from "./diagnostics.js";
 import { buildSymbolTable } from "./symbols/symbolTable.js";
+import { buildFileAst } from "./ast/builder.js";
 import { runLints } from "./linter/engine.js";
 import { ProjectManager } from "./index/projectManager.js";
 import { initializeLogger, TraceLevel, logVerbose } from "./utils/logger.js";
@@ -108,6 +109,10 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
   console.error("[Server] Initializing project manager...");
   await projectManager.initialize(params.workspaceFolders || null);
   console.error("[Server] Project manager initialized");
+
+  // #region agent log
+  (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A',location:'server.ts:onInitialize',message:'server_initialized',data:{rootUri:params.rootUri ?? null,workspaceFolders:(params.workspaceFolders ?? []).map(w=>w.uri),projectRoots:projectManager.getProjectRoots(),userTypeCount:projectManager.getUserTypes().length,unitCount:projectManager.getUnitNames().length},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion agent log
 
   // After initializing the index, send a notification with all discovered user-defined types
   try {
@@ -1301,73 +1306,26 @@ function isModelBif(methodName: string): boolean {
   return (metadata.modelBifs || []).includes(methodName);
 }
 
-/**
- * Check if an identifier is in a type position (as opposed to a unit reference)
- * Returns true if the identifier appears to be used as a type (e.g., TypeName[], TypeName variableName, TypeName functionName())
- */
-function isTypePosition(
-  line: string,
-  wordStart: number,
-  wordEnd: number,
-  fullWord: string
-): boolean {
-  const charAfter = wordEnd < line.length ? line[wordEnd] : ' ';
-  const beforeWord = line.substring(0, wordStart).trimEnd();
-  
-  // Pattern 1: TypeName[] - array type declaration
-  if (charAfter === '[') {
-    // Check if followed by ']' (array type)
-    const afterBracket = wordEnd + 1 < line.length ? line.substring(wordEnd + 1) : '';
-    if (afterBracket.startsWith(']')) {
-      console.log(`[Definition] Detected array type pattern: "${fullWord}[]"`);
-      return true;
-    }
-  }
-  
-  // Pattern 2: TypeName variableName - variable declaration (variable names start with lowercase)
-  // Pattern 3: TypeName functionName() - function return type (function names start with lowercase)
-  // Check if followed by whitespace and then a lowercase identifier
-  const afterWord = line.substring(wordEnd).trimStart();
-  if (afterWord.length > 0 && /^[a-z][A-Za-z0-9_]*/.test(afterWord)) {
-    // Extract the next identifier
-    const nextIdentifierMatch = afterWord.match(/^([a-z][A-Za-z0-9_]*)/);
-    if (nextIdentifierMatch) {
-      const nextIdentifier = nextIdentifierMatch[1];
-      // Check if it's followed by '(', '=', ';', ',', or ')' (indicating variable/function declaration)
-      const afterNextId = afterWord.substring(nextIdentifier.length).trimStart();
-      if (/^[\(=;,)]/.test(afterNextId) || afterNextId.length === 0) {
-        console.log(`[Definition] Detected type position pattern: "${fullWord} ${nextIdentifier}"`);
-        return true;
-      }
-    }
-  }
-  
-  // Pattern 4: Check if it's in a function parameter list
-  // Look backwards for opening parenthesis, then check if there's a type-like pattern before
-  const beforeMatch = beforeWord;
-  const parenMatch = beforeMatch.match(/\(([^)]*)$/);
-  if (parenMatch) {
-    // We're inside a parameter list, check if this looks like a type
-    const paramPart = parenMatch[1].trim();
-    // If the parameter part ends with a type-like pattern (ends with our word), it's likely a type
-    if (paramPart.endsWith(fullWord) || paramPart === '') {
-      console.log(`[Definition] Detected type position in parameter list`);
-      return true;
-    }
-  }
-  
-  // Pattern 5: Check if it's a return type (before function name)
-  // Pattern: TypeName functionName() - function names start with lowercase
-  // This is similar to Pattern 2/3 but we already checked that above
-  
-  return false;
-}
-
 connection.onDefinition((params: DefinitionParams): Location | Location[] | null => {
+  const doc = documents.get(params.textDocument.uri);
+  if (doc && params.textDocument.uri.includes("GbvChatClient.mez")) {
+    const line = doc.getText().split(/\r?\n/)[params.position.line] || "";
+    const wordAtPos = extractTypeNameAtPosition(doc, params.position);
+    console.error(`[DEBUG] onDefinition: uri=${params.textDocument.uri}, position=(${params.position.line},${params.position.character}), word="${wordAtPos}", line="${line.substring(0, 80)}"`);
+  }
   return projectManager.getDefinition(params);
 });
 
 connection.onTypeDefinition((params: TypeDefinitionParams): Location | Location[] | null => {
+  const doc = documents.get(params.textDocument.uri);
+  // #region agent log
+  (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'B',location:'server.ts:onTypeDefinition',message:'typeDefinition_request',data:{uri:params.textDocument.uri,line:params.position.line,character:params.position.character,docFound:!!doc},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion agent log
+  if (doc && params.textDocument.uri.includes("GbvChatClient.mez")) {
+    const line = doc.getText().split(/\r?\n/)[params.position.line] || "";
+    const wordAtPos = extractTypeNameAtPosition(doc, params.position);
+    console.error(`[DEBUG] onTypeDefinition: uri=${params.textDocument.uri}, position=(${params.position.line},${params.position.character}), word="${wordAtPos}", line="${line.substring(0, 80)}"`);
+  }
   return projectManager.getDefinition(params);
 });
 
@@ -1769,7 +1727,7 @@ connection.onReferences((params: ReferenceParams): Location[] => {
   return projectManager.getReferences(params);
 });
 
-connection.languages.semanticTokens.on((params: SemanticTokensParams) => {
+connection.languages.semanticTokens.on(async (params: SemanticTokensParams) => {
   logVerbose(`[SemanticTokens] ===== Request Received =====`);
   logVerbose(`[SemanticTokens] URI: ${params.textDocument.uri}`);
   const doc = documents.get(params.textDocument.uri);
@@ -1781,119 +1739,86 @@ connection.languages.semanticTokens.on((params: SemanticTokensParams) => {
   }
   
   const text = doc.getText();
-  const lines = text.split(/\r?\n/);
-  logVerbose(`[SemanticTokens] Processing document with ${lines.length} lines`);
-  
-  // Build symbol table to identify local variables and parameters
-  const symbolTable = buildSymbolTable(text);
-  // Create a map of variable names to their declaration lines for scoping checks
-  const variableDeclarations = new Map<string, number[]>();
-  symbolTable.symbols.forEach(symbol => {
-    if (symbol.kind === "variable" && symbol.location) {
-      const existing = variableDeclarations.get(symbol.name) || [];
-      existing.push(symbol.location.line);
-      variableDeclarations.set(symbol.name, existing);
-    }
-  });
-  logVerbose(`[SemanticTokens] Found ${variableDeclarations.size} variable/parameter declarations`);
-  
-  const metadata = getLanguageMetadataSync();
-  const keywords = new Set((metadata.keywords || []).map((kw) => kw.toLowerCase()));
-  const systemTypes = new Set((metadata.primitiveTypes || []).map((t) => t.toLowerCase()));
-  const unitNames = new Set(projectManager.getUnitNames());
   const userTypes = new Set(projectManager.getUserTypes());
 
-  // Regex to match user-defined type identifiers (PascalCase or snake_case)
-  const typeIdentifierRegex = /\b([A-Za-z_][A-Za-z0-9_]*)\b/g;
+  // #region agent log
+  (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'C',location:'server.ts:semanticTokens',message:'semanticTokens_request',data:{uri:params.textDocument.uri,docFound:!!doc,textLength:text.length,userTypeCount:userTypes.size},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion agent log
 
-  for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
-    const line = lines[lineIndex];
-    let match: RegExpExecArray | null;
+  const pushRange = (range: { start: { line: number; character: number }; end: { line: number; character: number } }, tokenTypeIndex: number) => {
+    // SemanticTokensBuilder.push expects a single-line token span.
+    // Our AST ranges for identifiers are token-based and should be single-line.
+    if (range.start.line !== range.end.line) return;
+    const length = range.end.character - range.start.character;
+    if (length <= 0) return;
+    builder.push(range.start.line, range.start.character, length, tokenTypeIndex, 0);
+  };
 
-    // Reset regex lastIndex for each line
-    typeIdentifierRegex.lastIndex = 0;
+  const isUserType = (name: string): boolean => {
+    const base = name.replace(/\[\]$/, "");
+    return userTypes.has(base);
+  };
 
-    while ((match = typeIdentifierRegex.exec(line)) !== null) {
-      const identifier = match[1];
-      const startChar = match.index;
-      const length = identifier.length;
+  try {
+    // Parse the current document text for accurate, up-to-date ranges.
+    const ast = await buildFileAst(text, params.textDocument.uri);
+    // #region agent log
+    (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'C',location:'server.ts:semanticTokens',message:'semanticTokens_ast_built',data:{uri:params.textDocument.uri,objectCount:ast.objects.length,unitCount:ast.units.length,typeRefCount:ast.typeReferences.length,unitRefCount:ast.unitReferences.length},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion agent log
 
-      // Skip if it's a keyword or system type
-      if (keywords.has(identifier.toLowerCase()) || systemTypes.has(identifier.toLowerCase())) {
-        continue;
-      }
-
-      // Skip if it's part of an object definition (already handled by TextMate grammar)
-      // Check if this identifier appears after "object" or "persistent object" keywords
-      const beforeMatch = line.substring(0, startChar);
-      if (/\b(persistent\s+)?object\s*$/.test(beforeMatch.trimEnd())) {
-        continue;
-      }
-
-      // Skip if this identifier appears in a variable declaration position (after a type name)
-      // Pattern: <type> <identifier> = or <type> <identifier>;
-      // This prevents highlighting variable names as types
-      const afterMatch = line.substring(startChar + length);
-      const beforeIdentifier = beforeMatch.trimEnd();
-      // Check if there's a type-like pattern before this identifier
-      if (/^(=|;|,|\))/.test(afterMatch) && 
-          /\b(?:int|void|bool|string|decimal|uuid|json|jsonarray|date|datetime|bigint|blob|[A-Za-z_][A-Za-z0-9_]*)\s+$/.test(beforeIdentifier)) {
-        // This looks like a variable declaration: <type> <identifier> = or <type> <identifier>;
-        // Skip highlighting the identifier as a type
-        continue;
-      }
-
-      // Check if this identifier is a local variable or parameter declared before this position
-      // This handles scoping: if a variable is declared anywhere before this line, don't highlight as type
-      const varDeclLines = variableDeclarations.get(identifier);
-      if (varDeclLines && varDeclLines.some(declLine => declLine <= lineIndex)) {
-        // This is a local variable or parameter, skip type highlighting
-        logVerbose(`[SemanticTokens] Skipping "${identifier}" at line ${lineIndex + 1} - it's a local variable/parameter`);
-        continue;
-      }
-
-      // Check if it's a unit first (units can have same names as types, but should be highlighted differently)
-      // Check for unit references: UnitName: pattern or standalone unit name
-      const charAfter = startChar + length < line.length ? line[startChar + length] : ' ';
-      const isUnitRef = charAfter === ':';
-      
-      // Check if identifier is in a type position (e.g., TypeName[], TypeName variableName)
-      const inTypePos = isTypePosition(line, startChar, startChar + length, identifier);
-      
-      if (unitNames.has(identifier)) {
-        // Skip semantic tokens for unit references (UnitName:identifier) - let TextMate grammar handle them
-        // TextMate grammar provides entity.name.type scope for unit names in references
-        if (isUnitRef) {
-          logVerbose(`[SemanticTokens] Skipping unit reference "${identifier}" at line ${lineIndex + 1} - TextMate grammar handles it`);
-          continue;
-        }
-        // If it's in a type position, prioritize type highlighting over unit highlighting
-        if (inTypePos && projectManager.isUserDefinedType(identifier)) {
-          logVerbose(`[SemanticTokens] ✓ Found type "${identifier}" in type position at line ${lineIndex + 1}, char ${startChar}`);
-          // Token type index 0 corresponds to "type" in our legend
-          builder.push(lineIndex, startChar, length, 0, 0);
-          continue;
-        }
-        // Only highlight standalone unit names (not followed by ':') if they're not also types
-        if (!projectManager.isUserDefinedType(identifier)) {
-          logVerbose(`[SemanticTokens] ✓ Found standalone unit "${identifier}" at line ${lineIndex + 1}, char ${startChar}`);
-          // Token type index 3 corresponds to "namespace" in our legend (units are like namespaces/modules)
-          builder.push(lineIndex, startChar, length, 3, 0);
-          continue;
-        }
-      }
-
-      // Check if it's a user-defined type using workspace index
-      if (userTypes.has(identifier)) {
-        logVerbose(`[SemanticTokens] ✓ Found user-defined type "${identifier}" at line ${lineIndex + 1}, char ${startChar}`);
-        // Token type index 0 corresponds to "type" in our legend
-        builder.push(lineIndex, startChar, length, 0, 0);
+    // Highlight user-defined types based on structural type references.
+    for (const ref of ast.typeReferences) {
+      if (isUserType(ref.name)) {
+        pushRange(ref.nameRange, 0); // 0 = "type"
       }
     }
+
+    // Highlight user-defined types in declarations (attributes, relationships, variables, params, return types).
+    // These are fully parsed spans and avoid heuristic token scanning.
+    for (const obj of ast.objects) {
+      for (const attr of obj.attributes) {
+        if (isUserType(attr.typeName)) pushRange(attr.typeRange, 0);
+      }
+      for (const rel of obj.relationships) {
+        if (isUserType(rel.targetType)) pushRange(rel.targetRange, 0);
+      }
+    }
+    for (const unit of ast.units) {
+      for (const v of unit.variables) {
+        if (isUserType(v.typeName)) pushRange(v.typeRange, 0);
+      }
+      for (const fn of unit.functions) {
+        if (isUserType(fn.returnType)) pushRange(fn.returnTypeRange, 0);
+        for (const p of fn.params) {
+          if (isUserType(p.typeName)) pushRange(p.typeRange, 0);
+        }
+        for (const local of fn.locals) {
+          if (isUserType(local.typeName)) pushRange(local.typeRange, 0);
+        }
+      }
+    }
+
+    // Highlight model-BIF type names in `TypeName:method()` calls (these are unitReferences in the AST).
+    // We intentionally do NOT highlight unit references as namespaces here (TextMate handles `UnitName:` references).
+    for (const ref of ast.unitReferences) {
+      if (isUserType(ref.name)) {
+        pushRange(ref.nameRange, 0); // 0 = "type"
+      }
+    }
+  } catch (err) {
+    // Fail closed: return no semantic tokens if parsing fails.
+    console.error(
+      `[SemanticTokens] ERROR: Failed to build AST for ${params.textDocument.uri}: ${
+        err instanceof Error ? err.message : String(err)
+      }`
+    );
   }
 
   const result = builder.build();
   const tokenCount = result.data.length / 5;
+  // #region agent log
+  (globalThis as any).fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'C',location:'server.ts:semanticTokens',message:'semanticTokens_built',data:{uri:params.textDocument.uri,tokenCount},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion agent log
   logVerbose(`[SemanticTokens] ===== Returning ${tokenCount} tokens =====`);
   return result;
 });
