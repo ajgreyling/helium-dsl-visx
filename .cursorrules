@@ -103,7 +103,6 @@ The packaging process follows these principles:
 
 ## File Structure
 
-- `helium-vscode-tooling/scripts/package-docker.sh` - Orchestrates build and local packaging (renamed from Docker-specific but now uses local packaging)
 - `helium-vscode-tooling/scripts/package-local.sh` - Local packaging script that runs in temporary directory
 
 ## When Modifying Packaging
@@ -140,7 +139,7 @@ If you need to modify the packaging process:
 ### Cursor MCP registration (extension)
 - Cursor **does not** support `lm.registerMcpServerDefinitionProvider` (it logs a warning and ignores it).
 - To register a bundled MCP server from the extension in Cursor, use `vscode.cursor.mcp.registerServer(...)`.
-- Note: Cursor’s MCP Extension API does not currently accept `cwd`, so if your server requires a working directory, launch via a shell wrapper (`bash -lc "cd ... && node ..."`).
+- Prefer registering via **HTTP+SSE** (`server.url`) by spawning a local MCP process from the extension and registering the reported `http://127.0.0.1:<port>/sse` URL. This avoids any working-directory limitations in the Cursor MCP Extension API.
 
 ### Node ESM strictness (Cursor)
 - Cursor may run a strict ESM Node runtime (e.g. Node 25). In that environment, **imports must use explicit `.js` suffixes** for certain packages.

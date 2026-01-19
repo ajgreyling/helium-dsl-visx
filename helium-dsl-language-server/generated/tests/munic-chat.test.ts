@@ -13,7 +13,9 @@ const SAMPLE_PROJECT_PATH = "/Users/ajgreyling/code/munic-chat";
 
 describe("Sample DSL Codebase Validation", () => {
   it("should validate all .mez files in sample project", async function() {
-    this.timeout(10000); // Increase timeout for large codebases
+    // Default to 10 minutes for large codebases; override with HELIUM_VALIDATE_TIMEOUT_MS if needed
+    const timeoutMs = Number(process.env.HELIUM_VALIDATE_TIMEOUT_MS ?? "") || 10 * 60 * 1000;
+    this.timeout(timeoutMs);
 
     const mezFiles: string[] = [];
 

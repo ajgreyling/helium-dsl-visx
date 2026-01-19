@@ -12,6 +12,34 @@ MCP_OUT="$PROJECT_ROOT/helium-rapid-dsl-mcp/out"
 GENERATED="$TOOLING_ROOT/generated"
 OUT_DIR="$TOOLING_ROOT/dist"
 
+# Build prerequisites on host so packaged VSIX includes fresh outputs.
+echo "Building prerequisites (host)..."
+
+echo "  Building language server..."
+cd "$PROJECT_ROOT/helium-dsl-language-server"
+if [ ! -d "node_modules" ] || [ -z "$(ls -A node_modules 2>/dev/null)" ]; then
+  npm install
+fi
+npm run build
+
+echo "  Building extension..."
+cd "$PROJECT_ROOT/helium-dsl-vscode"
+if [ ! -d "node_modules" ] || [ -z "$(ls -A node_modules 2>/dev/null)" ]; then
+  npm install
+fi
+npm run build
+
+echo "  Building MCP server..."
+cd "$PROJECT_ROOT/helium-rapid-dsl-mcp"
+if [ ! -d "node_modules" ] || [ -z "$(ls -A node_modules 2>/dev/null)" ]; then
+  npm install
+fi
+npm run build
+
+cd "$TOOLING_ROOT"
+echo "  ✓ Prerequisites built"
+echo ""
+
 # Create temporary working directory outside workspace to avoid hoisting issues
 WORK_DIR=$(mktemp -d -t helium-dsl-vscode-packaging-XXXXXX)
 trap "rm -rf $WORK_DIR" EXIT

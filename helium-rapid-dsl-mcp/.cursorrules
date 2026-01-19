@@ -20,6 +20,7 @@ This folder (`helium-rapid-dsl-mcp/`) contains an MCP server used by Cursor agen
 - When packaged, the MCP server is bundled inside the extension:
   - `helium-dsl-vscode/server/mcp/out/src/index.js`
 - In Cursor, the extension registers the MCP server via `vscode.cursor.mcp.registerServer(...)`, so Cursor users can enable it directly from **MCP: List Servers**.
+- Prefer registering the bundled server via **HTTP+SSE** (`server.url`) by having the extension spawn `node out/src/index.js --transport sse` and then registering the reported `http://127.0.0.1:<port>/sse` URL.
 
 ## Node ESM learnings (Cursor runtime)
 

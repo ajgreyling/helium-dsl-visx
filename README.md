@@ -31,7 +31,6 @@ helium-vscode-tooling/
 │   ├── build.ts             # Main build orchestrator
 │   ├── watch.ts             # Watch for changes
 │   ├── version-check.ts     # Version tracking
-│   ├── package-docker.sh    # VSIX packaging orchestrator (uses local packaging)
 │   └── package-local.sh     # Local packaging script (runs in temporary directory)
 ├── helium-dsl-vscode/      # VSCode extension client
 ├── generated/              # Generated files (not in git)
@@ -42,15 +41,6 @@ helium-vscode-tooling/
 ```
 
 ### Script Files Explained
-
-**`scripts/package-docker.sh`** - Main packaging orchestrator (runs on host)
-- **Purpose**: Coordinates the complete packaging workflow
-- **Steps**:
-  1. Builds language server with local dependencies
-  2. Builds extension
-  3. Invokes local packaging script (`package-local.sh`)
-  4. Verifies VSIX output
-- **Why separate**: Ensures prerequisites are built before packaging
 
 **`scripts/package-local.sh`** - Local packaging script
 - **Purpose**: Assembles and packages the extension in a temporary directory
@@ -108,7 +98,7 @@ Quick start:
 cd /Users/ajgreyling/code/helium-dsl-visx/helium-rapid-dsl-mcp
 npm install
 npm run build
-node out/src/index.js
+node out/src/index.js --transport sse --host 127.0.0.1 --port 0
 ```
 
 See `helium-rapid-dsl-mcp/README.md` for Cursor configuration details and tool descriptions.
@@ -469,15 +459,7 @@ The extension uses **local packaging** with temporary directories to ensure repr
 
 **Architecture:**
 
-The packaging uses two main components:
-
-1. **`scripts/package-docker.sh`** - Orchestrator script (renamed from Docker-specific, but now uses local packaging)
-   - Builds language server and extension
-   - Ensures dependencies are installed locally
-   - Invokes local packaging script
-   - Verifies output
-
-2. **`scripts/package-local.sh`** - Local packaging script
+The packaging uses **`scripts/package-local.sh`**:
    - Creates temporary working directory outside workspace
    - Copies extension, language server, and generated files
    - Installs and flattens dependencies
@@ -486,7 +468,7 @@ The packaging uses two main components:
 **Prerequisites for Packaging:**
 
 - Node.js and npm must be installed
-- Language server and extension must be built first (handled automatically by `package-docker.sh`)
+- `scripts/package-local.sh` builds the language server, extension, and MCP server on the host before packaging (so the VSIX always includes fresh `out/**` artifacts).
 
 **Design Principles:**
 
@@ -514,22 +496,15 @@ To create a `.vsix` package file:
 npm run package
 ```
 
-This runs `scripts/package-docker.sh`, which orchestrates the complete packaging workflow.
+This runs `scripts/package-local.sh`, which performs local packaging in a temporary directory.
 
 #### Detailed Packaging Workflow
 
-**Step 1: Build Language Server** (`scripts/package-docker.sh`)
-- Changes to `helium-dsl-language-server/` directory
-- Installs dependencies locally to ensure they're in the language server directory
-- Compiles TypeScript: `npm run build` → creates `out/` directory
-- Verifies `node_modules/` exists and contains packages
+**Local Packaging** (`scripts/package-local.sh`)
 
-**Step 2: Build Extension** (`scripts/package-docker.sh`)
-- Changes to `helium-dsl-vscode/` directory
-- Installs dependencies if needed: `npm install`
-- Compiles TypeScript: `npm run build` → creates `out/extension.js`
-
-**Step 3: Local Packaging** (`scripts/package-local.sh`)
+0. **Build prerequisites on host**
+   - Builds `helium-dsl-language-server`, `helium-dsl-vscode`, and `helium-rapid-dsl-mcp`
+   - Ensures the VSIX bundles the latest server/MCP outputs
 
 1. **Create Temporary Working Directory**
    - Creates a temporary directory outside the workspace using `mktemp`
@@ -568,29 +543,19 @@ This runs `scripts/package-docker.sh`, which orchestrates the complete packaging
    - **Critical**: Does NOT use `--no-dependencies` flag (Cursor requires dependencies to be bundled)
    - Outputs to `helium-vscode-tooling/dist/helium-dsl.vsix`
 
-**Step 4: Verify Output** (`scripts/package-docker.sh`)
-- Checks that VSIX file was created
-- Displays file location and size
-
 #### Complete Workflow Summary
 
 ```
-1. package-docker.sh
-   ├─ Build language server (on host)
-   │  └─ npm install && npm run build
-   ├─ Build extension (on host)
-   │  └─ npm install && npm run build
-   └─ package-local.sh
-      ├─ Create temporary directory
-      ├─ Copy extension to temp
-      ├─ Copy server/out/ and server/node_modules/
-      ├─ Copy generated/
-      ├─ npm install --production
-      ├─ Flatten nested deps
-      ├─ npm list (validate)
-      └─ npx vsce package
+1. package-local.sh
+   ├─ Create temporary directory
+   ├─ Copy extension to temp
+   ├─ Copy server/out/ and server/node_modules/
+   ├─ Copy generated/
+   ├─ npm install --omit=dev
+   ├─ Flatten nested deps
+   ├─ npm list --omit=dev (validate)
+   └─ npx vsce package
 2. Output to dist/helium-dsl.vsix
-3. Verify VSIX created
 ```
 
 #### Why Local Packaging?
@@ -739,9 +704,8 @@ When the Helium Rapid DSL (ANTLR4) is updated:
 
 ### Packaging Scripts
 
-**`npm run package`** → `scripts/package-docker.sh`
-- Orchestrates complete packaging workflow
-- Builds prerequisites, then runs local packaging
+**`npm run package`** → `scripts/package-local.sh`
+- Runs the local packaging workflow
 - Output: `dist/helium-dsl.vsix`
 
 ### Build Scripts

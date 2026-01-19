@@ -360,7 +360,7 @@ The build process transforms the original ANTLR3 grammar from the Helium Java pr
 
 #### 11. Local VSIX Packaging (`npm run package`)
 
-**Orchestrator**: `scripts/package-docker.sh` (uses local packaging)
+**Packaging script**: `scripts/package-local.sh` (local packaging in a temporary directory)
 
 The packaging process uses local packaging with temporary directories to ensure reproducible builds and proper dependency bundling:
 

@@ -19,8 +19,7 @@
     "watch": "npx tsx scripts/watch.ts",
     "lint": "echo \"No lint configured yet\"",
     "test": "echo \"No tests configured yet\"",
-    "package": "bash scripts/package-docker.sh",
-    "package:docker": "bash scripts/package-docker.sh",
+    "package": "bash scripts/package-local.sh",
     "package:all": "npx tsx scripts/package.ts"
   },
   "devDependencies": {

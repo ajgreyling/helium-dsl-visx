@@ -1,6 +1,7 @@
 import * as path from "path";
 import * as fs from "fs";
 import * as vscode from "vscode";
+import * as childProcess from "child_process";
 import {
   LanguageClient,
   LanguageClientOptions,
@@ -12,6 +13,7 @@ import {
 let client: LanguageClient | undefined;
 let userDefinedTypes: string[] = [];
 let outputChannel: vscode.OutputChannel | undefined;
+let mcpChild: childProcess.ChildProcessWithoutNullStreams | undefined;
 
 /**
  * Automatically set the Helium Icons theme if the user hasn't configured a different icon theme.
@@ -206,25 +208,103 @@ function registerMcpServerProvider(context: vscode.ExtensionContext): void {
 
     // Cursor MCP Extension API (preferred in Cursor; legacy provider is not supported there)
     if (cursorMcp?.registerServer) {
-      const isWindows = process.platform === "win32";
-      const command = isWindows ? "cmd" : "bash";
-      const args = isWindows
-        ? ["/d", "/s", "/c", `cd /d "${mcpCwd}" && node "${mcpEntrypoint}"`]
-        : ["-lc", `cd "${mcpCwd}" && node "${mcpEntrypoint}"`];
+      // Start a local MCP server in SSE mode and register it via server.url.
+      // This avoids Cursor's lack of `cwd` support for MCP servers when registering stdio commands.
+      // In Cursor, `process.execPath` may point at a helper binary (not Node). Prefer a real Node.
+      // `spawn("node", ...)` uses PATH resolution and works in typical Cursor installs.
+      const nodeExec = process.env.VSCODE_NODE_EXECUTABLE || "node";
+      const baseEnv: Record<string, string> = {};
 
-      Promise.resolve(
-        cursorMcp.registerServer({
-          name: "heliumRapidDsl",
-          server: { command, args, env: {} },
-        })
-      ).then(
-        () => {
-          console.log("[HeliumDSL] Registered MCP server via vscode.cursor.mcp.registerServer");
-        },
-        (err: unknown) => {
-          console.warn(`[HeliumDSL] Failed to register MCP server via cursor API: ${err}`);
+      // Ensure we don't leak multiple processes across reloads.
+      if (mcpChild && !mcpChild.killed) {
+        try {
+          mcpChild.kill();
+        } catch {
+          // ignore
         }
-      );
+        mcpChild = undefined;
+      }
+
+      const childArgs = [
+        mcpEntrypoint,
+        "--transport",
+        "sse",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "0",
+      ];
+
+      mcpChild = childProcess.spawn(nodeExec, childArgs, {
+        cwd: mcpCwd,
+        env: { ...process.env, ...baseEnv },
+        stdio: "pipe",
+      });
+
+      context.subscriptions.push({
+        dispose: () => {
+          try {
+            mcpChild?.kill();
+          } catch {
+            // ignore
+          }
+          mcpChild = undefined;
+        },
+      });
+
+      let registered = false;
+      let stdoutBuf = "";
+
+      const tryRegisterFromLine = (line: string) => {
+        if (registered) return;
+        const trimmed = line.trim();
+        if (!trimmed.startsWith("{")) return;
+        try {
+          const msg = JSON.parse(trimmed);
+          if (msg?.type !== "mcp-sse-ready" || typeof msg?.url !== "string") return;
+          registered = true;
+          Promise.resolve(
+            cursorMcp.registerServer({
+              name: "heliumRapidDsl",
+              server: { url: msg.url, headers: {} },
+            })
+          ).then(
+            () => {
+              console.log(`[HeliumDSL] Registered MCP SSE server via cursor API: ${msg.url}`);
+            },
+            (err: unknown) => {
+              console.warn(`[HeliumDSL] Failed to register MCP SSE server via cursor API: ${err}`);
+            }
+          );
+        } catch {
+          // ignore non-JSON lines
+        }
+      };
+
+      mcpChild.stdout.on("data", (d: Buffer) => {
+        stdoutBuf += d.toString("utf8");
+        while (true) {
+          const idx = stdoutBuf.indexOf("\n");
+          if (idx === -1) break;
+          const line = stdoutBuf.slice(0, idx);
+          stdoutBuf = stdoutBuf.slice(idx + 1);
+          tryRegisterFromLine(line);
+        }
+      });
+
+      mcpChild.stderr.on("data", (d: Buffer) => {
+        const text = d.toString("utf8");
+        console.warn(`[HeliumDSL] MCP stderr: ${text}`);
+      });
+
+      mcpChild.on("error", (err: unknown) => {
+      });
+
+      mcpChild.on("exit", (code, signal) => {
+        if (!registered) {
+          console.warn(`[HeliumDSL] MCP SSE process exited before registration (code=${code}, signal=${signal})`);
+        }
+      });
 
       return;
     }

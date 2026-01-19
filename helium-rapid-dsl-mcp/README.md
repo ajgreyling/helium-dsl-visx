@@ -43,11 +43,17 @@ npm install
 npm run build
 ```
 
-### Run (stdio)
+### Run (SSE / HTTP)
+
+The MCP server supports an **HTTP+SSE transport** (recommended for Cursor). It exposes:
+
+- `GET /sse` (SSE stream)
+- `POST /messages?sessionId=...` (client → server messages)
+- `GET /health`
 
 ```bash
 cd helium-rapid-dsl-mcp
-node out/src/index.js
+node out/src/index.js --transport sse --host 127.0.0.1 --port 0
 ```
 
 ### Bundled in VSIX (Cursor)
@@ -60,10 +66,13 @@ This allows Cursor users to enable it directly from **MCP: List Servers** withou
 
 ### Cursor MCP configuration (example)
 
-Configure Cursor to run this MCP server via stdio, pointing to the built entrypoint.
+If you are not using the bundled VSIX registration, you can register the server via **server.url** (SSE):
 
-- Command: `node`
-- Args: `["/absolute/path/to/helium-dsl-visx/helium-rapid-dsl-mcp/out/src/index.js"]`
+- Start the server:
+  - `node /absolute/path/to/helium-dsl-visx/helium-rapid-dsl-mcp/out/src/index.js --transport sse --host 127.0.0.1 --port 7249`
+- Register in Cursor:
+  - Name: `heliumRapidDsl`
+  - URL: `http://127.0.0.1:7249/sse`
 
 ### Node ESM note (important for Cursor)
 
