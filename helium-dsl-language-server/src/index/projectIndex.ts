@@ -20,6 +20,8 @@ import {
 import { buildFileAst, rangeContains } from "../ast/builder.js";
 import { SourceRange } from "../ast/span.js";
 import { LanguageMetadata } from "../language/metadata.js";
+import { buildVxmlAst } from "../vxml/parser.js";
+import { VxmlRange, VxmlReference } from "../vxml/types.js";
 
 type ResolvedSymbol = {
   kind: "object" | "unit" | "enum" | "function" | "variable" | "param" | "attribute" | "relationship";
@@ -43,6 +45,7 @@ export class ProjectIndex {
   private readonly projectRoot: string;
   private readonly metadata: LanguageMetadata;
   private readonly files = new Map<string, FileAst>();
+  private readonly vxml = new Map<string, { viewUnitName?: string; references: VxmlReference[] }>();
   private objects = new Map<string, ObjectDecl>();
   private units = new Map<string, UnitDecl>();
   private enums = new Map<string, EnumDecl>();
@@ -162,6 +165,26 @@ export class ProjectIndex {
     }
   }
 
+  async updateVxmlFile(uri: string, text: string) {
+    try {
+      const ast = buildVxmlAst(text, uri);
+      const references = (ast.references || []).filter(
+        (r) =>
+          (r.kind === "function" && r.attrName === "function") ||
+          (r.kind === "variable" && r.attrName === "variable")
+      );
+      this.vxml.set(uri, { viewUnitName: ast.view?.unitName, references });
+    } catch (err) {
+      if (err instanceof Error) {
+        console.error(`[ProjectIndex] Error indexing VXML ${uri}: ${err.message}`);
+      }
+    }
+  }
+
+  removeVxmlFile(uri: string) {
+    this.vxml.delete(uri);
+  }
+
   async indexFileFromDisk(filePath: string, skipRebuild?: boolean) {
     try {
       const text = fs.readFileSync(filePath, "utf8");
@@ -176,11 +199,25 @@ export class ProjectIndex {
     }
   }
 
+  async indexVxmlFileFromDisk(filePath: string) {
+    try {
+      const text = fs.readFileSync(filePath, "utf8");
+      const uri = URI.file(filePath).toString();
+      await this.updateVxmlFile(uri, text);
+    } catch (err) {
+      if (err instanceof Error) {
+        console.error(`[ProjectIndex] Error indexing VXML file ${filePath}: ${err.message}`);
+      }
+      // ignore and continue
+    }
+  }
+
   async indexProjectFiles() {
     // Set flag to prevent rebuilds during indexing
     this.isIndexing = true;
     try {
       this.files.clear();
+      this.vxml.clear();
       this.objects.clear();
       this.units.clear();
       this.enums.clear();
@@ -202,6 +239,17 @@ export class ProjectIndex {
       
       // Rebuild indexes after all files are indexed (only once)
       this.rebuildIndexes();
+
+      // Collect and index all .vxml files (for references from views)
+      const vxmlPaths: string[] = [];
+      this.collectVxmlFiles(this.projectRoot, vxmlPaths);
+      const vxmlIndexingPromises = vxmlPaths.map((filePath) =>
+        this.indexVxmlFileFromDisk(filePath).catch((err) => {
+          console.error(`[ProjectIndex] Failed to index VXML ${filePath}:`, err);
+          return null;
+        })
+      );
+      await Promise.all(vxmlIndexingPromises);
     } finally {
       // Always clear the flag, even if indexing fails
       this.isIndexing = false;
@@ -223,6 +271,24 @@ export class ProjectIndex {
         }
       }
     } catch (err) {
+      // Ignore directory read errors
+    }
+  }
+
+  private collectVxmlFiles(dir: string, filePaths: string[]) {
+    if (!fs.existsSync(dir)) return;
+    try {
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (entry.name.startsWith(".") || entry.name === "node_modules") continue;
+        const fullPath = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          this.collectVxmlFiles(fullPath, filePaths);
+        } else if (entry.isFile() && entry.name.endsWith(".vxml")) {
+          filePaths.push(fullPath);
+        }
+      }
+    } catch {
       // Ignore directory read errors
     }
   }
@@ -336,6 +402,17 @@ export class ProjectIndex {
 
   findReferences(symbol: ResolvedSymbol, includeDeclaration: boolean): Location[] {
     const locations: Location[] = [];
+    const addVxmlLocation = (uri: string, range: VxmlRange) => {
+      locations.push({
+        uri,
+        range: Range.create(
+          range.start.line,
+          range.start.character,
+          range.end.line,
+          range.end.character
+        ),
+      });
+    };
     for (const [uri, ast] of this.files.entries()) {
       const addLocation = (range: SourceRange) => {
         locations.push({ uri, range: toLspRange(range) });
@@ -396,6 +473,36 @@ export class ProjectIndex {
         });
       }
     }
+
+    // Add VXML references for unit functions and unit variables (bindings only)
+    if (symbol.kind === "function" && symbol.unitName) {
+      for (const [uri, entry] of this.vxml.entries()) {
+        for (const ref of entry.references) {
+          if (ref.kind !== "function") continue;
+          if (ref.attrName !== "function") continue;
+          const resolved = resolveVxmlQualified(ref.name, entry.viewUnitName);
+          if (!resolved?.unitName || !resolved.memberName) continue;
+          if (resolved.unitName !== symbol.unitName) continue;
+          if (resolved.memberName !== symbol.name) continue;
+          addVxmlLocation(uri, ref.range);
+        }
+      }
+    }
+
+    if (symbol.kind === "variable" && symbol.unitName && !symbol.functionName) {
+      for (const [uri, entry] of this.vxml.entries()) {
+        for (const ref of entry.references) {
+          if (ref.kind !== "variable") continue;
+          if (ref.attrName !== "variable") continue;
+          const resolved = resolveVxmlQualified(ref.name, entry.viewUnitName);
+          if (!resolved?.unitName || !resolved.memberName) continue;
+          if (resolved.unitName !== symbol.unitName) continue;
+          if (resolved.memberName !== symbol.name) continue;
+          addVxmlLocation(uri, ref.range);
+        }
+      }
+    }
+
     if (includeDeclaration) {
       locations.push({
         uri: symbol.uri,
@@ -546,6 +653,27 @@ export class ProjectIndex {
 
 function toLspRange(range: SourceRange): Range {
   return Range.create(range.start.line, range.start.character, range.end.line, range.end.character);
+}
+
+function resolveVxmlQualified(
+  raw: string,
+  fallbackUnitName: string | undefined
+): { unitName: string | null; memberName: string | null } | null {
+  const trimmed = (raw ?? "").trim();
+  if (!trimmed) return null;
+  const colon = trimmed.indexOf(":");
+  if (colon !== -1) {
+    const unitName = trimmed.slice(0, colon).trim();
+    const memberName = trimmed.slice(colon + 1).trim();
+    return {
+      unitName: unitName || null,
+      memberName: memberName || null,
+    };
+  }
+  return {
+    unitName: fallbackUnitName ?? null,
+    memberName: trimmed,
+  };
 }
 
 function findUriForDecl(decl: ObjectDecl | UnitDecl | EnumDecl, files: Map<string, FileAst>): string {

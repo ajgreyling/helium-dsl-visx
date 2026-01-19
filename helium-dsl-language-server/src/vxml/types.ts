@@ -38,8 +38,8 @@ export type VxmlViewInfo = {
 
 export type VxmlReference =
   | { kind: "unit"; name: string; range: VxmlRange }
-  | { kind: "function"; name: string; range: VxmlRange; unitName?: string }
-  | { kind: "variable"; name: string; range: VxmlRange; unitName?: string }
+  | { kind: "function"; name: string; range: VxmlRange; unitName?: string; attrName?: string; nodeName?: string }
+  | { kind: "variable"; name: string; range: VxmlRange; unitName?: string; attrName?: string; nodeName?: string }
   | { kind: "attribute"; name: string; range: VxmlRange }
   | { kind: "enum"; name: string; range: VxmlRange }
   | { kind: "langKey"; name: string; range: VxmlRange; attrName?: string };

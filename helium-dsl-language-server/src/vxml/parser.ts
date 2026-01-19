@@ -256,6 +256,8 @@ function collectReferences(nodes: VxmlNode[]): VxmlReference[] {
           kind: "function",
           name: attr.value,
           range: attr.valueRange ?? attr.nameRange,
+          attrName: attr.name,
+          nodeName: node.name,
         });
       }
       if (attr.name === "action" && (node.name === "action" || node.name === "rowAction")) {
@@ -263,6 +265,8 @@ function collectReferences(nodes: VxmlNode[]): VxmlReference[] {
           kind: "function",
           name: attr.value,
           range: attr.valueRange ?? attr.nameRange,
+          attrName: attr.name,
+          nodeName: node.name,
         });
       }
       if (attr.name === "function" && isFunctionBindingNode(node.name)) {
@@ -270,6 +274,8 @@ function collectReferences(nodes: VxmlNode[]): VxmlReference[] {
           kind: "function",
           name: attr.value,
           range: attr.valueRange ?? attr.nameRange,
+          attrName: attr.name,
+          nodeName: node.name,
         });
       }
       if (attr.name === "variable" && isVariableBindingNode(node.name)) {
@@ -277,6 +283,8 @@ function collectReferences(nodes: VxmlNode[]): VxmlReference[] {
           kind: "variable",
           name: attr.value,
           range: attr.valueRange ?? attr.nameRange,
+          attrName: attr.name,
+          nodeName: node.name,
         });
       }
       if (attr.name === "name" && node.name === "attribute") {
@@ -315,7 +323,7 @@ function isLangKeyAttr(name: string): boolean {
 }
 
 function isFunctionBindingNode(name: string): boolean {
-  return ["binding", "visible", "collectionSource", "content"].includes(name);
+  return ["binding", "visible", "collectionSource", "content", "variant"].includes(name);
 }
 
 function isVariableBindingNode(name: string): boolean {

@@ -47,14 +47,30 @@ export class ProjectManager {
   updateDocument(doc: TextDocument) {
     const index = this.getIndexForUri(doc.uri);
     if (!index) return;
+    const fsPath = URI.parse(doc.uri).fsPath;
     // Fire and forget - indexing happens asynchronously
-    index.updateFile(doc.uri, doc.getText()).catch(() => {});
+    if (fsPath.endsWith(".mez")) {
+      index.updateFile(doc.uri, doc.getText()).catch(() => {});
+      return;
+    }
+    if (fsPath.endsWith(".vxml")) {
+      index.updateVxmlFile(doc.uri, doc.getText()).catch(() => {});
+      return;
+    }
   }
 
   removeDocument(uri: string) {
     const index = this.getIndexForUri(uri);
     if (!index) return;
-    index.removeFile(uri);
+    const fsPath = URI.parse(uri).fsPath;
+    if (fsPath.endsWith(".mez")) {
+      index.removeFile(uri);
+      return;
+    }
+    if (fsPath.endsWith(".vxml")) {
+      index.removeVxmlFile(uri);
+      return;
+    }
   }
 
   getUserTypes(): string[] {

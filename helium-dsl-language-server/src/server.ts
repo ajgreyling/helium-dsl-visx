@@ -257,14 +257,14 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
 
 documents.onDidChangeContent((change) => {
   validateDocument(change.document);
-  if (isMezDocument(change.document)) {
+  if (isMezDocument(change.document) || isVxmlDocument(change.document)) {
     projectManager.updateDocument(change.document);
   }
 });
 
 documents.onDidOpen((change) => {
   validateDocument(change.document);
-  if (isMezDocument(change.document)) {
+  if (isMezDocument(change.document) || isVxmlDocument(change.document)) {
     projectManager.updateDocument(change.document);
   }
 });

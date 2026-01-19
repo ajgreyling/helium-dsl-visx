@@ -263,6 +263,7 @@ function registerMcpServerProvider(context: vscode.ExtensionContext): void {
           const msg = JSON.parse(trimmed);
           if (msg?.type !== "mcp-sse-ready" || typeof msg?.url !== "string") return;
           registered = true;
+
           Promise.resolve(
             cursorMcp.registerServer({
               name: "heliumRapidDsl",
