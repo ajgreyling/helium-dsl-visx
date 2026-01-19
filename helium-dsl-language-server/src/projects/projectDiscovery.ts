@@ -10,11 +10,13 @@ function hasProjectMarkers(dir: string): boolean {
   const modelDir = path.join(dir, "model");
   const webAppDir = path.join(dir, "web-app");
   if (!fs.existsSync(modelDir) || !fs.existsSync(webAppDir)) return false;
-  return containsMezFiles(dir);
+  const presentersDir = path.join(webAppDir, "presenters");
+  return containsMezFiles(modelDir) || containsMezFiles(presentersDir);
 }
 
 function containsMezFiles(dir: string): boolean {
   try {
+    if (!fs.existsSync(dir)) return false;
     const entries = fs.readdirSync(dir, { withFileTypes: true });
     for (const entry of entries) {
       if (entry.isDirectory()) {
@@ -55,6 +57,7 @@ export function discoverProjectRoots(workspaceFolders: WorkspaceFolder[] | null)
     scanForProjects(fsPath, roots);
   });
   const result = Array.from(roots).sort();
+
   return result;
 }
 

@@ -14,6 +14,93 @@ let client: LanguageClient | undefined;
 let userDefinedTypes: string[] = [];
 let outputChannel: vscode.OutputChannel | undefined;
 let mcpChild: childProcess.ChildProcessWithoutNullStreams | undefined;
+let hasStartedLanguageClient = false;
+
+const IGNORED_DIRS = new Set(["node_modules", ".git", ".idea", ".vscode"]);
+
+function safeExists(p: string): boolean {
+  try {
+    return fs.existsSync(p);
+  } catch {
+    return false;
+  }
+}
+
+function hasAnyMezFileUnder(rootDir: string): boolean {
+  if (!safeExists(rootDir)) return false;
+  try {
+    const stack: string[] = [rootDir];
+    while (stack.length > 0) {
+      const dir = stack.pop()!;
+      let entries: fs.Dirent[];
+      try {
+        entries = fs.readdirSync(dir, { withFileTypes: true });
+      } catch {
+        continue;
+      }
+      for (const entry of entries) {
+        if (entry.name.startsWith(".")) continue;
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          if (IGNORED_DIRS.has(entry.name)) continue;
+          stack.push(full);
+          continue;
+        }
+        if (entry.isFile() && entry.name.endsWith(".mez")) {
+          return true;
+        }
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return false;
+}
+
+function isHeliumProjectRoot(dir: string): boolean {
+  const modelDir = path.join(dir, "model");
+  const webAppDir = path.join(dir, "web-app");
+  if (!safeExists(modelDir) || !safeExists(webAppDir)) return false;
+  const presentersDir = path.join(webAppDir, "presenters");
+  return hasAnyMezFileUnder(modelDir) || hasAnyMezFileUnder(presentersDir);
+}
+
+function scanForHeliumProject(root: string): boolean {
+  // Depth-first scan for a directory containing model/ + web-app/ plus a .mez
+  // in model/** or web-app/presenters/**.
+  if (IGNORED_DIRS.has(path.basename(root))) return false;
+  if (isHeliumProjectRoot(root)) return true;
+  try {
+    const entries = fs.readdirSync(root, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      if (entry.name.startsWith(".") || IGNORED_DIRS.has(entry.name)) continue;
+      if (scanForHeliumProject(path.join(root, entry.name))) return true;
+    }
+  } catch {
+    // ignore
+  }
+  return false;
+}
+
+function workspaceHasHeliumProject(): boolean {
+  const folders = vscode.workspace.workspaceFolders || [];
+  for (const folder of folders) {
+    try {
+      const fsPath = folder.uri.fsPath;
+      if (scanForHeliumProject(fsPath)) return true;
+    } catch {
+      // ignore
+    }
+  }
+  return false;
+}
+
+function workspaceHasOpenHeliumDocuments(): boolean {
+  return vscode.workspace.textDocuments.some(
+    (d) => d.languageId === "helium-dsl" || d.languageId === "helium-vxml"
+  );
+}
 
 /**
  * Automatically set the Helium Icons theme if the user hasn't configured a different icon theme.
@@ -50,7 +137,54 @@ export function activate(context: vscode.ExtensionContext) {
   
   // Set icon theme automatically if not already configured
   setIconThemeIfNotConfigured();
-  
+
+  const startIfNeeded = () => {
+    if (hasStartedLanguageClient) return;
+    // Start immediately if a Helium project is present or a Helium document is open.
+    if (workspaceHasHeliumProject() || workspaceHasOpenHeliumDocuments()) {
+      startLanguageClient(context);
+    }
+  };
+
+  // If activation happened due to workspaceContains or open documents, start now.
+  startIfNeeded();
+
+  // If we didn't start yet, watch for project appearance.
+  if (!hasStartedLanguageClient) {
+    const watchers: vscode.Disposable[] = [];
+
+    const watchPatterns = ["**/model/**/*.mez", "**/web-app/presenters/**/*.mez"];
+    for (const pattern of watchPatterns) {
+      const watcher = vscode.workspace.createFileSystemWatcher(pattern);
+      watchers.push(watcher);
+      watcher.onDidCreate(() => startIfNeeded());
+      watcher.onDidChange(() => startIfNeeded());
+      watcher.onDidDelete(() => startIfNeeded());
+    }
+
+    watchers.push(
+      vscode.workspace.onDidChangeWorkspaceFolders(() => startIfNeeded())
+    );
+
+    // Keep a periodic (lightweight) check in case watchers miss an event.
+    const interval = setInterval(() => startIfNeeded(), 10_000);
+    watchers.push({ dispose: () => clearInterval(interval) });
+
+    context.subscriptions.push({
+      dispose: () => {
+        watchers.forEach((d) => d.dispose());
+      },
+    });
+  }
+
+  // Register MCP server definition provider (independent of language server startup)
+  registerMcpServerProvider(context);
+}
+
+function startLanguageClient(context: vscode.ExtensionContext) {
+  if (hasStartedLanguageClient) return;
+  hasStartedLanguageClient = true;
+
   // The language server compiles to out/src/server.js (not out/server.js)
   const serverModule = context.asAbsolutePath(
     path.join("server", "out", "src", "server.js")
@@ -63,7 +197,9 @@ export function activate(context: vscode.ExtensionContext) {
   if (!fs.existsSync(serverModule)) {
     const errorMsg = `[HeliumDSL] ERROR: Server file not found at ${serverModule}`;
     console.error(errorMsg);
-    vscode.window.showErrorMessage(`Helium Rapid DSL (ANTLR4): Language server not found. Please rebuild the extension.`);
+    vscode.window.showErrorMessage(
+      `Helium Rapid DSL (ANTLR4): Language server not found. Please rebuild the extension.`
+    );
     return;
   }
 
@@ -77,13 +213,15 @@ export function activate(context: vscode.ExtensionContext) {
   };
 
   // Create output channel for language server logs
-  outputChannel = vscode.window.createOutputChannel("Helium Rapid DSL (ANTLR4) Language Server");
+  outputChannel = vscode.window.createOutputChannel(
+    "Helium Rapid DSL (ANTLR4) Language Server"
+  );
   context.subscriptions.push(outputChannel);
 
   // Read trace level from configuration
   const config = vscode.workspace.getConfiguration("heliumDsl");
   const traceConfig = config.get<string>("trace.server", "off");
-  
+
   // Map configuration values to Trace enum
   let traceLevel: Trace;
   switch (traceConfig) {
@@ -132,7 +270,7 @@ export function activate(context: vscode.ExtensionContext) {
         }
         outputChannel.appendLine(`[HeliumDSL] Triggering semantic tokens refresh...`);
       }
-      
+
       // Trigger semantic tokens refresh for all open Helium Rapid DSL (ANTLR4) documents
       refreshSemanticTokens();
     } catch (err) {
@@ -144,16 +282,12 @@ export function activate(context: vscode.ExtensionContext) {
     }
   });
 
-  // The `onNotification` handler above is sufficient for receiving `helium/userTypes`.
-  // Avoid using `client.onReady()` here because some `vscode-languageclient`
-  // versions do not expose that method on the `LanguageClient` type.
-
   console.log("[HeliumDSL] Starting language client...");
   if (outputChannel) {
     outputChannel.appendLine("[HeliumDSL] Starting language client...");
     outputChannel.show(true); // Show the output channel so user can see logs
   }
-  
+
   client.start().then(
     () => {
       // Set trace level after client starts
@@ -162,7 +296,9 @@ export function activate(context: vscode.ExtensionContext) {
       }
       console.log("[HeliumDSL] Language client started successfully");
       if (outputChannel) {
-        outputChannel.appendLine("Helium Rapid DSL (ANTLR4) Language Server started successfully");
+        outputChannel.appendLine(
+          "Helium Rapid DSL (ANTLR4) Language Server started successfully"
+        );
         outputChannel.appendLine(`[HeliumDSL] Server module: ${serverModule}`);
         outputChannel.appendLine(`[HeliumDSL] Trace level: ${traceConfig}`);
       }
@@ -174,14 +310,13 @@ export function activate(context: vscode.ExtensionContext) {
         outputChannel.appendLine(`ERROR: ${errorMsg}`);
         outputChannel.show(true);
       }
-      vscode.window.showErrorMessage(`Helium Rapid DSL (ANTLR4): Failed to start language server. Check the output channel for details.`);
+      vscode.window.showErrorMessage(
+        `Helium Rapid DSL (ANTLR4): Failed to start language server. Check the output channel for details.`
+      );
     }
   );
-  
-  context.subscriptions.push({ dispose: () => client?.stop() });
 
-  // Register MCP server definition provider
-  registerMcpServerProvider(context);
+  context.subscriptions.push({ dispose: () => client?.stop() });
 }
 
 /**

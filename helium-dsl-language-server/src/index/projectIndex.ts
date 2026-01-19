@@ -46,6 +46,7 @@ export class ProjectIndex {
   private readonly metadata: LanguageMetadata;
   private readonly files = new Map<string, FileAst>();
   private readonly vxml = new Map<string, { viewUnitName?: string; references: VxmlReference[] }>();
+  private readonly lang = new Map<string, { keys: Set<string> }>();
   private objects = new Map<string, ObjectDecl>();
   private units = new Map<string, UnitDecl>();
   private enums = new Map<string, EnumDecl>();
@@ -185,6 +186,21 @@ export class ProjectIndex {
     this.vxml.delete(uri);
   }
 
+  async updateLangFile(uri: string, text: string) {
+    try {
+      const keys = parseLangKeys(text);
+      this.lang.set(uri, { keys });
+    } catch (err) {
+      if (err instanceof Error) {
+        console.error(`[ProjectIndex] Error indexing LANG ${uri}: ${err.message}`);
+      }
+    }
+  }
+
+  removeLangFile(uri: string) {
+    this.lang.delete(uri);
+  }
+
   async indexFileFromDisk(filePath: string, skipRebuild?: boolean) {
     try {
       const text = fs.readFileSync(filePath, "utf8");
@@ -194,6 +210,19 @@ export class ProjectIndex {
       // Log parser errors but continue indexing other files
       if (err instanceof Error) {
         console.error(`[ProjectIndex] Error indexing file ${filePath}: ${err.message}`);
+      }
+      // ignore and continue
+    }
+  }
+
+  async indexLangFileFromDisk(filePath: string) {
+    try {
+      const text = fs.readFileSync(filePath, "utf8");
+      const uri = URI.file(filePath).toString();
+      await this.updateLangFile(uri, text);
+    } catch (err) {
+      if (err instanceof Error) {
+        console.error(`[ProjectIndex] Error indexing LANG file ${filePath}: ${err.message}`);
       }
       // ignore and continue
     }
@@ -218,6 +247,7 @@ export class ProjectIndex {
     try {
       this.files.clear();
       this.vxml.clear();
+      this.lang.clear();
       this.objects.clear();
       this.units.clear();
       this.enums.clear();
@@ -250,6 +280,17 @@ export class ProjectIndex {
         })
       );
       await Promise.all(vxmlIndexingPromises);
+
+      // Collect and index all .lang files (language / translation keys)
+      const langPaths: string[] = [];
+      this.collectLangFiles(this.projectRoot, langPaths);
+      const langIndexingPromises = langPaths.map((filePath) =>
+        this.indexLangFileFromDisk(filePath).catch((err) => {
+          console.error(`[ProjectIndex] Failed to index LANG ${filePath}:`, err);
+          return null;
+        })
+      );
+      await Promise.all(langIndexingPromises);
     } finally {
       // Always clear the flag, even if indexing fails
       this.isIndexing = false;
@@ -285,6 +326,24 @@ export class ProjectIndex {
         if (entry.isDirectory()) {
           this.collectVxmlFiles(fullPath, filePaths);
         } else if (entry.isFile() && entry.name.endsWith(".vxml")) {
+          filePaths.push(fullPath);
+        }
+      }
+    } catch {
+      // Ignore directory read errors
+    }
+  }
+
+  private collectLangFiles(dir: string, filePaths: string[]) {
+    if (!fs.existsSync(dir)) return;
+    try {
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (entry.name.startsWith(".") || entry.name === "node_modules") continue;
+        const fullPath = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          this.collectLangFiles(fullPath, filePaths);
+        } else if (entry.isFile() && entry.name.endsWith(".lang")) {
           filePaths.push(fullPath);
         }
       }
@@ -653,6 +712,24 @@ export class ProjectIndex {
 
 function toLspRange(range: SourceRange): Range {
   return Range.create(range.start.line, range.start.character, range.end.line, range.end.character);
+}
+
+function parseLangKeys(text: string): Set<string> {
+  const keys = new Set<string>();
+  const lines = text.split(/\r?\n/);
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) continue;
+    if (line.startsWith("#") || line.startsWith(";")) continue;
+    // INI-style sections are ignored for key collection
+    if (line.startsWith("[") && line.endsWith("]")) continue;
+    const eq = line.indexOf("=");
+    if (eq === -1) continue;
+    const key = line.slice(0, eq).trim();
+    if (!key) continue;
+    keys.add(key);
+  }
+  return keys;
 }
 
 function resolveVxmlQualified(
