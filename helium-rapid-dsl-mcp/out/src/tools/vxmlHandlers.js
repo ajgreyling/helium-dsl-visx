@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { VxmlWorkspaceService } from "../services/vxmlWorkspace.js";
+import { RAPID_PROJECT_FILE_NAME } from "helium-dsl-language-server/api";
 function jsonResult(value) {
     return {
         content: [{ type: "text", text: JSON.stringify(value, null, 2) }],
@@ -17,6 +18,16 @@ function asNumber(v) {
 }
 function findRapidProjectRootForFile(filePath) {
     let cur = path.resolve(path.dirname(filePath));
+    for (let i = 0; i < 25; i++) {
+        const marker = path.join(cur, RAPID_PROJECT_FILE_NAME);
+        if (fs.existsSync(marker))
+            return cur;
+        const parent = path.dirname(cur);
+        if (parent === cur)
+            break;
+        cur = parent;
+    }
+    cur = path.resolve(path.dirname(filePath));
     for (let i = 0; i < 25; i++) {
         const modelDir = path.join(cur, "model");
         const webAppDir = path.join(cur, "web-app");

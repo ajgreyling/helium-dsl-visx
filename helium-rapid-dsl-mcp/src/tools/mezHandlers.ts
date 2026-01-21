@@ -3,6 +3,7 @@ import path from "node:path";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types";
 import { MezWorkspaceService } from "../services/mezWorkspace.js";
 import { URI } from "vscode-uri";
+import { RAPID_PROJECT_FILE_NAME } from "helium-dsl-language-server/api";
 
 type ToolHandler = (args: Record<string, unknown>) => Promise<CallToolResult>;
 
@@ -37,8 +38,18 @@ function asArray(v: unknown): unknown[] | null {
 }
 
 function findRapidProjectRootForFile(filePath: string): string {
-  // Heuristic: find nearest ancestor containing model/ and web-app/ directories.
+  // Preferred: find nearest ancestor containing the explicit Rapid DSL project file.
   let cur = path.resolve(path.dirname(filePath));
+  for (let i = 0; i < 25; i++) {
+    const marker = path.join(cur, RAPID_PROJECT_FILE_NAME);
+    if (fs.existsSync(marker)) return cur;
+    const parent = path.dirname(cur);
+    if (parent === cur) break;
+    cur = parent;
+  }
+
+  // Heuristic fallback: find nearest ancestor containing model/ and web-app/ directories.
+  cur = path.resolve(path.dirname(filePath));
   for (let i = 0; i < 25; i++) {
     const modelDir = path.join(cur, "model");
     const webAppDir = path.join(cur, "web-app");

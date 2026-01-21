@@ -25,26 +25,20 @@ import { rangeContains } from "../ast/builder.js";
 export class ProjectManager {
   private projectRoots: string[] = [];
   private indexes = new Map<string, ProjectIndex>();
+  private indexingPromise: Promise<void> | null = null;
+  private indexingComplete = false;
 
-  async initialize(workspaceFolders: WorkspaceFolder[] | null) {
-    const __agentInitStart = Date.now();
-    // #region agent log (H1)
-    fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'init-pre',hypothesisId:'H1',location:'projectManager.ts:initialize:enter',message:'ProjectManager.initialize enter',data:{workspaceFolderCount:(workspaceFolders||[]).length},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion agent log
+  async initialize(
+    workspaceFolders: WorkspaceFolder[] | null,
+    opts?: { mode?: "blocking" | "background" }
+  ) {
+    this.indexingComplete = false;
     this.projectRoots = discoverProjectRoots(workspaceFolders);
-    // #region agent log (H1)
-    fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'init-pre',hypothesisId:'H1',location:'projectManager.ts:initialize:afterDiscover',message:'discoverProjectRoots complete',data:{elapsedMs:Date.now()-__agentInitStart,projectRootCount:this.projectRoots.length},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion agent log
     const metadata = getLanguageMetadataSync();
     this.indexes.clear();
     
-    // Index all projects in parallel, but wait for completion
+    // Index all projects in parallel (optionally in background)
     const indexingPromises = this.projectRoots.map(async (root) => {
-      const __agentProjectStart = Date.now();
-      const __agentSafeRoot = root.split(path.sep).slice(-2).join(path.sep);
-      // #region agent log (H2)
-      fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'init-pre',hypothesisId:'H2',location:'projectManager.ts:initialize:projectStart',message:'Project indexing start',data:{projectRoot:__agentSafeRoot},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion agent log
       // Create the marker/config file if missing so subsequent discovery is fast and explicit.
       // Do not overwrite an existing (possibly user-edited) file.
       try {
@@ -53,17 +47,30 @@ export class ProjectManager {
         // Best-effort only; indexing should still proceed.
       }
       const index = new ProjectIndex(root, metadata);
-      await index.indexProjectFiles();
+      // Register immediately so open/change events can update an index even while background indexing runs.
       this.indexes.set(root, index);
-      // #region agent log (H2)
-      fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'init-pre',hypothesisId:'H2',location:'projectManager.ts:initialize:projectEnd',message:'Project indexing complete',data:{projectRoot:__agentSafeRoot,elapsedMs:Date.now()-__agentProjectStart},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion agent log
+      await index.indexProjectFiles();
     });
     
-    await Promise.all(indexingPromises);
-    // #region agent log (H2)
-    fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'init-pre',hypothesisId:'H2',location:'projectManager.ts:initialize:done',message:'ProjectManager.initialize complete',data:{elapsedMs:Date.now()-__agentInitStart,projectRootCount:this.projectRoots.length},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion agent log
+    const all = Promise.all(indexingPromises).then(() => {
+      this.indexingComplete = true;
+    });
+    this.indexingPromise = all;
+
+    if ((opts?.mode ?? "blocking") === "background") {
+      all.catch(() => {});
+      return;
+    }
+
+    await all;
+  }
+
+  whenIndexingComplete(): Promise<void> {
+    return this.indexingPromise ?? Promise.resolve();
+  }
+
+  isIndexingComplete(): boolean {
+    return this.indexingComplete;
   }
 
   getProjectRoots(): string[] {
@@ -142,6 +149,20 @@ export class ProjectManager {
     return this.getUnitNames().includes(name);
   }
 
+  isEnum(name: string): boolean {
+    for (const index of this.indexes.values()) {
+      if (index.hasEnum(name)) return true;
+    }
+    return false;
+  }
+
+  hasLangKey(key: string): boolean {
+    for (const index of this.indexes.values()) {
+      if (index.hasLangKey(key)) return true;
+    }
+    return false;
+  }
+
   hasUnitFunction(unitName: string, functionName: string): boolean {
     for (const index of this.indexes.values()) {
       const functions = index.getUnitFunctions(unitName);
@@ -191,6 +212,19 @@ export class ProjectManager {
     for (const index of this.indexes.values()) {
       const members = index.getObjectMembers(typeName);
       if (members.length > 0) return members;
+    }
+    return [];
+  }
+
+  getInverseMemberSources(typeName: string, aliasName: string, uri?: string): string[] {
+    if (uri) {
+      const index = this.getIndexForUri(uri);
+      const sources = (index as any)?.getInverseMemberSources?.(typeName, aliasName) as string[] | undefined;
+      if (sources && sources.length > 0) return sources;
+    }
+    for (const index of this.indexes.values()) {
+      const sources = (index as any)?.getInverseMemberSources?.(typeName, aliasName) as string[] | undefined;
+      if (sources && sources.length > 0) return sources;
     }
     return [];
   }

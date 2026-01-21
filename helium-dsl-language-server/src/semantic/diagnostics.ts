@@ -242,6 +242,20 @@ export async function createSemanticDiagnostics(
     const refUnitName: string | undefined = ref?.unitName;
     const refPos = nameRange.start;
 
+    // Model trigger pseudo-scope variables are implicitly available inside trigger code blocks.
+    if (name === "before" || name === "after") {
+      const scopes = (ast as any).triggerScopes as any[] | undefined;
+      if (scopes && scopes.length > 0) {
+        const inScope = scopes.some(
+          (s) =>
+            s?.scopeName === name &&
+            s?.codeBlockRange &&
+            rangeContains(s.codeBlockRange, refPos)
+        );
+        if (inScope) continue;
+      }
+    }
+
     if (refUnitName) {
       const isUnit = namespaceIsUnit(refUnitName);
       const isModelType = namespaceIsModelType(refUnitName);
@@ -340,6 +354,23 @@ export async function createSemanticDiagnostics(
       diagnostics.push(
         toDiagnostic(nameRange, `Invalid attribute/relationship \`${propName}\` on type \`${baseType}\`.`)
       );
+    } else {
+      // If this member is provided via an inverse relationship alias (`via <alias>`),
+      // detect collisions (multiple source types declaring the same alias on the same target).
+      const sources = (projectManager as any).getInverseMemberSources?.(baseType, propName, uri) as
+        | string[]
+        | undefined;
+      if (sources && sources.length > 1) {
+        const uniq = Array.from(new Set(sources)).sort();
+        diagnostics.push(
+          toDiagnostic(
+            nameRange,
+            `Ambiguous inverse relationship alias \`${propName}\` on type \`${baseType}\`: referenced by [${uniq.join(
+              ", "
+            )}].`
+          )
+        );
+      }
     }
   }
 

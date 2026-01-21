@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import os from "node:os";
 import { URI } from "vscode-uri";
 import { Location, Position, Range, SymbolInformation, SymbolKind } from "vscode-languageserver/node.js";
 import {
@@ -51,6 +52,9 @@ export class ProjectIndex {
   private units = new Map<string, UnitDecl>();
   private enums = new Map<string, EnumDecl>();
   private functionsByName = new Map<string, FunctionDecl[]>();
+  // Inverse relationship members derived from `via <alias>`:
+  // targetType -> (aliasName -> set(sourceType))
+  private inverseMembers = new Map<string, Map<string, Set<string>>>();
   private isIndexing = false;
 
   constructor(projectRoot: string, metadata: LanguageMetadata) {
@@ -76,8 +80,22 @@ export class ProjectIndex {
     const names = [
       ...obj.attributes.map((a) => a.name),
       ...obj.relationships.map((r) => r.name),
+      ...(this.getInverseMemberNames(typeName) ?? []),
     ];
     return Array.from(new Set(names));
+  }
+
+  getInverseMemberNames(targetType: string): string[] {
+    const m = this.inverseMembers.get(targetType);
+    if (!m) return [];
+    return Array.from(m.keys());
+  }
+
+  getInverseMemberSources(targetType: string, aliasName: string): string[] {
+    const m = this.inverseMembers.get(targetType);
+    const s = m?.get(aliasName);
+    if (!s) return [];
+    return Array.from(s);
   }
 
   getUnitFunctions(unitName: string): FunctionDecl[] {
@@ -102,6 +120,18 @@ export class ProjectIndex {
     return this.enums.get(enumName);
   }
 
+  hasEnum(enumName: string): boolean {
+    return this.enums.has(enumName);
+  }
+
+  hasLangKey(key: string): boolean {
+    if (!key) return false;
+    for (const entry of this.lang.values()) {
+      if (entry.keys.has(key)) return true;
+    }
+    return false;
+  }
+
   getUnits(): UnitDecl[] {
     return Array.from(this.units.values());
   }
@@ -117,6 +147,25 @@ export class ProjectIndex {
   getVariableType(name: string, uri: string, position: Position): string | null {
     const ast = this.files.get(uri);
     if (!ast) return null;
+
+    // Trigger pseudo-scope variables inside model triggers:
+    // - `before` is available in beforeCreate/beforeUpdate/beforeDelete code blocks
+    // - `after` is available in afterCreate/afterUpdate/afterDelete code blocks
+    if (name === "before" || name === "after") {
+      const scopes = (ast as any).triggerScopes as any[] | undefined;
+      if (scopes && scopes.length > 0) {
+        const match = scopes.find(
+          (s) =>
+            s?.scopeName === name &&
+            s?.codeBlockRange &&
+            rangeContains(s.codeBlockRange, position.line, position.character)
+        );
+        if (match?.objectName) {
+          return match.objectName;
+        }
+      }
+    }
+
     const containingUnit = ast.units.find((unit) =>
       unit.functions.some((fn) => fn.bodyRange && rangeContains(fn.bodyRange, position.line, position.character))
     );
@@ -203,9 +252,14 @@ export class ProjectIndex {
 
   async indexFileFromDisk(filePath: string, skipRebuild?: boolean) {
     try {
-      const text = fs.readFileSync(filePath, "utf8");
+      const tRead0 = Date.now();
+      const text = await fs.promises.readFile(filePath, "utf8");
+      const readMs = Date.now() - tRead0;
       const uri = URI.file(filePath).toString();
+      const tParse0 = Date.now();
       await this.updateFile(uri, text, skipRebuild);
+      const parseMs = Date.now() - tParse0;
+      return { readMs, parseMs };
     } catch (err) {
       // Log parser errors but continue indexing other files
       if (err instanceof Error) {
@@ -213,11 +267,12 @@ export class ProjectIndex {
       }
       // ignore and continue
     }
+    return { readMs: 0, parseMs: 0 };
   }
 
   async indexLangFileFromDisk(filePath: string) {
     try {
-      const text = fs.readFileSync(filePath, "utf8");
+      const text = await fs.promises.readFile(filePath, "utf8");
       const uri = URI.file(filePath).toString();
       await this.updateLangFile(uri, text);
     } catch (err) {
@@ -230,7 +285,7 @@ export class ProjectIndex {
 
   async indexVxmlFileFromDisk(filePath: string) {
     try {
-      const text = fs.readFileSync(filePath, "utf8");
+      const text = await fs.promises.readFile(filePath, "utf8");
       const uri = URI.file(filePath).toString();
       await this.updateVxmlFile(uri, text);
     } catch (err) {
@@ -242,11 +297,6 @@ export class ProjectIndex {
   }
 
   async indexProjectFiles() {
-    const __agentIndexStart = Date.now();
-    const __agentSafeRoot = this.projectRoot.split(path.sep).slice(-2).join(path.sep);
-    // #region agent log (H2)
-    fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'init-pre',hypothesisId:'H2',location:'projectIndex.ts:indexProjectFiles:enter',message:'indexProjectFiles enter',data:{projectRoot:__agentSafeRoot},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion agent log
     // Set flag to prevent rebuilds during indexing
     this.isIndexing = true;
     try {
@@ -259,26 +309,41 @@ export class ProjectIndex {
       this.functionsByName.clear();
       
       // Collect all .mez files first
-      const __agentCollectMezStart = Date.now();
       const filePaths: string[] = [];
       this.collectMezFiles(this.projectRoot, filePaths);
-      // #region agent log (H1)
-      fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'init-pre',hypothesisId:'H1',location:'projectIndex.ts:indexProjectFiles:afterCollectMez',message:'collectMezFiles complete',data:{projectRoot:__agentSafeRoot,elapsedMs:Date.now()-__agentCollectMezStart,mezFileCount:filePaths.length},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion agent log
       
       // Index all files in parallel, but wait for completion
-      const __agentMezIndexStart = Date.now();
-      const indexingPromises = filePaths.map(filePath => 
-        this.indexFileFromDisk(filePath, true).catch(err => {
-          console.error(`[ProjectIndex] Failed to index ${filePath}:`, err);
-          return null; // Continue with other files
-        })
-      );
-      
-      await Promise.all(indexingPromises);
-      // #region agent log (H2)
-      fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'init-pre',hypothesisId:'H2',location:'projectIndex.ts:indexProjectFiles:afterMezIndex',message:'MEZ indexing Promise.all complete',data:{projectRoot:__agentSafeRoot,elapsedMs:Date.now()-__agentMezIndexStart,mezFileCount:filePaths.length},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion agent log
+      const concurrency = Math.max(2, Math.min(16, (os.cpus()?.length ?? 4)));
+      const nextIndex = { value: 0 };
+      let totalReadMs = 0;
+      let totalParseMs = 0;
+      let maxParseMs = 0;
+      let maxParseFile = "";
+      let maxReadMs = 0;
+      let maxReadFile = "";
+      const workers = Array.from({ length: concurrency }, async () => {
+        while (nextIndex.value < filePaths.length) {
+          const idx = nextIndex.value++;
+          const filePath = filePaths[idx];
+          try {
+            const res = await this.indexFileFromDisk(filePath, true);
+            totalReadMs += res.readMs;
+            totalParseMs += res.parseMs;
+            if (res.parseMs > maxParseMs) {
+              maxParseMs = res.parseMs;
+              maxParseFile = filePath.split(path.sep).slice(-3).join(path.sep);
+            }
+            if (res.readMs > maxReadMs) {
+              maxReadMs = res.readMs;
+              maxReadFile = filePath.split(path.sep).slice(-3).join(path.sep);
+            }
+          } catch (err) {
+            console.error(`[ProjectIndex] Failed to index ${filePath}:`, err);
+            // continue
+          }
+        }
+      });
+      await Promise.all(workers);
       
       // Rebuild indexes after all files are indexed (only once)
       this.rebuildIndexes();
@@ -304,9 +369,6 @@ export class ProjectIndex {
         })
       );
       await Promise.all(langIndexingPromises);
-      // #region agent log (H3)
-      fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'init-pre',hypothesisId:'H3',location:'projectIndex.ts:indexProjectFiles:afterVxmlLang',message:'VXML+LANG indexing complete',data:{projectRoot:__agentSafeRoot,elapsedMs:Date.now()-__agentIndexStart,vxmlFileCount:vxmlPaths.length,langFileCount:langPaths.length},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion agent log
     } finally {
       // Always clear the flag, even if indexing fails
       this.isIndexing = false;
@@ -373,6 +435,7 @@ export class ProjectIndex {
     this.units = new Map();
     this.enums = new Map();
     this.functionsByName = new Map();
+    this.inverseMembers = new Map();
     for (const ast of this.files.values()) {
       ast.objects.forEach((obj) => {
         this.objects.set(obj.name, obj);
@@ -389,6 +452,20 @@ export class ProjectIndex {
         });
       });
       ast.enums.forEach((enm) => this.enums.set(enm.name, enm));
+    }
+
+    // Build inverse relationship members from `via <alias>` annotations.
+    for (const obj of this.objects.values()) {
+      for (const rel of obj.relationships) {
+        const aliasName = (rel as any).viaName as string | undefined;
+        if (!aliasName) continue;
+        const targetType = rel.targetType;
+        if (!targetType) continue;
+        if (!this.inverseMembers.has(targetType)) this.inverseMembers.set(targetType, new Map());
+        const byAlias = this.inverseMembers.get(targetType)!;
+        if (!byAlias.has(aliasName)) byAlias.set(aliasName, new Set());
+        byAlias.get(aliasName)!.add(obj.name);
+      }
     }
   }
 

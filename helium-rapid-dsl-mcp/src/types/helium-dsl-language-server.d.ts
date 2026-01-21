@@ -1,6 +1,25 @@
 declare module "helium-dsl-language-server/api" {
+  export const RAPID_PROJECT_FILE_NAME: string;
+  export type RapidDebugEnvironment = "preprod" | "production";
+  export type RapidProjectConfigV1 = {
+    schemaVersion: 1;
+    debug: {
+      environment: RapidDebugEnvironment;
+      baseUrl: string;
+      appId: string;
+      heliumUser: string;
+      heliumPassword: string;
+      logging: { wsPath: string };
+    };
+  };
+  export function baseUrlForEnvironment(env: RapidDebugEnvironment): string;
+
   export class ProjectManager {
-    initialize(workspaceFolders: Array<{ uri: string; name?: string }> | null): void;
+    initialize(
+      workspaceFolders: Array<{ uri: string; name?: string }> | null,
+      opts?: { mode?: "blocking" | "background" }
+    ): Promise<void>;
+    whenIndexingComplete(): Promise<void>;
     updateDocument(doc: any): void;
     getProjectRoots(): string[];
     getUserTypes(): string[];

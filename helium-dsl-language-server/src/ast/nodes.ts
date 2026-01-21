@@ -10,7 +10,15 @@ export type FileAst = {
   functionCalls: FunctionCallReference[];
   variableReferences: VariableReference[];
   propertyReferences: PropertyReference[];
+  triggerScopes: TriggerScope[];
   elseBlocks: SourceRange[];
+};
+
+export type TriggerScope = {
+  kind: "TriggerScope";
+  scopeName: "before" | "after";
+  objectName: string;
+  codeBlockRange: SourceRange;
 };
 
 export type ObjectDecl = {
@@ -37,6 +45,8 @@ export type RelationshipDecl = {
   nameRange: SourceRange;
   targetType: string;
   targetRange: SourceRange;
+  viaName?: string;
+  viaRange?: SourceRange;
 };
 
 export type UnitDecl = {
@@ -78,6 +88,12 @@ export type VariableDecl = {
   functionName?: string;
   unitName?: string;
   isForeachLoopVariable?: boolean;
+  /**
+   * True when this variable is the identifier declared by a `catch (...) {}` clause.
+   * Catch identifiers are not regular variable declarations and should not be flagged by
+   * rules like `no-var-in-else`.
+   */
+  isCatchVariable?: boolean;
 };
 
 export type EnumDecl = {

@@ -151,22 +151,33 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
   
   // Initialize project manager with workspace folders
   console.error("[Server] Initializing project manager...");
-  await projectManager.initialize(params.workspaceFolders || null);
+  // Background indexing makes initialization fast on large workspaces (I/O-bound).
+  await projectManager.initialize(params.workspaceFolders || null, { mode: "background" });
   console.error("[Server] Project manager initialized");
 
-  // After initializing the index, send a notification with all discovered user-defined types
-  try {
-    const types = projectManager.getUserTypes();
-    logVerbose(`[Server] ===== Sending User Types Notification =====`);
-    logVerbose(`[Server] Found ${types.length} user-defined types`);
-    logVerbose(`[Server] Types: ${JSON.stringify(types, null, 2)}`);
-    logVerbose(`[Server] Project roots: ${JSON.stringify(projectManager.getProjectRoots(), null, 2)}`);
-    connection.sendNotification("helium/userTypes", types);
-    logVerbose(`[Server] Notification sent successfully`);
-  } catch (err) {
-    console.error("[Server] ERROR sending userTypes notification:", err);
-    console.error("[Server] Error stack:", err instanceof Error ? err.stack : String(err));
-  }
+  // Send user-defined types once background indexing completes.
+  projectManager.whenIndexingComplete().then(() => {
+    try {
+      const types = projectManager.getUserTypes();
+      logVerbose(`[Server] ===== Sending User Types Notification =====`);
+      logVerbose(`[Server] Found ${types.length} user-defined types`);
+      logVerbose(`[Server] Types: ${JSON.stringify(types, null, 2)}`);
+      logVerbose(`[Server] Project roots: ${JSON.stringify(projectManager.getProjectRoots(), null, 2)}`);
+      connection.sendNotification("helium/userTypes", types);
+      logVerbose(`[Server] Notification sent successfully`);
+
+      // Revalidate open documents now that semantic indexing is complete.
+      // This ensures any gated semantic diagnostics appear without requiring an edit.
+      for (const doc of documents.all()) {
+        if (isMezDocument(doc)) {
+          validateDocument(doc).catch(() => {});
+        }
+      }
+    } catch (err) {
+      console.error("[Server] ERROR sending userTypes notification:", err);
+      console.error("[Server] Error stack:", err instanceof Error ? err.stack : String(err));
+    }
+  }).catch(() => {});
 
   // Note: File watcher registration moved to onInitialized callback
 
@@ -309,7 +320,14 @@ async function validateDocument(document: TextDocument) {
 
   const syntaxDiagnostics = await createDiagnostics(text);
   const lintDiagnostics = await runLints(text);
-  const semanticDiagnostics = await createSemanticDiagnostics(text, document.uri, projectManager);
+  const indexingComplete = (projectManager as any)?.isIndexingComplete?.() === true;
+  // Gate semantic diagnostics until project indexing completes to avoid transient false positives
+  // (e.g. unknown unit/type while the index is empty).
+  let semanticDiagnostics: Diagnostic[] = [];
+  if (indexingComplete) {
+    semanticDiagnostics = await createSemanticDiagnostics(text, document.uri, projectManager);
+  } else {
+  }
   const diagnostics = [...syntaxDiagnostics, ...lintDiagnostics, ...semanticDiagnostics];
   connection.sendDiagnostics({ uri: document.uri, diagnostics });
 }

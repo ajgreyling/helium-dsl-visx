@@ -19,5 +19,35 @@ describe("Diagnostics and lints", () => {
     const diags = await runLints(sample);
     expect(diags.some((d) => d.code === "no-var-in-else")).to.be.true;
   });
+
+  it("does not flag variable declarations inside nested blocks within else", async () => {
+    const sample = `
+    if (x == true) {
+      int a = 1;
+    } else {
+      if (y == true) {
+        int b = 2;
+      }
+    }
+    `;
+    const diags = await runLints(sample);
+    expect(diags.some((d) => d.code === "no-var-in-else")).to.be.false;
+  });
+
+  it("does not treat catch variables as forbidden declarations in else", async () => {
+    const sample = `
+    if (x == true) {
+      int a = 1;
+    } else {
+      try {
+        Mez:log("ok");
+      } catch (ex) {
+        Mez:log(ex.toString);
+      }
+    }
+    `;
+    const diags = await runLints(sample);
+    expect(diags.some((d) => d.code === "no-var-in-else")).to.be.false;
+  });
 });
 

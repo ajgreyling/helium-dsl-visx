@@ -10,6 +10,7 @@ import {
   EnumDecl,
   AttributeDecl,
   RelationshipDecl,
+  TriggerScope,
 } from "./nodes.js";
 
 // Re-export FileAst for tests
@@ -152,8 +153,21 @@ class AstListener {
       functionCalls: [],
       variableReferences: [],
       propertyReferences: [],
+      triggerScopes: [],
       elseBlocks: [],
     };
+  }
+
+  private recordTriggerScope(scopeName: TriggerScope["scopeName"], ctx: any) {
+    if (!this.currentObject) return;
+    const block = ctx?.codeBlock?.();
+    if (!block) return;
+    this.ast.triggerScopes.push({
+      kind: "TriggerScope",
+      scopeName,
+      objectName: this.currentObject.name,
+      codeBlockRange: rangeFromContext(block),
+    });
   }
 
   // Catch-all method to verify walker is calling methods
@@ -433,10 +447,13 @@ class AstListener {
 
   enterRelationship(ctx: any) {
     if (!this.currentObject) return;
+    // Grammar: relationship : multiplicityAnnotation objID=ID nameID=ID (VIA aliasID=ID)?;
+    // Prefer labeled tokens if present; fall back to ctx.ID() ordering.
     const ids = ctx.ID ? ctx.ID() : [];
-    if (!ids || ids.length < 2) return;
-    const target = ids[0];
-    const nameToken = ids[1];
+    const target = ctx.objID ?? ids?.[0];
+    const nameToken = ctx.nameID ?? ids?.[1];
+    const aliasToken = ctx.aliasID ?? ids?.[2];
+    if (!target || !nameToken) return;
     const rel: RelationshipDecl = {
       kind: "RelationshipDecl",
       name: nameToken.text,
@@ -444,6 +461,11 @@ class AstListener {
       targetType: target.text,
       targetRange: rangeFromTokens(target.symbol, target.symbol),
     };
+
+    if (aliasToken && aliasToken.text) {
+      rel.viaName = aliasToken.text;
+      rel.viaRange = rangeFromTokens(aliasToken.symbol, aliasToken.symbol);
+    }
     this.currentObject.relationships.push(rel);
   }
 
@@ -724,6 +746,26 @@ class AstListener {
     });
   }
 
+  enterBeforeCreate(ctx: any) {
+    this.recordTriggerScope("before", ctx);
+  }
+  enterBeforeUpdate(ctx: any) {
+    this.recordTriggerScope("before", ctx);
+  }
+  enterBeforeDelete(ctx: any) {
+    this.recordTriggerScope("before", ctx);
+  }
+
+  enterAfterCreate(ctx: any) {
+    this.recordTriggerScope("after", ctx);
+  }
+  enterAfterUpdate(ctx: any) {
+    this.recordTriggerScope("after", ctx);
+  }
+  enterAfterDelete(ctx: any) {
+    this.recordTriggerScope("after", ctx);
+  }
+
   enterCatchPart(ctx: any) {
     if (!this.currentFunction) return;
     const nameToken = ctx?.ID?.();
@@ -742,6 +784,7 @@ class AstListener {
       functionName: this.currentFunction.name,
       unitName: this.currentUnit?.name,
       isForeachLoopVariable: false,
+      isCatchVariable: true,
     };
 
     this.currentFunction.locals.push(variable);
@@ -775,6 +818,7 @@ export async function buildFileAst(text: string, uri: string): Promise<FileAst> 
       functionCalls: [],
       variableReferences: [],
       propertyReferences: [],
+      triggerScopes: [],
       elseBlocks: [],
     };
   }
@@ -820,6 +864,7 @@ export async function buildFileAst(text: string, uri: string): Promise<FileAst> 
           functionCalls: [],
           variableReferences: [],
           propertyReferences: [],
+          triggerScopes: [],
           elseBlocks: [],
         };
       }
@@ -837,6 +882,7 @@ export async function buildFileAst(text: string, uri: string): Promise<FileAst> 
         functionCalls: [],
         variableReferences: [],
         propertyReferences: [],
+        triggerScopes: [],
         elseBlocks: [],
       };
     }
@@ -1024,6 +1070,7 @@ export async function buildFileAst(text: string, uri: string): Promise<FileAst> 
       functionCalls: [],
       variableReferences: [],
       propertyReferences: [],
+      triggerScopes: [],
       elseBlocks: [],
     };
   }

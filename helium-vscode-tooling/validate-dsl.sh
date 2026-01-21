@@ -338,26 +338,30 @@ cd "$SCRIPT_DIR/../helium-dsl-language-server"
 npm run build
 
 echo ""
-echo -e "${BLUE}=== Step 9.5: Validate Parser (fail on parser errors) ===${NC}"
 PARSER_ERRORS_FILE="$SCRIPT_DIR/../helium-dsl-language-server/generated/parser-errors.json"
 rm -f "$PARSER_ERRORS_FILE"
 
-PARSER_LEXER_TS="$SCRIPT_DIR/generated/parser/generated/grammar/MezDSLLexer.ts"
-PARSER_PARSER_TS="$SCRIPT_DIR/generated/parser/generated/grammar/MezDSLParser.ts"
-if [ ! -f "$PARSER_LEXER_TS" ] || [ ! -f "$PARSER_PARSER_TS" ]; then
-    echo -e "${RED}Error: Parser not generated. Run npm run build:parser in helium-vscode-tooling.${NC}"
-    exit 1
-fi
+if [ "${HELIUM_SKIP_PARSER_VALIDATION:-0}" = "1" ]; then
+    echo -e "${YELLOW}=== Skipping Step 9.5: Validate Parser (HELIUM_SKIP_PARSER_VALIDATION=1) ===${NC}"
+else
+    echo -e "${BLUE}=== Step 9.5: Validate Parser (fail on parser errors) ===${NC}"
 
-# Create temporary script file for tsx to execute
-# We'll use npx tsx directly - it will find tsx in node_modules from any directory
-# Use .ts extension so Node.js recognizes it as TypeScript
-# Create temp file first, then rename to add .ts extension (works on both BSD and GNU mktemp)
-TEMP_SCRIPT=$(mktemp /tmp/helium-validate.XXXXXX)
-mv "$TEMP_SCRIPT" "${TEMP_SCRIPT}.ts"
-TEMP_SCRIPT="${TEMP_SCRIPT}.ts"
-LANG_SERVER_DIR="$SCRIPT_DIR/../helium-dsl-language-server"
-cat > "$TEMP_SCRIPT" << EOF
+    PARSER_LEXER_TS="$SCRIPT_DIR/generated/parser/generated/grammar/MezDSLLexer.ts"
+    PARSER_PARSER_TS="$SCRIPT_DIR/generated/parser/generated/grammar/MezDSLParser.ts"
+    if [ ! -f "$PARSER_LEXER_TS" ] || [ ! -f "$PARSER_PARSER_TS" ]; then
+        echo -e "${RED}Error: Parser not generated. Run npm run build:parser in helium-vscode-tooling.${NC}"
+        exit 1
+    fi
+
+    # Create temporary script file for tsx to execute
+    # We'll use npx tsx directly - it will find tsx in node_modules from any directory
+    # Use .ts extension so Node.js recognizes it as TypeScript
+    # Create temp file first, then rename to add .ts extension (works on both BSD and GNU mktemp)
+    TEMP_SCRIPT=$(mktemp /tmp/helium-validate.XXXXXX)
+    mv "$TEMP_SCRIPT" "${TEMP_SCRIPT}.ts"
+    TEMP_SCRIPT="${TEMP_SCRIPT}.ts"
+    LANG_SERVER_DIR="$SCRIPT_DIR/../helium-dsl-language-server"
+    cat > "$TEMP_SCRIPT" << EOF
 import fs from 'fs';
 import path from 'path';
 import { pathToFileURL } from 'url';
@@ -410,17 +414,18 @@ const errors = [];
 })();
 EOF
 
-cd "$SCRIPT_DIR/../helium-dsl-language-server"
-# Use npx tsx which will find tsx in node_modules from any directory
-echo "  Running parser validation with tsx..."
-echo "  Temp script: $TEMP_SCRIPT"
-echo "  Sample project: $SAMPLE_PROJECT_PATH"
-NODE_ENV=development HELIUM_STRICT_PARSER=1 SAMPLE_PROJECT_PATH="$SAMPLE_PROJECT_PATH" PARSER_ERRORS_FILE="$PARSER_ERRORS_FILE" npx tsx "$TEMP_SCRIPT" 2>&1
-TSX_EXIT_CODE=$?
-rm -f "$TEMP_SCRIPT"
+    cd "$SCRIPT_DIR/../helium-dsl-language-server"
+    # Use npx tsx which will find tsx in node_modules from any directory
+    echo "  Running parser validation with tsx..."
+    echo "  Temp script: $TEMP_SCRIPT"
+    echo "  Sample project: $SAMPLE_PROJECT_PATH"
+    NODE_ENV=development HELIUM_STRICT_PARSER=1 SAMPLE_PROJECT_PATH="$SAMPLE_PROJECT_PATH" PARSER_ERRORS_FILE="$PARSER_ERRORS_FILE" npx tsx "$TEMP_SCRIPT" 2>&1
+    TSX_EXIT_CODE=$?
+    rm -f "$TEMP_SCRIPT"
 
-if [ $TSX_EXIT_CODE -ne 0 ]; then
-    exit 1
+    if [ $TSX_EXIT_CODE -ne 0 ]; then
+        exit 1
+    fi
 fi
 
 echo ""
@@ -470,35 +475,39 @@ fs.writeFileSync('$PACKAGE_JSON', JSON.stringify(pkg, null, 2) + '\n');
 echo -e "${GREEN}Version restored to: ${ORIGINAL_VERSION}${NC}"
 
 echo ""
-echo -e "${BLUE}=== Step 14: Run Validation Tests ===${NC}"
-STEP14_START=$(date +%s)
-cd "$SCRIPT_DIR/../helium-dsl-language-server"
-# Use npm test which uses the package.json test script with proper tsx import and --exit flag
-# Filter out Node.js warnings about deprecated loader and fs.Stats
-if command -v stdbuf >/dev/null 2>&1; then
-    # Use PIPESTATUS to capture exit code before grep filters warnings
-    stdbuf -oL -eL npm test 2>&1 | grep -vE "(ExperimentalWarning|DeprecationWarning)" || true
-    MOCHA_EXIT_CODE=${PIPESTATUS[0]}
+if [ "${HELIUM_SKIP_TESTS:-0}" = "1" ]; then
+    echo -e "${YELLOW}=== Skipping Step 14: Run Validation Tests (HELIUM_SKIP_TESTS=1) ===${NC}"
 else
-    # Use PIPESTATUS to capture exit code before grep filters warnings
-    npm test 2>&1 | grep -vE "(ExperimentalWarning|DeprecationWarning)" || true
-    MOCHA_EXIT_CODE=${PIPESTATUS[0]}
+    echo -e "${BLUE}=== Step 14: Run Validation Tests ===${NC}"
+    STEP14_START=$(date +%s)
+    cd "$SCRIPT_DIR/../helium-dsl-language-server"
+    # Use npm test which uses the package.json test script with proper tsx import and --exit flag
+    # Filter out Node.js warnings about deprecated loader and fs.Stats
+    if command -v stdbuf >/dev/null 2>&1; then
+        # Use PIPESTATUS to capture exit code before grep filters warnings
+        stdbuf -oL -eL npm test 2>&1 | grep -vE "(ExperimentalWarning|DeprecationWarning)" || true
+        MOCHA_EXIT_CODE=${PIPESTATUS[0]}
+    else
+        # Use PIPESTATUS to capture exit code before grep filters warnings
+        npm test 2>&1 | grep -vE "(ExperimentalWarning|DeprecationWarning)" || true
+        MOCHA_EXIT_CODE=${PIPESTATUS[0]}
+    fi
+    STEP14_END=$(date +%s)
+    STEP14_DURATION=$((STEP14_END - STEP14_START))
+
+    # Ensure mocha/npx processes have fully terminated
+    wait
+
+    # Log timing diagnostics (to stderr for immediate output)
+    echo "[DEBUG] Step 14 completed in ${STEP14_DURATION}s, exit code: $MOCHA_EXIT_CODE" >&2
+
+    if [ $MOCHA_EXIT_CODE -ne 0 ]; then
+        echo -e "${RED}Error: Tests failed with exit code $MOCHA_EXIT_CODE${NC}"
+        exit $MOCHA_EXIT_CODE
+    fi
 fi
-STEP14_END=$(date +%s)
-STEP14_DURATION=$((STEP14_END - STEP14_START))
 
-# Ensure mocha/npx processes have fully terminated
-wait
-
-# Log timing diagnostics (to stderr for immediate output)
-echo "[DEBUG] Step 14 completed in ${STEP14_DURATION}s, exit code: $MOCHA_EXIT_CODE" >&2
-
-if [ $MOCHA_EXIT_CODE -ne 0 ]; then
-    echo -e "${RED}Error: Tests failed with exit code $MOCHA_EXIT_CODE${NC}"
-    exit $MOCHA_EXIT_CODE
-fi
-
-# Force output flush before proceeding to Step 14
+# Force output flush before proceeding to Step 15
 # Use printf instead of echo for immediate output (no buffering)
 printf "\n"
 printf "${BLUE}=== Step 15: Install Extension in Cursor ===${NC}\n"
@@ -533,7 +542,11 @@ echo -e "${GREEN}✓${NC} Language server built"
 echo -e "${GREEN}✓${NC} VSCode extension built"
 echo -e "${GREEN}✓${NC} Version updated with epoch build number ($EPOCH)"
 echo -e "${GREEN}✓${NC} VSCode extension packaged"
-echo -e "${GREEN}✓${NC} Validation tests run"
+if [ "${HELIUM_SKIP_TESTS:-0}" = "1" ]; then
+    echo -e "${YELLOW}-${NC} Validation tests skipped (HELIUM_SKIP_TESTS=1)"
+else
+    echo -e "${GREEN}✓${NC} Validation tests run"
+fi
 echo -e "${GREEN}✓${NC} Extension installed in Cursor"
 echo ""
 echo -e "Sample project validated: ${BLUE}$SAMPLE_PROJECT_PATH${NC}"

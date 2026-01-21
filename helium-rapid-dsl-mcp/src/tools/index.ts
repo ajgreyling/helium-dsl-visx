@@ -1,6 +1,7 @@
 import type { Tool, CallToolResult } from "@modelcontextprotocol/sdk/types";
 import { createMezToolHandlers } from "./mezHandlers.js";
 import { createVxmlToolHandlers } from "./vxmlHandlers.js";
+import { createDebugToolHandlers } from "./debugHandlers.js";
 
 export type ToolHandler = (args: Record<string, unknown>) => Promise<CallToolResult>;
 
@@ -253,6 +254,33 @@ export const tools: Tool[] = [
       },
       required: ["filePath"]
     }
+  },
+  {
+    name: "helium_debug_start_log_stream",
+    description:
+      "Start streaming Helium platform debug logs (WSS) and expose them via a local SSE URL, using credentials/appId from helium-rapid-dsl-project.json.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceRoot: { type: "string", description: "Optional Rapid DSL project root." },
+        rootHintFilePath: { type: "string", description: "Optional file path inside the project to locate the root." },
+        port: { type: "number", description: "Optional fixed port for the local SSE server." }
+      },
+      required: []
+    }
+  },
+  {
+    name: "helium_debug_stop_log_stream",
+    description: "Stop a previously started debug log stream (by handle or project root).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        handle: { type: "string", description: "Handle returned by helium_debug_start_log_stream." },
+        workspaceRoot: { type: "string", description: "Optional Rapid DSL project root." },
+        rootHintFilePath: { type: "string", description: "Optional file path inside the project to locate the root." }
+      },
+      required: []
+    }
   }
 ];
 
@@ -267,6 +295,7 @@ export async function createToolHandlers(): Promise<Record<string, ToolHandler>>
   const map: Record<string, ToolHandler> = {
     ...createMezToolHandlers(),
     ...createVxmlToolHandlers(),
+    ...createDebugToolHandlers(),
   };
   for (const t of tools) {
     if (!map[t.name]) {
