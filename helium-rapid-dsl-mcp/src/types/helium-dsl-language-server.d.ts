@@ -30,6 +30,7 @@ declare module "helium-dsl-language-server/api" {
 
   export function buildFileAst(text: string, uri: string): Promise<FileAst>;
   export function createDiagnostics(text: string): Promise<any[]>;
+  export function createSemanticDiagnostics(text: string, uri: string, projectManager: ProjectManager): Promise<any[]>;
   export function runLints(text: string): Promise<any[]>;
   export function formatDocument(doc: any, options: any, range?: any): any[];
   export function getLanguageMetadataSync(): any;

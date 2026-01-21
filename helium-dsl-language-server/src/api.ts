@@ -27,6 +27,7 @@ export { createDiagnostics } from "./diagnostics.js";
 export { runLints } from "./linter/engine.js";
 export { formatDocument, formatOnType } from "./formatting/formatter.js";
 export { getLanguageMetadataSync } from "./language/metadata.js";
+export { createSemanticDiagnostics } from "./semantic/diagnostics.js";
 
 // LSP-style helpers used by in-repo tooling (e.g. MCP server). Keep this minimal.
 export {

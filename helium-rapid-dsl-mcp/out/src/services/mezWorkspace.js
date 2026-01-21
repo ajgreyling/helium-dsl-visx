@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { URI } from "vscode-uri";
 import { TextDocument } from "vscode-languageserver-textdocument";
-import { ProjectManager, ProjectIndex, buildFileAst, buildSignatureHelpFromLabel, createDiagnostics, createForbiddenOperatorFix, createNamingConventionFix, createNoVarInElseFix, findCallAtPosition, findFunctionCalls, findFunctionDefinition, getLanguageMetadataSync, runLints, formatDocument, } from "helium-dsl-language-server/api";
+import { ProjectManager, ProjectIndex, buildFileAst, buildSignatureHelpFromLabel, createDiagnostics, createSemanticDiagnostics, createForbiddenOperatorFix, createNamingConventionFix, createNoVarInElseFix, findCallAtPosition, findFunctionCalls, findFunctionDefinition, getLanguageMetadataSync, runLints, formatDocument, } from "helium-dsl-language-server/api";
 export class MezWorkspaceService {
     workspaceRoot;
     projectManager = new ProjectManager();
@@ -50,10 +50,13 @@ export class MezWorkspaceService {
         this.projectIndex.updateFile(uri, text);
     }
     async validate(filePath, textOverride) {
+        await this.ready;
         const text = this.getText(filePath, textOverride);
+        const uri = this.toUri(filePath);
         const parserDiags = (await createDiagnostics(text));
         const lintDiags = (await runLints(text));
-        return [...parserDiags, ...lintDiags];
+        const semanticDiags = (await createSemanticDiagnostics(text, uri, this.projectManager));
+        return [...parserDiags, ...lintDiags, ...semanticDiags];
     }
     async getAstSummary(filePath, textOverride) {
         const text = this.getText(filePath, textOverride);

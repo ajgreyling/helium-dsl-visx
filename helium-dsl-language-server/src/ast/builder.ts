@@ -626,6 +626,49 @@ class AstListener {
     });
   }
 
+  enterAssignStatement(ctx: any) {
+    const access = ctx?.accessExpression?.();
+    if (!access) return;
+
+    const ids = access.ID ? access.ID() : [];
+    if (!ids || ids.length === 0) return;
+
+    // `accessExpression` can be:
+    // - ID
+    // - ID ('.' ID)+
+    // - ID ':' ID
+    // - ID ':' ID ('.' ID)+
+    //
+    // For variable-resolution purposes, we treat the assignment target as:
+    // - plain/dotted: base variable = first ID
+    // - unit-qualified: variable = second ID, unit = first ID
+    let unitName: string | undefined;
+    let variableToken = ids[0];
+
+    const hasColon = Array.isArray(access.children)
+      ? access.children.some((c: any) => (typeof c?.getText === "function") && c.getText() === ":")
+      : false;
+
+    if (hasColon && ids.length >= 2) {
+      unitName = ids[0].text;
+      variableToken = ids[1];
+      if (unitName) {
+        this.ast.unitReferences.push({
+          kind: "UnitReference",
+          name: unitName,
+          nameRange: rangeFromTokens(ids[0].symbol, ids[0].symbol),
+        });
+      }
+    }
+
+    this.ast.variableReferences.push({
+      kind: "VariableReference",
+      name: variableToken.text,
+      nameRange: rangeFromTokens(variableToken.symbol, variableToken.symbol),
+      unitName,
+    });
+  }
+
   enterMemberAttribute(ctx: any) {
     const nameToken = ctx.ID();
     if (!nameToken) return;
@@ -679,6 +722,29 @@ class AstListener {
       receiverName,
       receiverRange,
     });
+  }
+
+  enterCatchPart(ctx: any) {
+    if (!this.currentFunction) return;
+    const nameToken = ctx?.ID?.();
+    if (!nameToken) return;
+
+    // Helium DSL catch blocks don't declare a type (`catch(ex)`), but we still want
+    // the identifier to participate in local-variable resolution.
+    const variable: VariableDecl = {
+      kind: "VariableDecl",
+      name: nameToken.text,
+      nameRange: rangeFromTokens(nameToken.symbol, nameToken.symbol),
+      declRange: rangeFromContext(ctx),
+      typeName: "any",
+      typeRange: rangeFromTokens(nameToken.symbol, nameToken.symbol),
+      scope: "function",
+      functionName: this.currentFunction.name,
+      unitName: this.currentUnit?.name,
+      isForeachLoopVariable: false,
+    };
+
+    this.currentFunction.locals.push(variable);
   }
 
   enterElsePart(ctx: any) {

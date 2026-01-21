@@ -126,6 +126,16 @@ export class ProjectManager {
     return false;
   }
 
+  hasUnitVariable(unitName: string, variableName: string): boolean {
+    for (const index of this.indexes.values()) {
+      const variables = index.getUnitVariables(unitName);
+      if (variables.some((v) => v.name === variableName)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   getObjectLocation(name: string): Location | null {
     for (const index of this.indexes.values()) {
       const location = index.getObjectLocation(name);

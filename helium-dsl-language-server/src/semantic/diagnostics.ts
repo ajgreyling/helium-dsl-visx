@@ -78,6 +78,20 @@ function toDiagnostic(
   };
 }
 
+function positionLeq(
+  a: { line: number; character: number },
+  b: { line: number; character: number }
+): boolean {
+  return a.line < b.line || (a.line === b.line && a.character <= b.character);
+}
+
+function rangeContains(
+  range: { start: { line: number; character: number }; end: { line: number; character: number } },
+  pos: { line: number; character: number }
+): boolean {
+  return positionLeq(range.start, pos) && positionLeq(pos, range.end);
+}
+
 export async function createSemanticDiagnostics(
   text: string,
   uri: string,
@@ -97,6 +111,12 @@ export async function createSemanticDiagnostics(
       new Set<string>((u.functions || []).map((f: any) => f.name)),
     ])
   );
+  const fileUnitVariables = new Map<string, Set<string>>(
+    (ast?.units || []).map((u: any) => [
+      u.name,
+      new Set<string>((u.variables || []).map((v: any) => v.name)),
+    ])
+  );
   const fileTypeNames = new Set<string>([
     ...((ast?.objects || []).map((o: any) => o.name) ?? []),
     ...((ast?.enums || []).map((e: any) => e.name) ?? []),
@@ -113,6 +133,18 @@ export async function createSemanticDiagnostics(
   const bifNamespaces = bifMeta?.namespaces || {};
 
   const diagnostics: Diagnostic[] = [];
+
+  const namespaceIsUnit = (name: string) => fileUnitNames.has(name) || projectManager.isUnit(name);
+  const namespaceIsModelType = (name: string) => fileTypeNames.has(name) || projectManager.isUserDefinedType(name);
+  const hasUnitVariable = (unitName: string, variableName: string): boolean => {
+    // `ProjectManager` is imported via a `.js` path for NodeNext ESM compatibility.
+    // In some toolchains the type surface may lag the implementation, so we call this defensively.
+    const pmAny = projectManager as any;
+    if (typeof pmAny.hasUnitVariable === "function") {
+      return pmAny.hasUnitVariable(unitName, variableName);
+    }
+    return false;
+  };
 
   for (const call of ast?.functionCalls || []) {
     const namespace: string | undefined = call?.unitName;
@@ -136,19 +168,19 @@ export async function createSemanticDiagnostics(
     }
 
     // 2) Unit and/or model-type calls. (If both exist, accept either; if neither resolves, error.)
-    const namespaceIsUnit = fileUnitNames.has(namespace) || projectManager.isUnit(namespace);
-    const namespaceIsModelType = fileTypeNames.has(namespace) || projectManager.isUserDefinedType(namespace);
+    const isUnit = namespaceIsUnit(namespace);
+    const isModelType = namespaceIsModelType(namespace);
 
     const unitHasFunction = (() => {
-      if (!namespaceIsUnit) return false;
+      if (!isUnit) return false;
       const inFile = fileUnitFunctions.get(namespace);
       if (inFile) return inFile.has(callee);
       return projectManager.hasUnitFunction(namespace, callee);
     })();
 
-    const modelHasBif = namespaceIsModelType ? modelBifs.has(callee) : false;
+    const modelHasBif = isModelType ? modelBifs.has(callee) : false;
 
-    if (namespaceIsUnit && namespaceIsModelType) {
+    if (isUnit && isModelType) {
       if (!unitHasFunction && !modelHasBif) {
         diagnostics.push(
           toDiagnostic(
@@ -160,7 +192,7 @@ export async function createSemanticDiagnostics(
       continue;
     }
 
-    if (namespaceIsUnit) {
+    if (isUnit) {
       if (!unitHasFunction) {
         diagnostics.push(
           toDiagnostic(nameRange, `Unknown function \`${callee}()\` in unit \`${namespace}\`.`)
@@ -169,7 +201,7 @@ export async function createSemanticDiagnostics(
       continue;
     }
 
-    if (namespaceIsModelType) {
+    if (isModelType) {
       if (!modelHasBif) {
         diagnostics.push(
           toDiagnostic(nameRange, `Unknown model BIF \`${namespace}:${callee}()\`.`)
@@ -182,6 +214,80 @@ export async function createSemanticDiagnostics(
     diagnostics.push(
       toDiagnostic(nameRange, `Unknown namespace/type/unit \`${namespace}\` for call \`${namespace}:${callee}()\`.`)
     );
+  }
+
+  // Variable references (locals/params/unit vars + `Unit:var`).
+  const findContainingContext = (pos: { line: number; character: number }) => {
+    for (const unit of ast?.units || []) {
+      for (const fn of unit?.functions || []) {
+        if (fn?.bodyRange && rangeContains(fn.bodyRange, pos)) {
+          return { unit, fn };
+        }
+      }
+    }
+    return { unit: (ast?.units || [])[0], fn: undefined };
+  };
+
+  const isSuppressedName = (name: string) => {
+    // Prevent noise when an identifier is actually a known unit/type name.
+    return namespaceIsUnit(name) || namespaceIsModelType(name);
+  };
+
+  for (const ref of ast?.variableReferences || []) {
+    const name: string | undefined = ref?.name;
+    const nameRange = ref?.nameRange;
+    if (!name || !nameRange) continue;
+    if (isSuppressedName(name)) continue;
+
+    const refUnitName: string | undefined = ref?.unitName;
+    const refPos = nameRange.start;
+
+    if (refUnitName) {
+      const isUnit = namespaceIsUnit(refUnitName);
+      const isModelType = namespaceIsModelType(refUnitName);
+
+      if (!isUnit) {
+        // If the "namespace" is not a unit, don't flag it as an undeclared variable reference.
+        // (It may be a type/namespace in other constructs not represented as variableReferences.)
+        if (!isModelType) {
+          diagnostics.push(
+            toDiagnostic(
+              nameRange,
+              `Unknown unit \`${refUnitName}\` for variable reference \`${refUnitName}:${name}\`.`
+            )
+          );
+        }
+        continue;
+      }
+
+      const inFileVars = fileUnitVariables.get(refUnitName);
+      const unitHasVar = inFileVars ? inFileVars.has(name) : hasUnitVariable(refUnitName, name);
+      if (!unitHasVar) {
+        diagnostics.push(toDiagnostic(nameRange, `Unknown variable \`${name}\` in unit \`${refUnitName}\`.`));
+      }
+      continue;
+    }
+
+    const { unit, fn } = findContainingContext(refPos);
+    const unitName: string | undefined = unit?.name;
+
+    const declaredInFn =
+      (fn?.params || []).some((p: any) => p?.name === name)
+      || (fn?.locals || []).some((v: any) => {
+        if (v?.name !== name) return false;
+        const declStart = v?.declRange?.start;
+        if (!declStart) return true;
+        return positionLeq(declStart, refPos);
+      });
+
+    if (declaredInFn) continue;
+
+    const declaredInUnit = (unit?.variables || []).some((v: any) => v?.name === name);
+    if (declaredInUnit) continue;
+
+    // Fall back to checking other units’ globals is intentionally not done here:
+    // unqualified `foo` should resolve only in local or current unit scope.
+    diagnostics.push(toDiagnostic(nameRange, `Unknown variable \`${name}\`.`));
   }
 
   return diagnostics;

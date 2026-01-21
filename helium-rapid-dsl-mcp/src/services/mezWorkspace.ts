@@ -8,6 +8,7 @@ import {
   buildFileAst,
   buildSignatureHelpFromLabel,
   createDiagnostics,
+  createSemanticDiagnostics,
   createForbiddenOperatorFix,
   createNamingConventionFix,
   createNoVarInElseFix,
@@ -119,10 +120,13 @@ export class MezWorkspaceService {
   }
 
   async validate(filePath: string, textOverride?: string): Promise<MezDiagnostic[]> {
+    await this.ready;
     const text = this.getText(filePath, textOverride);
+    const uri = this.toUri(filePath);
     const parserDiags = (await createDiagnostics(text)) as unknown as MezDiagnostic[];
     const lintDiags = (await runLints(text)) as unknown as MezDiagnostic[];
-    return [...parserDiags, ...lintDiags];
+    const semanticDiags = (await createSemanticDiagnostics(text, uri, this.projectManager)) as unknown as MezDiagnostic[];
+    return [...parserDiags, ...lintDiags, ...semanticDiags];
   }
 
   async getAstSummary(filePath: string, textOverride?: string) {
