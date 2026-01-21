@@ -308,7 +308,8 @@ export async function createSemanticDiagnostics(
   //
   // We intentionally only validate when the receiver type is a *known user-defined object*.
   // Platform/library types (e.g. MezApiRequest) are skipped to avoid noise.
-  const ROLE_IMPLICIT_FIELDS = ["_firstNames", "_nickName", "_surname"];
+  const ROLE_IMPLICIT_FIELDS =
+    languageMetadata.roleImplicitFields ?? ["_firstNames", "_nickName", "_surname"];
 
   for (const ref of ast?.propertyReferences || []) {
     const receiverName: string | undefined = ref?.receiverName;

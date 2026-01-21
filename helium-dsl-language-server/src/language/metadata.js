@@ -37,6 +37,11 @@ export function getLanguageMetadataSync() {
     }
     return cachedMetadata;
 }
+// Test/support helper: allow forcing a re-read of the on-disk metadata.
+// (Useful because some tests load this module early and cache an empty fallback.)
+export function resetLanguageMetadataCache() {
+    cachedMetadata = null;
+}
 export async function getLanguageMetadata() {
     if (cachedMetadata)
         return cachedMetadata;

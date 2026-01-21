@@ -9,6 +9,8 @@ export type LanguageMetadata = {
   bifNamespaces: string[];
   bifFunctions: string[];
   reservedIdentifiers: string[];
+  // Optional to support older generated metadata files.
+  roleImplicitFields?: string[];
 };
 
 const __filename = fileURLToPath(import.meta.url);
@@ -59,6 +61,12 @@ export function getLanguageMetadataSync(): LanguageMetadata {
     };
   }
   return cachedMetadata;
+}
+
+// Test/support helper: allow forcing a re-read of the on-disk metadata.
+// (Useful because some tests load this module early and cache an empty fallback.)
+export function resetLanguageMetadataCache() {
+  cachedMetadata = null;
 }
 
 export async function getLanguageMetadata(): Promise<LanguageMetadata> {
