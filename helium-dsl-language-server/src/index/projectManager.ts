@@ -90,6 +90,10 @@ export class ProjectManager {
       index.updateVxmlFile(doc.uri, doc.getText()).catch(() => {});
       return;
     }
+    if (fsPath.endsWith(".lang")) {
+      index.updateLangFile(doc.uri, doc.getText()).catch(() => {});
+      return;
+    }
   }
 
   removeDocument(uri: string) {
@@ -102,6 +106,10 @@ export class ProjectManager {
     }
     if (fsPath.endsWith(".vxml")) {
       index.removeVxmlFile(uri);
+      return;
+    }
+    if (fsPath.endsWith(".lang")) {
+      index.removeLangFile(uri);
       return;
     }
   }

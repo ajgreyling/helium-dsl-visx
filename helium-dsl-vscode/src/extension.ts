@@ -243,7 +243,14 @@ function startLanguageClient(context: vscode.ExtensionContext) {
       { scheme: "file", language: "helium-vxml" },
     ],
     synchronize: {
-      fileEvents: vscode.workspace.createFileSystemWatcher("**/*.mez"),
+      // Send workspace/didChangeWatchedFiles to the server for unopened files too.
+      // (The server will validate from disk and publish diagnostics.)
+      fileEvents: [
+        vscode.workspace.createFileSystemWatcher("**/*.mez"),
+        vscode.workspace.createFileSystemWatcher("**/*.vxml"),
+        // Translation edits can affect VXML validation (missing keys, etc.)
+        vscode.workspace.createFileSystemWatcher("**/*.lang"),
+      ],
     },
     outputChannel: outputChannel,
     traceOutputChannel: outputChannel,
@@ -263,13 +270,8 @@ function startLanguageClient(context: vscode.ExtensionContext) {
   client.onNotification("helium/userTypes", (types: string[]) => {
     try {
       userDefinedTypes = types;
-      if (outputChannel) {
-        outputChannel.appendLine(`[HeliumDSL] Discovered ${types.length} user-defined types:`);
-        for (const t of types) {
-          outputChannel.appendLine(`  - ${t}`);
-        }
-        outputChannel.appendLine(`[HeliumDSL] Triggering semantic tokens refresh...`);
-      }
+      // Intentionally do not log the full type list to the Output channel; it can be very noisy
+      // in large workspaces. (This notification exists primarily to power semantic highlighting.)
 
       // Trigger semantic tokens refresh for all open Helium Rapid DSL (ANTLR4) documents
       refreshSemanticTokens();

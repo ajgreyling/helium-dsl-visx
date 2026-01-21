@@ -62,6 +62,7 @@ import {
   DocumentHighlight,
   DocumentHighlightKind,
   DocumentHighlightParams,
+  FileChangeType,
 } from "vscode-languageserver/node.js";
 import { TextDocument } from "vscode-languageserver-textdocument";
 import { URI } from "vscode-uri";
@@ -97,6 +98,12 @@ const documents = new TextDocuments<TextDocument>(TextDocument);
 const projectManager = new ProjectManager();
 
 console.error("[Server] Connection and documents initialized");
+
+const IGNORED_DIRS = new Set(["node_modules", ".git", ".idea", ".vscode"]);
+
+// Debounce validation for disk-written files (AI writes often trigger bursts of events).
+const validateDebounceTimers = new Map<string, NodeJS.Timeout>();
+const vxmlRevalidateProjectTimers = new Map<string, NodeJS.Timeout>();
 
 const semanticLegend: SemanticTokensLegend = {
   tokenTypes: ["type", "function", "variable", "namespace"],
@@ -173,6 +180,10 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
           validateDocument(doc).catch(() => {});
         }
       }
+
+      // One-time startup scan: publish diagnostics for unopened files too.
+      // This is intentionally best-effort and runs in the background.
+      startStartupDiagnosticsScan().catch(() => {});
     } catch (err) {
       console.error("[Server] ERROR sending userTypes notification:", err);
       console.error("[Server] Error stack:", err instanceof Error ? err.stack : String(err));
@@ -276,34 +287,58 @@ documents.onDidChangeContent((change) => {
 
 documents.onDidOpen((change) => {
   validateDocument(change.document);
-  if (isMezDocument(change.document) || isVxmlDocument(change.document)) {
+  if (isMezDocument(change.document) || isVxmlDocument(change.document) || isLangDocument(change.document)) {
     projectManager.updateDocument(change.document);
   }
 });
 
-// Listen for watched file changes (add/remove) and refresh index as needed
-// Note: File watcher registration is disabled because Cursor doesn't support client/registerCapability
-// The registration would cause a server crash. Instead, we rely on document open/change events
-// to update the workspace index when files are edited.
-// 
-// If file watching is needed in the future, we can implement it using a different approach
-// that doesn't require client/registerCapability, such as polling or using the client's
-// file system events directly.
-//
-// connection.onDidChangeWatchedFiles((params) => {
-//   try {
-//     for (const ch of params.changes) {
-//       const fsPath = URI.parse(ch.uri).fsPath;
-//       if (fsPath.endsWith('.mez') && fsPath.split(path.sep).includes('model')) {
-//         workspaceIndex.updateFile(ch.uri);
-//       }
-//     }
-//     const types = workspaceIndex.getDebugInfo().objects || [];
-//     connection.sendNotification("helium/userTypes", types);
-//   } catch (err) {
-//     console.error('[Server] Error handling watched file changes:', err);
-//   }
-// });
+// Handle client-side file watcher notifications.
+// This does NOT rely on client/registerCapability (which Cursor may not support).
+// The VS Code/Cursor client sends `workspace/didChangeWatchedFiles` based on
+// clientOptions.synchronize.fileEvents.
+connection.onDidChangeWatchedFiles((params) => {
+  try {
+    for (const ch of params.changes) {
+      const uri = ch.uri;
+      const fsPath = safeFsPath(uri);
+
+      // We only validate these file types from disk.
+      const isMez = fsPath.endsWith(".mez");
+      const isVxml = fsPath.endsWith(".vxml");
+      const isLang = fsPath.endsWith(".lang");
+      if (!isMez && !isVxml && !isLang) continue;
+
+      // Prefer open-document validation (avoids stomping over unsaved edits).
+      if ((isMez || isVxml) && documents.get(uri)) {
+        continue;
+      }
+
+      if (ch.type === FileChangeType.Deleted) {
+        // Clear any pending validations and clear diagnostics.
+        const t = validateDebounceTimers.get(uri);
+        if (t) {
+          clearTimeout(t);
+          validateDebounceTimers.delete(uri);
+        }
+
+        projectManager.removeDocument(uri);
+        connection.sendDiagnostics({ uri, diagnostics: [] });
+        continue;
+      }
+
+      // Created or Changed
+      if (isLang) {
+        // Update language key index, then revalidate VXML files in the same project root.
+        scheduleUpdateLangFromDisk(uri);
+        continue;
+      }
+
+      scheduleValidateFromDisk(uri);
+    }
+  } catch (err) {
+    console.error("[Server] Error handling watched file changes:", err);
+  }
+});
 
 async function validateDocument(document: TextDocument) {
   const text = document.getText();
@@ -342,6 +377,11 @@ function isMezDocument(document: TextDocument): boolean {
   return fsPath.endsWith(".mez");
 }
 
+function isLangDocument(document: TextDocument): boolean {
+  const fsPath = safeFsPath(document.uri);
+  return fsPath.endsWith(".lang");
+}
+
 function safeFsPath(uri: string): string {
   try {
     return URI.parse(uri).fsPath;
@@ -361,6 +401,165 @@ function toLspDiagnostic(d: VxmlDiagnostic): Diagnostic {
     severity: (d.severity ?? DiagnosticSeverity.Error) as DiagnosticSeverity,
     source: d.source ?? "helium-vxml",
   };
+}
+
+function scheduleValidateFromDisk(uri: string, debounceMs = 250) {
+  const existing = validateDebounceTimers.get(uri);
+  if (existing) clearTimeout(existing);
+
+  const timer = setTimeout(() => {
+    validateDebounceTimers.delete(uri);
+    validateFromDisk(uri).catch(() => {});
+  }, debounceMs);
+  validateDebounceTimers.set(uri, timer);
+}
+
+function scheduleUpdateLangFromDisk(uri: string, debounceMs = 250) {
+  const existing = validateDebounceTimers.get(uri);
+  if (existing) clearTimeout(existing);
+
+  const timer = setTimeout(() => {
+    validateDebounceTimers.delete(uri);
+    updateLangFromDisk(uri).catch(() => {});
+  }, debounceMs);
+  validateDebounceTimers.set(uri, timer);
+}
+
+async function validateFromDisk(uri: string): Promise<void> {
+  // Skip if open (open document has the source of truth).
+  if (documents.get(uri)) return;
+
+  const fsPath = safeFsPath(uri);
+  if (!fsPath) return;
+  if (!fs.existsSync(fsPath)) return;
+
+  const isVxml = fsPath.endsWith(".vxml");
+  const isMez = fsPath.endsWith(".mez");
+  if (!isVxml && !isMez) return;
+
+  try {
+    const text = await fs.promises.readFile(fsPath, "utf8");
+    const languageId = isVxml ? "helium-vxml" : "helium-dsl";
+    const doc = TextDocument.create(uri, languageId, 1, text);
+
+    // Keep the project index up-to-date even for unopened files.
+    projectManager.updateDocument(doc);
+
+    await validateDocument(doc);
+  } catch (err) {
+    // Best-effort: on read/parse failures we avoid crashing the server.
+    console.error(`[Server] Failed to validate from disk: ${fsPath}`, err);
+  }
+}
+
+async function updateLangFromDisk(uri: string): Promise<void> {
+  const fsPath = safeFsPath(uri);
+  if (!fsPath) return;
+  if (!fs.existsSync(fsPath)) return;
+  if (!fsPath.endsWith(".lang")) return;
+
+  try {
+    const text = await fs.promises.readFile(fsPath, "utf8");
+    const doc = TextDocument.create(uri, "helium-lang", 1, text);
+    projectManager.updateDocument(doc);
+
+    // Revalidate open VXML documents immediately (fast feedback).
+    for (const d of documents.all()) {
+      if (isVxmlDocument(d)) {
+        validateDocument(d).catch(() => {});
+      }
+    }
+
+    const projectRoot = findOwningProjectRoot(fsPath);
+    if (projectRoot) {
+      scheduleRevalidateVxmlInProject(projectRoot);
+    }
+  } catch (err) {
+    console.error(`[Server] Failed to update lang index from disk: ${fsPath}`, err);
+  }
+}
+
+function scheduleRevalidateVxmlInProject(projectRoot: string, debounceMs = 500) {
+  const existing = vxmlRevalidateProjectTimers.get(projectRoot);
+  if (existing) clearTimeout(existing);
+  const timer = setTimeout(() => {
+    vxmlRevalidateProjectTimers.delete(projectRoot);
+    revalidateAllVxmlInProject(projectRoot).catch(() => {});
+  }, debounceMs);
+  vxmlRevalidateProjectTimers.set(projectRoot, timer);
+}
+
+async function revalidateAllVxmlInProject(projectRoot: string): Promise<void> {
+  const vxmlPaths: string[] = [];
+  collectFilesByExt(projectRoot, new Set([".vxml"]), vxmlPaths);
+
+  // Concurrency-limited worker pool.
+  const concurrency = 6;
+  let idx = 0;
+  const workers = Array.from({ length: concurrency }, async () => {
+    while (idx < vxmlPaths.length) {
+      const i = idx++;
+      const filePath = vxmlPaths[i];
+      const uri = URI.file(filePath).toString();
+      // Skip open docs (unsaved edits).
+      if (documents.get(uri)) continue;
+      await validateFromDisk(uri);
+    }
+  });
+  await Promise.all(workers);
+}
+
+async function startStartupDiagnosticsScan(): Promise<void> {
+  const roots = projectManager.getProjectRoots();
+  if (!roots || roots.length === 0) return;
+
+  const filePaths: string[] = [];
+  for (const root of roots) {
+    collectFilesByExt(root, new Set([".mez", ".vxml"]), filePaths);
+  }
+
+  const concurrency = 6;
+  let idx = 0;
+  const workers = Array.from({ length: concurrency }, async () => {
+    while (idx < filePaths.length) {
+      const i = idx++;
+      const filePath = filePaths[i];
+      const uri = URI.file(filePath).toString();
+      if (documents.get(uri)) continue;
+      await validateFromDisk(uri);
+    }
+  });
+  await Promise.all(workers);
+}
+
+function collectFilesByExt(dir: string, exts: Set<string>, out: string[]) {
+  if (!dir) return;
+  if (!fs.existsSync(dir)) return;
+  try {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.name.startsWith(".") || IGNORED_DIRS.has(entry.name)) continue;
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        collectFilesByExt(fullPath, exts, out);
+        continue;
+      }
+      if (!entry.isFile()) continue;
+      const ext = path.extname(entry.name);
+      if (exts.has(ext)) out.push(fullPath);
+    }
+  } catch {
+    // ignore
+  }
+}
+
+function findOwningProjectRoot(fsPath: string): string | null {
+  const roots = projectManager.getProjectRoots();
+  if (!roots || roots.length === 0) return null;
+  const normalized = path.resolve(fsPath);
+  const candidates = roots.filter((r) => normalized.startsWith(path.resolve(r)));
+  if (candidates.length === 0) return null;
+  return candidates.sort((a, b) => b.length - a.length)[0];
 }
 
 connection.onCompletion(async (params): Promise<CompletionItem[]> => {
