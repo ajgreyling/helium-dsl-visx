@@ -5,6 +5,7 @@ import {
   CompletionItemKind,
   CompletionParams,
   DefinitionParams,
+  Diagnostic,
   DocumentSymbol,
   Location,
   Position,
@@ -288,6 +289,12 @@ export class ProjectManager {
       });
     }
     return { changes };
+  }
+
+  getUnusedWarningsForFile(uri: string, astOverride?: FileAst): Diagnostic[] {
+    const index = this.getIndexForUri(uri);
+    if (!index) return [];
+    return index.getUnusedWarningsForFile(uri, astOverride);
   }
 
   async getCompletions(params: CompletionParams, doc: TextDocument): Promise<CompletionItem[]> {

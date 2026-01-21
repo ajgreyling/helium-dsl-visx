@@ -65,6 +65,11 @@ export type FunctionDecl = {
   returnTypeRange: SourceRange;
   params: ParamDecl[];
   locals: VariableDecl[];
+  /**
+   * Raw function annotation names attached to this function (without the leading '@').
+   * Example: ["Scheduled", "POST"] for `@Scheduled(...) @POST(...)`.
+   */
+  annotations?: string[];
   bodyRange?: SourceRange;
   unitName?: string;
 };

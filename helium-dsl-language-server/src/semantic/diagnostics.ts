@@ -374,6 +374,14 @@ export async function createSemanticDiagnostics(
     }
   }
 
+  // Unused warnings (project-wide, usage-based).
+  // These are warnings (not errors) and are surfaced in the Problems tab.
+  try {
+    diagnostics.push(...projectManager.getUnusedWarningsForFile(uri, ast));
+  } catch {
+    // Best-effort only; unused warnings should never crash semantic diagnostics.
+  }
+
   return diagnostics;
 }
 

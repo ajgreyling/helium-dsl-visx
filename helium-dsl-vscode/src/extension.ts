@@ -60,9 +60,12 @@ function hasAnyMezFileUnder(rootDir: string): boolean {
 function isHeliumProjectRoot(dir: string): boolean {
   const modelDir = path.join(dir, "model");
   const webAppDir = path.join(dir, "web-app");
-  if (!safeExists(modelDir) || !safeExists(webAppDir)) return false;
   const presentersDir = path.join(webAppDir, "presenters");
-  return hasAnyMezFileUnder(modelDir) || hasAnyMezFileUnder(presentersDir);
+  const hasModel = safeExists(modelDir) && hasAnyMezFileUnder(modelDir);
+  const hasPresenters =
+    safeExists(presentersDir) && hasAnyMezFileUnder(presentersDir);
+
+  return hasModel || hasPresenters;
 }
 
 function scanForHeliumProject(root: string): boolean {

@@ -139,6 +139,7 @@ class AstListener {
   private currentEnum: EnumDecl | null = null;
   private persistentDepth = 0;
   private inForEachLoop: boolean = false;
+  private pendingFunctionAnnotations: string[] = [];
   public tokenStream: any = null; // Store token stream for accessing tokens by index
   public tokenFillSucceeded: boolean = false; // Whether tokens.fill() succeeded
 
@@ -489,12 +490,109 @@ class AstListener {
     this.currentUnit = null;
   }
 
+  private normalizeFunctionAnnotation(raw: string): string | null {
+    const trimmed = (raw ?? "").trim();
+    if (!trimmed) return null;
+    // Typically looks like "@Scheduled(\"...\")" or "@POST(\"/path\")"
+    const withoutAt = trimmed.startsWith("@") ? trimmed.slice(1) : trimmed;
+    const paren = withoutAt.indexOf("(");
+    const name = (paren === -1 ? withoutAt : withoutAt.slice(0, paren)).trim();
+    if (!name) return null;
+    // Strip any trailing punctuation in pathological cases
+    return name.replace(/[^A-Za-z0-9_]+$/g, "");
+  }
+
+  enterFunctionDefinition(_ctx: any) {
+    // Reset at the start of each functionDefinition to avoid leaking annotations between functions.
+    this.pendingFunctionAnnotations = [];
+  }
+
+  enterFunctionAnnotation(ctx: any) {
+    const text = typeof ctx?.getText === "function" ? ctx.getText() : "";
+    const n = this.normalizeFunctionAnnotation(text);
+    if (n) this.pendingFunctionAnnotations.push(n);
+  }
+
+  private collectFunctionAnnotationsFromTokens(ctx: any): string[] {
+    if (!this.tokenStream || !this.tokenFillSucceeded) return [];
+    const startIdx: number | undefined = ctx?.start?.tokenIndex;
+    if (typeof startIdx !== "number" || startIdx <= 0) return [];
+
+    let allTokens: any[] = [];
+    try {
+      allTokens = this.tokenStream.getTokens?.() ?? [];
+    } catch {
+      return [];
+    }
+    if (!Array.isArray(allTokens) || allTokens.length === 0) return [];
+
+    const isDefaultChannel = (t: any) => (t?.channel ?? 0) === 0;
+
+    // Find a boundary token before the signature so we only scan the immediate prefix.
+    // We stop at common statement/block boundaries.
+    let boundary = startIdx - 1;
+    while (boundary >= 0) {
+      const t = allTokens[boundary];
+      if (!isDefaultChannel(t)) {
+        boundary--;
+        continue;
+      }
+      if (t.text === ";" || t.text === "{" || t.text === "}") break;
+      boundary--;
+    }
+
+    const from = boundary + 1;
+    const to = startIdx - 1;
+    if (from > to) return [];
+
+    const names: string[] = [];
+    let parenDepth = 0;
+
+    for (let i = from; i <= to; i++) {
+      const t = allTokens[i];
+      if (!isDefaultChannel(t)) continue;
+      const txt: string = t?.text ?? "";
+
+      if (txt === "(") {
+        parenDepth++;
+        continue;
+      }
+      if (txt === ")") {
+        parenDepth = Math.max(0, parenDepth - 1);
+        continue;
+      }
+
+      if (parenDepth === 0 && txt === "@") {
+        // Next default-channel token is the annotation name (e.g. Scheduled, POST, ReceiveSMS).
+        let k = i + 1;
+        while (k <= to && !isDefaultChannel(allTokens[k])) k++;
+        const nameTok = allTokens[k];
+        if (nameTok?.text) {
+          const normalized = this.normalizeFunctionAnnotation(String(nameTok.text));
+          if (normalized) names.push(normalized);
+        }
+      }
+    }
+
+    return names;
+  }
+
   enterFunctionSignature(ctx: any) {
     if (!this.currentUnit) return;
     const nameToken = ctx.ID ? ctx.ID() : null;
     if (!nameToken) return;
     const typeCtx = ctx.typeName();
     if (!typeCtx) return;
+
+    // Best-effort: Prefer listener-captured annotations, but fall back to token-stream scanning.
+    // (Some parser/walker environments may skip enterFunctionAnnotation callbacks.)
+    const annotationsFromTokens = this.collectFunctionAnnotationsFromTokens(ctx);
+    const mergedAnnotations = [
+      ...(this.pendingFunctionAnnotations || []),
+      ...annotationsFromTokens,
+    ];
+    const uniqueAnnotations = Array.from(new Set(mergedAnnotations)).filter(Boolean);
+
     const functionDecl: FunctionDecl = {
       kind: "FunctionDecl",
       name: nameToken.text,
@@ -504,9 +602,11 @@ class AstListener {
       params: [],
       locals: [],
       unitName: this.currentUnit.name,
+      annotations: uniqueAnnotations.length > 0 ? uniqueAnnotations : undefined,
     };
     this.currentUnit.functions.push(functionDecl);
     this.currentFunction = functionDecl;
+    this.pendingFunctionAnnotations = [];
   }
 
   exitFunctionDefinition(ctx: any) {
@@ -648,6 +748,26 @@ class AstListener {
     });
   }
 
+  private recordPseudoscopeMemberAccess(ids: any[]) {
+    if (!ids || ids.length < 2) return;
+    const receiverToken = ids[0];
+    const memberToken = ids[1];
+    const receiverName = receiverToken?.text;
+    const memberName = memberToken?.text;
+    if (!receiverName || !memberName) return;
+    if (receiverName !== "before" && receiverName !== "after") return;
+
+    // Represent `before.foo` / `after.bar` as a PropertyReference so usage tracking can
+    // map it onto the owning persistent object via triggerScopes.
+    this.ast.propertyReferences.push({
+      kind: "PropertyReference",
+      name: memberName,
+      nameRange: rangeFromTokens(memberToken.symbol, memberToken.symbol),
+      receiverName,
+      receiverRange: rangeFromTokens(receiverToken.symbol, receiverToken.symbol),
+    });
+  }
+
   enterAssignStatement(ctx: any) {
     const access = ctx?.accessExpression?.();
     if (!access) return;
@@ -689,6 +809,12 @@ class AstListener {
       nameRange: rangeFromTokens(variableToken.symbol, variableToken.symbol),
       unitName,
     });
+
+    // Pseudoscope member assignment should count as property usage:
+    // `before.created_at = ...` / `after.archived = ...`
+    if (!hasColon) {
+      this.recordPseudoscopeMemberAccess(ids);
+    }
   }
 
   enterMemberAttribute(ctx: any) {
@@ -744,6 +870,21 @@ class AstListener {
       receiverName,
       receiverRange,
     });
+  }
+
+  enterAccessExpression(ctx: any) {
+    // Count pseudoscope reads like `before.created_at` as property references too.
+    // Assignments are handled in `enterAssignStatement`, but reads appear as bare accessExpression
+    // nodes within expressions.
+    const ids = ctx?.ID ? ctx.ID() : [];
+    if (!ids || ids.length < 2) return;
+
+    const hasColon = Array.isArray(ctx.children)
+      ? ctx.children.some((c: any) => (typeof c?.getText === "function") && c.getText() === ":")
+      : false;
+    if (hasColon) return;
+
+    this.recordPseudoscopeMemberAccess(ids);
   }
 
   enterBeforeCreate(ctx: any) {

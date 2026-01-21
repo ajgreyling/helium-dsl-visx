@@ -139,9 +139,7 @@ function computeLineOffsets(text: string): number[] {
     if (text[i] === "\n") offsets.push(i + 1);
   }
   return offsets;
-}
-
-function positionToOffset(
+}function positionToOffset(
   text: string,
   lineOffsets: number[],
   line: number,
@@ -162,9 +160,7 @@ function positionToOffset(
   const idx = text.indexOf(needle, startOffset);
   if (idx === -1 || idx > endOffset) return null;
   return idx;
-}
-
-/**
+}/**
  * Computes brace depth at targetOffset, scanning from startOffset (inclusive) to targetOffset (exclusive).
  * Ignores braces inside:
  * - single-line comments (`// ...`)

@@ -2,7 +2,15 @@ import fs from "fs";
 import path from "path";
 import os from "node:os";
 import { URI } from "vscode-uri";
-import { Location, Position, Range, SymbolInformation, SymbolKind } from "vscode-languageserver/node.js";
+import {
+  Diagnostic,
+  DiagnosticSeverity,
+  Location,
+  Position,
+  Range,
+  SymbolInformation,
+  SymbolKind,
+} from "vscode-languageserver/node.js";
 import {
   FileAst,
   ObjectDecl,
@@ -55,6 +63,12 @@ export class ProjectIndex {
   // Inverse relationship members derived from `via <alias>`:
   // targetType -> (aliasName -> set(sourceType))
   private inverseMembers = new Map<string, Map<string, Set<string>>>();
+  // Project-wide usage counts (rebuilt alongside symbol indexes).
+  private unitUsage = new Map<string, number>();
+  // unitName -> (functionName -> count)
+  private functionUsage = new Map<string, Map<string, number>>();
+  // objectName -> (memberName -> count) where memberName is an attribute or relationship name
+  private memberUsage = new Map<string, Map<string, number>>();
   private isIndexing = false;
 
   constructor(projectRoot: string, metadata: LanguageMetadata) {
@@ -218,12 +232,14 @@ export class ProjectIndex {
   async updateVxmlFile(uri: string, text: string) {
     try {
       const ast = buildVxmlAst(text, uri);
-      const references = (ast.references || []).filter(
-        (r) =>
-          (r.kind === "function" && r.attrName === "function") ||
-          (r.kind === "variable" && r.attrName === "variable")
-      );
+      // Keep all extracted references so features can evolve without re-indexing VXML.
+      // (Existing consumers further filter by kind/attrName as needed.)
+      const references = ast.references || [];
       this.vxml.set(uri, { viewUnitName: ast.view?.unitName, references });
+      // Usage (unused warnings) depends on VXML bindings too.
+      if (!this.isIndexing) {
+        this.rebuildUsageIndexes();
+      }
     } catch (err) {
       if (err instanceof Error) {
         console.error(`[ProjectIndex] Error indexing VXML ${uri}: ${err.message}`);
@@ -233,6 +249,9 @@ export class ProjectIndex {
 
   removeVxmlFile(uri: string) {
     this.vxml.delete(uri);
+    if (!this.isIndexing) {
+      this.rebuildUsageIndexes();
+    }
   }
 
   async updateLangFile(uri: string, text: string) {
@@ -358,6 +377,8 @@ export class ProjectIndex {
         })
       );
       await Promise.all(vxmlIndexingPromises);
+      // VXML indexing happens after `rebuildIndexes()`, so refresh usage counts once.
+      this.rebuildUsageIndexes();
 
       // Collect and index all .lang files (language / translation keys)
       const langPaths: string[] = [];
@@ -436,6 +457,9 @@ export class ProjectIndex {
     this.enums = new Map();
     this.functionsByName = new Map();
     this.inverseMembers = new Map();
+    this.unitUsage = new Map();
+    this.functionUsage = new Map();
+    this.memberUsage = new Map();
     for (const ast of this.files.values()) {
       ast.objects.forEach((obj) => {
         this.objects.set(obj.name, obj);
@@ -467,6 +491,221 @@ export class ProjectIndex {
         byAlias.get(aliasName)!.add(obj.name);
       }
     }
+
+    // Rebuild usage indexes once symbol indexes are stable.
+    this.rebuildUsageIndexes();
+  }
+
+  private incUsage(map: Map<string, number>, key: string, delta = 1) {
+    if (!key) return;
+    map.set(key, (map.get(key) ?? 0) + delta);
+  }
+
+  private incNestedUsage(map: Map<string, Map<string, number>>, outer: string, inner: string, delta = 1) {
+    if (!outer || !inner) return;
+    if (!map.has(outer)) map.set(outer, new Map());
+    const innerMap = map.get(outer)!;
+    innerMap.set(inner, (innerMap.get(inner) ?? 0) + delta);
+  }
+
+  private getNestedUsage(map: Map<string, Map<string, number>>, outer: string, inner: string): number {
+    return map.get(outer)?.get(inner) ?? 0;
+  }
+
+  private rebuildUsageIndexes() {
+    this.unitUsage.clear();
+    this.functionUsage.clear();
+    this.memberUsage.clear();
+
+    // Functions that can be invoked by the platform (entrypoints) should be treated as “used”
+    // even when there is no static call site in the project.
+    //
+    // These names correspond to the grammar’s `functionAnnotation` alternatives and are stored
+    // in the AST without the leading '@' (see `ast/builder.ts`).
+    const entrypointAnnotations = new Set<string>([
+      "receivesms",
+      "test",
+      "ussd",
+      "scheduled",
+      "inviteuser",
+      "rolename",
+      "onpaymentupdate",
+      "onscheduledfunctionresultupdate",
+      "onsmsresultupdate",
+      "onpaymentstatusrequestresultupdate",
+      "post",
+      "get",
+      "put",
+      "delete",
+      // These typically decorate API functions alongside @POST/@GET, but treating them as entrypoints
+      // avoids false positives if used alone.
+      "responseexpand",
+      "responseexclude",
+    ]);
+
+    const isInRange = (range: SourceRange | undefined, pos: Position): boolean => {
+      if (!range) return false;
+      return rangeContains(range, pos.line, pos.character);
+    };
+
+    const findContainingUnitName = (ast: FileAst, pos: Position): string | null => {
+      for (const unit of ast.units) {
+        for (const fn of unit.functions) {
+          if (isInRange(fn.bodyRange, pos)) return unit.name;
+        }
+      }
+      return null;
+    };
+
+    // 0) Seed usage for platform entrypoints (annotated functions) so they don't warn as unused.
+    for (const unit of this.units.values()) {
+      for (const fn of unit.functions || []) {
+        const anns = ((fn as any)?.annotations as string[] | undefined) ?? [];
+        const isEntrypoint = anns.some((a) => entrypointAnnotations.has(String(a).toLowerCase()));
+        if (!isEntrypoint) continue;
+        this.incNestedUsage(this.functionUsage, unit.name, fn.name, 1);
+        this.incUsage(this.unitUsage, unit.name, 1);
+      }
+    }
+
+    // 1) Count usages from Helium DSL ASTs (.mez)
+    for (const [uri, ast] of this.files.entries()) {
+      // Units referenced in `Unit:member(...)` constructs.
+      for (const ref of ast.unitReferences || []) {
+        if (this.units.has(ref.name)) {
+          this.incUsage(this.unitUsage, ref.name);
+        }
+      }
+
+      // Function calls
+      for (const call of ast.functionCalls || []) {
+        if (!call?.name) continue;
+        const pos = call?.nameRange?.start as Position | undefined;
+        if (!pos) continue;
+
+        if (call.unitName) {
+          // Only count as a unit function usage when the namespace resolves to a unit.
+          if (this.units.has(call.unitName)) {
+            this.incNestedUsage(this.functionUsage, call.unitName, call.name);
+          }
+          continue;
+        }
+
+        // Unqualified call: prefer containing unit scope first, then fall back to unique global match.
+        const containingUnitName = findContainingUnitName(ast, pos);
+        if (containingUnitName) {
+          const unit = this.units.get(containingUnitName);
+          if (unit && unit.functions.some((f) => f.name === call.name)) {
+            this.incNestedUsage(this.functionUsage, containingUnitName, call.name);
+            continue;
+          }
+        }
+
+        const candidates = this.functionsByName.get(call.name) || [];
+        if (candidates.length === 1) {
+          const fn = candidates[0];
+          if (fn?.unitName && this.units.has(fn.unitName)) {
+            this.incNestedUsage(this.functionUsage, fn.unitName, fn.name);
+          }
+        }
+      }
+
+      // Property references -> object members
+      for (const ref of ast.propertyReferences || []) {
+        const receiver = ref?.receiverName;
+        const member = ref?.name;
+        const pos = ref?.nameRange?.start as Position | undefined;
+        if (!receiver || !member || !pos) continue;
+        const receiverType = this.getVariableType(receiver, uri, pos);
+        if (!receiverType) continue;
+        const baseType = receiverType.replace(/\[\]$/, "");
+        const obj = this.objects.get(baseType);
+        if (!obj) continue;
+        // Only count members that exist on this object (attributes, relationships, inverse alias members).
+        const memberNames = new Set(this.getObjectMembers(baseType));
+        if (!memberNames.has(member)) continue;
+        this.incNestedUsage(this.memberUsage, baseType, member);
+      }
+    }
+
+    // If a relationship is only used via its inverse `via <alias>` member, treat the relationship itself as used.
+    // Example: `Patient.appointments` declared with `via patient` and code uses `Appointment.patient`.
+    for (const sourceObj of this.objects.values()) {
+      for (const rel of sourceObj.relationships || []) {
+        const aliasName = (rel as any).viaName as string | undefined;
+        if (!aliasName) continue;
+        const targetType = (rel as any).targetType as string | undefined;
+        if (!targetType) continue;
+        const aliasCount = this.getNestedUsage(this.memberUsage, targetType, aliasName);
+        if (aliasCount > 0) {
+          this.incNestedUsage(this.memberUsage, sourceObj.name, rel.name, aliasCount);
+        }
+      }
+    }
+
+    // 2) Count usages from VXML bindings (units/functions)
+    for (const entry of this.vxml.values()) {
+      const viewUnitName = entry.viewUnitName;
+      if (viewUnitName && this.units.has(viewUnitName)) {
+        this.incUsage(this.unitUsage, viewUnitName);
+      }
+
+      for (const ref of entry.references || []) {
+        if (ref.kind !== "function") continue;
+        const resolved = resolveVxmlQualified(ref.name, entry.viewUnitName);
+        if (!resolved?.unitName || !resolved.memberName) continue;
+        if (!this.units.has(resolved.unitName)) continue;
+        this.incNestedUsage(this.functionUsage, resolved.unitName, resolved.memberName);
+        this.incUsage(this.unitUsage, resolved.unitName);
+      }
+    }
+  }
+
+  getUnusedWarningsForFile(uri: string, astOverride?: FileAst): Diagnostic[] {
+    const ast = astOverride ?? this.files.get(uri);
+    if (!ast) return [];
+
+    const toWarning = (range: SourceRange, message: string): Diagnostic => ({
+      message,
+      range: toLspRange(range),
+      severity: DiagnosticSeverity.Information,
+      source: "helium-dsl-unused",
+    });
+
+    const warnings: Diagnostic[] = [];
+
+    // Object attributes + relationships
+    for (const obj of ast.objects || []) {
+      for (const attr of obj.attributes || []) {
+        const count = this.getNestedUsage(this.memberUsage, obj.name, attr.name);
+        if (count <= 0) {
+          warnings.push(toWarning(attr.nameRange, `Attribute ${attr.name} is not used anywhere`));
+        }
+      }
+      for (const rel of obj.relationships || []) {
+        const count = this.getNestedUsage(this.memberUsage, obj.name, rel.name);
+        if (count <= 0) {
+          warnings.push(toWarning(rel.nameRange, `Relationship ${rel.name} is not used anywhere`));
+        }
+      }
+    }
+
+    // Units + unit functions
+    for (const unit of ast.units || []) {
+      const unitCount = this.unitUsage.get(unit.name) ?? 0;
+      if (unitCount <= 0) {
+        warnings.push(toWarning(unit.nameRange, `Unit ${unit.name} is not used anywhere`));
+      }
+
+      for (const fn of unit.functions || []) {
+        const fnCount = this.getNestedUsage(this.functionUsage, unit.name, fn.name);
+        if (fnCount <= 0) {
+          warnings.push(toWarning(fn.nameRange, `Function ${unit.name}:${fn.name} is not used anywhere`));
+        }
+      }
+    }
+
+    return warnings;
   }
 
   getWorkspaceSymbols(query: string): SymbolInformation[] {
