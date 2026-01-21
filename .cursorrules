@@ -1,5 +1,7 @@
 # Helium Rapid DSL (ANTLR4) VSCode Extension Tooling - Cursor Rules
 
+> **Cursor workaround:** Edit `cursorrules.md` (symlink to `.cursorrules`) instead of editing `.cursorrules` directly.
+
 This project builds a VSCode extension for the Helium Rapid DSL (ANTLR4) that works in **Cursor IDE**. The packaging process uses local packaging with temporary directories to ensure robust, reproducible builds.
 
 ## Project Structure

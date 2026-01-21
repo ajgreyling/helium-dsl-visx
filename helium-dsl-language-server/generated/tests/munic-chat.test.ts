@@ -7,7 +7,9 @@ import { URI } from "vscode-uri";
 import { parseText } from "../../src/parser/index.js";
 import { runLints } from "../../src/linter/engine.js";
 import { ProjectIndex } from "../../src/index/projectIndex.js";
+import { ProjectManager } from "../../src/index/projectManager.js";
 import { getLanguageMetadataSync } from "../../src/language/metadata.js";
+import { createSemanticDiagnostics } from "../../src/semantic/diagnostics.js";
 
 const SAMPLE_PROJECT_PATH = "/Users/ajgreyling/code/munic-chat";
 
@@ -16,6 +18,11 @@ describe("Sample DSL Codebase Validation", () => {
     // Default to 10 minutes for large codebases; override with HELIUM_VALIDATE_TIMEOUT_MS if needed
     const timeoutMs = Number(process.env.HELIUM_VALIDATE_TIMEOUT_MS ?? "") || 10 * 60 * 1000;
     this.timeout(timeoutMs);
+
+    // Build a project index so semantic diagnostics (unknown UnitName:method / TypeName:modelBif)
+    // can resolve symbols across files.
+    const projects = new ProjectManager();
+    await projects.initialize([{ uri: URI.file(SAMPLE_PROJECT_PATH).toString() }]);
 
     const mezFiles: string[] = [];
 
@@ -41,11 +48,13 @@ describe("Sample DSL Codebase Validation", () => {
     for (const file of mezFiles) {
       const text = fs.readFileSync(file, "utf8");
       const relativePath = path.relative(SAMPLE_PROJECT_PATH, file);
+      const uri = URI.file(file).toString();
 
       try {
         const parseResult = await parseText(text);
         const lintDiagnostics = await runLints(text);
-        const allDiagnostics = [...parseResult.diagnostics, ...lintDiagnostics];
+        const semanticDiagnostics = await createSemanticDiagnostics(text, uri, projects);
+        const allDiagnostics = [...parseResult.diagnostics, ...lintDiagnostics, ...semanticDiagnostics];
 
         if (allDiagnostics.length > 0) {
           fileIssues[relativePath] = allDiagnostics;

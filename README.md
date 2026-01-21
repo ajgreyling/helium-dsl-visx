@@ -370,7 +370,7 @@ If you see "Token stream fill failed with stack overflow" or "Parser failed with
   - Grammar issues causing deep recursion
   - Error recovery during parsing
 
-See `.cursorrules` for detailed information about AST building and stack overflow protection.
+See `cursorrules.md` (symlink to `.cursorrules`) for detailed information about AST building and stack overflow protection.
 
 ### Grammar Conversion Errors
 
@@ -390,7 +390,7 @@ If you see parsing errors with multi-line string blocks (`/% ... %/`):
 - **Correct rule**: `STR_BLOCK : LSTR_BLOCK .*? RSTR_BLOCK;`
 - **Verification**: Regenerate grammar and parser, then test with files containing `/% ... %/` blocks
 
-See `.cursorrules` for detailed information about grammar conversion.
+See `cursorrules.md` (symlink to `.cursorrules`) for detailed information about grammar conversion.
 
 ### Test Failures
 

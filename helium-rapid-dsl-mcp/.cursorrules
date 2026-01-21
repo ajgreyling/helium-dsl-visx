@@ -1,5 +1,7 @@
 # Helium Rapid DSL MCP Server - Cursor Rules
 
+> **Cursor workaround:** Edit `cursorrules.md` (symlink to `.cursorrules`) instead of editing `.cursorrules` directly.
+
 This folder (`helium-rapid-dsl-mcp/`) contains an MCP server used by Cursor agents when generating/editing Helium Rapid DSL:
 - `.mez` (Helium Rapid DSL (ANTLR4))
 - `.vxml` (Helium UI views)

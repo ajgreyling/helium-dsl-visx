@@ -1,6 +1,6 @@
 # Helium Rapid DSL rules for Cursor (`.mez`, `.vxml`, `.lang`)
 
-This document is intended to be **copy/pasted into a Helium Rapid project’s `.cursorrules`** (or referenced while editing). Its purpose is to ensure AI-generated code is **syntactically valid** and **consistent with Helium’s tooling**.
+This document is intended to be **copy/pasted into a Helium Rapid project’s `.cursorrules`** (or, in Cursor, edited via `cursorrules.md` which is a symlink to `.cursorrules`). Its purpose is to ensure AI-generated code is **syntactically valid** and **consistent with Helium’s tooling**.
 
 Sources of truth used to derive these rules:
 - Helium DSL grammar: `/Users/ajgreyling/code/appexec-dsl-commons/WebDSLParser-lib/src/main/antlr3/com/mezzanine/dsl/web/MezDSL.g`

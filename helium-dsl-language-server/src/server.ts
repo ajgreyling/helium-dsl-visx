@@ -72,6 +72,7 @@ import { rangeContains, buildFileAst } from "./ast/builder.js";
 import { runLints } from "./linter/engine.js";
 import { ProjectManager } from "./index/projectManager.js";
 import { initializeLogger, TraceLevel, logVerbose } from "./utils/logger.js";
+import { createSemanticDiagnostics } from "./semantic/diagnostics.js";
 import {
   createNoVarInElseFix,
   createNamingConventionFix,
@@ -308,7 +309,8 @@ async function validateDocument(document: TextDocument) {
 
   const syntaxDiagnostics = await createDiagnostics(text);
   const lintDiagnostics = await runLints(text);
-  const diagnostics = [...syntaxDiagnostics, ...lintDiagnostics];
+  const semanticDiagnostics = await createSemanticDiagnostics(text, document.uri, projectManager);
+  const diagnostics = [...syntaxDiagnostics, ...lintDiagnostics, ...semanticDiagnostics];
   connection.sendDiagnostics({ uri: document.uri, diagnostics });
 }
 
