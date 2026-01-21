@@ -290,6 +290,59 @@ export async function createSemanticDiagnostics(
     diagnostics.push(toDiagnostic(nameRange, `Unknown variable \`${name}\`.`));
   }
 
+  // Property references (receiver.member) validated via receiver type + model members.
+  //
+  // We intentionally only validate when the receiver type is a *known user-defined object*.
+  // Platform/library types (e.g. MezApiRequest) are skipped to avoid noise.
+  const ROLE_IMPLICIT_FIELDS = ["_firstNames", "_nickName", "_surname"];
+
+  for (const ref of ast?.propertyReferences || []) {
+    const receiverName: string | undefined = ref?.receiverName;
+    const propName: string | undefined = ref?.name;
+    const nameRange = ref?.nameRange;
+    if (!receiverName || !propName || !nameRange) continue;
+
+    const pos = nameRange.start;
+    const receiverType = projectManager.getVariableType(receiverName, uri, pos);
+    // If we can't infer a receiver type, skip. If the receiver token happens to be a type/unit name
+    // (e.g. `client_config.hostUrl` where `client_config` is also a type name), we still want to
+    // validate it when it resolves as a variable.
+    if (!receiverType) {
+      if (isSuppressedName(receiverName)) continue;
+      continue;
+    }
+
+    const baseType = receiverType.replace(/\[\]$/, "");
+    const obj = projectManager.getObjectDecl(baseType, uri);
+    if (!obj) continue;
+
+    const memberSet = new Set<string>(projectManager.getObjectMembers(baseType, uri));
+
+    // Platform implicit fields
+    if (obj.isPersistent) {
+      memberSet.add("_id");
+
+      // Role implicit fields (best-effort; without role annotations in the AST,
+      // allow on any persistent object to avoid false positives).
+      ROLE_IMPLICIT_FIELDS.forEach((f) => memberSet.add(f));
+    }
+
+    // Blob metadata fields: <field>_fname__, <field>_mtype__, <field>_size__
+    for (const attr of obj.attributes || []) {
+      if ((attr as any).typeName === "blob") {
+        memberSet.add(`${attr.name}_fname__`);
+        memberSet.add(`${attr.name}_mtype__`);
+        memberSet.add(`${attr.name}_size__`);
+      }
+    }
+
+    if (!memberSet.has(propName)) {
+      diagnostics.push(
+        toDiagnostic(nameRange, `Invalid attribute/relationship \`${propName}\` on type \`${baseType}\`.`)
+      );
+    }
+  }
+
   return diagnostics;
 }
 

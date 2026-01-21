@@ -242,6 +242,11 @@ export class ProjectIndex {
   }
 
   async indexProjectFiles() {
+    const __agentIndexStart = Date.now();
+    const __agentSafeRoot = this.projectRoot.split(path.sep).slice(-2).join(path.sep);
+    // #region agent log (H2)
+    fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'init-pre',hypothesisId:'H2',location:'projectIndex.ts:indexProjectFiles:enter',message:'indexProjectFiles enter',data:{projectRoot:__agentSafeRoot},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion agent log
     // Set flag to prevent rebuilds during indexing
     this.isIndexing = true;
     try {
@@ -254,10 +259,15 @@ export class ProjectIndex {
       this.functionsByName.clear();
       
       // Collect all .mez files first
+      const __agentCollectMezStart = Date.now();
       const filePaths: string[] = [];
       this.collectMezFiles(this.projectRoot, filePaths);
+      // #region agent log (H1)
+      fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'init-pre',hypothesisId:'H1',location:'projectIndex.ts:indexProjectFiles:afterCollectMez',message:'collectMezFiles complete',data:{projectRoot:__agentSafeRoot,elapsedMs:Date.now()-__agentCollectMezStart,mezFileCount:filePaths.length},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion agent log
       
       // Index all files in parallel, but wait for completion
+      const __agentMezIndexStart = Date.now();
       const indexingPromises = filePaths.map(filePath => 
         this.indexFileFromDisk(filePath, true).catch(err => {
           console.error(`[ProjectIndex] Failed to index ${filePath}:`, err);
@@ -266,6 +276,9 @@ export class ProjectIndex {
       );
       
       await Promise.all(indexingPromises);
+      // #region agent log (H2)
+      fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'init-pre',hypothesisId:'H2',location:'projectIndex.ts:indexProjectFiles:afterMezIndex',message:'MEZ indexing Promise.all complete',data:{projectRoot:__agentSafeRoot,elapsedMs:Date.now()-__agentMezIndexStart,mezFileCount:filePaths.length},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion agent log
       
       // Rebuild indexes after all files are indexed (only once)
       this.rebuildIndexes();
@@ -291,6 +304,9 @@ export class ProjectIndex {
         })
       );
       await Promise.all(langIndexingPromises);
+      // #region agent log (H3)
+      fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'init-pre',hypothesisId:'H3',location:'projectIndex.ts:indexProjectFiles:afterVxmlLang',message:'VXML+LANG indexing complete',data:{projectRoot:__agentSafeRoot,elapsedMs:Date.now()-__agentIndexStart,vxmlFileCount:vxmlPaths.length,langFileCount:langPaths.length},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion agent log
     } finally {
       // Always clear the flag, even if indexing fails
       this.isIndexing = false;

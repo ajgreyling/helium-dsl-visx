@@ -7,6 +7,11 @@ declare module "helium-dsl-language-server/api" {
     getUnitNames(): string[];
     isUserDefinedType(name: string): boolean;
     isUnit(name: string): boolean;
+    hasUnitFunction(unitName: string, functionName: string): boolean;
+    hasUnitVariable(unitName: string, variableName: string): boolean;
+    getVariableType(name: string, uri: string, position: any): string | null;
+    getObjectDecl(typeName: string, uri?: string): ObjectDecl | null;
+    getObjectMembers(typeName: string, uri?: string): string[];
     getObjectLocation(name: string): any;
     getUnitLocation(name: string): any;
     getWorkspaceSymbols(query: string): any[];

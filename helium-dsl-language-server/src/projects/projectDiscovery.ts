@@ -1,12 +1,17 @@
 import fs from "fs";
 import path from "path";
 import { URI } from "vscode-uri";
+import { RAPID_PROJECT_FILE_NAME } from "./rapidProjectConfig.js";
 
 export type WorkspaceFolder = { uri: string; name?: string };
 
 const IGNORED_DIRS = new Set(["node_modules", ".git", ".idea", ".vscode"]);
 
 function hasProjectMarkers(dir: string): boolean {
+  // Preferred marker: explicit project file means this is a Rapid DSL project root.
+  const projectFile = path.join(dir, RAPID_PROJECT_FILE_NAME);
+  if (fs.existsSync(projectFile)) return true;
+
   const modelDir = path.join(dir, "model");
   const webAppDir = path.join(dir, "web-app");
   if (!fs.existsSync(modelDir) || !fs.existsSync(webAppDir)) return false;

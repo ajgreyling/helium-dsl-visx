@@ -29,6 +29,17 @@ export { formatDocument, formatOnType } from "./formatting/formatter.js";
 export { getLanguageMetadataSync } from "./language/metadata.js";
 export { createSemanticDiagnostics } from "./semantic/diagnostics.js";
 
+export {
+  RAPID_PROJECT_FILE_NAME,
+  baseUrlForEnvironment,
+  defaultRapidProjectConfig,
+  ensureRapidProjectConfig,
+  getRapidProjectFilePath,
+  isRapidProjectRoot,
+  readRapidProjectConfig,
+} from "./projects/rapidProjectConfig.js";
+export type { RapidDebugEnvironment, RapidProjectConfigV1 } from "./projects/rapidProjectConfig.js";
+
 // LSP-style helpers used by in-repo tooling (e.g. MCP server). Keep this minimal.
 export {
   buildSignatureHelpFromLabel,
