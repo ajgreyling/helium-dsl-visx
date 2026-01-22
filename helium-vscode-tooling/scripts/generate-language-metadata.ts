@@ -10,6 +10,7 @@ type LanguageMetadata = {
   bifFunctions: string[];
   reservedIdentifiers: string[];
   roleImplicitFields: string[];
+  platformImplicitFields: string[];
 };
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -20,6 +21,8 @@ const outputPath = path.join(root, "generated/language/helium-language-metadata.
 
 const DEFAULT_BUILTIN_OBJECTS_RELATIVE_PATH =
   "WebCompiler-lib/src/main/java/com/mezzanine/program/web/builder/BuiltinObjects.java";
+const DEFAULT_OBJECT_BUILDER_RELATIVE_PATH =
+  "WebCompiler-lib/src/main/java/com/mezzanine/program/web/builder/object/ObjectBuilder.java";
 
 function readArgValue(flag: string): string | undefined {
   const idx = process.argv.indexOf(flag);
@@ -102,12 +105,12 @@ function extractRuleTokens(
   return Array.from(new Set(resolved));
 }
 
-function extractJavaClassBody(src: string, className: string): string {
+function extractJavaClassBody(src: string, className: string, fileName: string = "BuiltinObjects.java"): string {
   // Finds `class <Name>` or `static class <Name>` and returns its `{ ... }` body.
   const re = new RegExp(`\\bclass\\s+${className}\\b`);
   const m = re.exec(src);
   if (!m || m.index == null) {
-    throw new Error(`Unable to find class '${className}' in BuiltinObjects.java`);
+    throw new Error(`Unable to find class '${className}' in ${fileName}`);
   }
 
   const startSearch = src.indexOf("{", m.index);
@@ -175,6 +178,24 @@ function extractIdentityImplicitFieldsFromBuiltinObjects(javaSource: string): st
   return Array.from(values).sort();
 }
 
+function extractPlatformImplicitFieldsFromObjectBuilder(javaSource: string): string[] {
+  // Extract ATTR_ID constant: public static final String ATTR_ID = "_id";
+  const attrIdRe = /\bpublic\s+static\s+final\s+String\s+ATTR_ID\s*=\s*"([^"]+)";/;
+  const attrIdMatch = javaSource.match(attrIdRe);
+  if (!attrIdMatch) {
+    throw new Error("Unable to find ObjectBuilder.ATTR_ID constant in ObjectBuilder.java");
+  }
+  const idValue = attrIdMatch[1];
+
+  // Platform implicit fields for persistent objects:
+  // - _id: extracted from ATTR_ID constant
+  // - _tstamp: platform convention (appears in SQL schemas, not defined as constant)
+  const fields = [idValue, "_tstamp"];
+
+  // Keep stable ordering for deterministic JSON output.
+  return fields.sort();
+}
+
 async function main() {
   if (!(await fs.pathExists(grammarPath))) {
     throw new Error(`Grammar file not found: ${grammarPath}`);
@@ -230,6 +251,20 @@ async function main() {
   const builtinObjectsSrc = await fs.readFile(builtinObjectsPath, "utf8");
   const roleImplicitFields = extractIdentityImplicitFieldsFromBuiltinObjects(builtinObjectsSrc);
 
+  const objectBuilderPath = path.join(dslCommonsPath, DEFAULT_OBJECT_BUILDER_RELATIVE_PATH);
+  if (!(await fs.pathExists(objectBuilderPath))) {
+    throw new Error(
+      [
+        `ObjectBuilder.java not found: ${objectBuilderPath}`,
+        "",
+        "If you passed --dsl-commons / DSL_COMMONS_PATH, expected file at:",
+        `  ${DEFAULT_OBJECT_BUILDER_RELATIVE_PATH}`,
+      ].join("\n")
+    );
+  }
+  const objectBuilderSrc = await fs.readFile(objectBuilderPath, "utf8");
+  const platformImplicitFields = extractPlatformImplicitFieldsFromObjectBuilder(objectBuilderSrc);
+
   const metadata: LanguageMetadata = {
     keywords: keywords.sort(),
     primitiveTypes: Array.from(new Set(primitiveTypes)).sort(),
@@ -238,6 +273,7 @@ async function main() {
     bifFunctions: Array.from(new Set(bifFunctions)).sort(),
     reservedIdentifiers: reservedIdentifiers.sort(),
     roleImplicitFields,
+    platformImplicitFields,
   };
 
   await fs.ensureDir(path.dirname(outputPath));

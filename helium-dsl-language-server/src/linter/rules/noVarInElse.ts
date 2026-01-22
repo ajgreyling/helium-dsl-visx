@@ -228,9 +228,7 @@ function braceDepthAtOffset(text: string, startOffset: number, targetOffset: num
     if (c === '"') {
       inDoubleQuote = true;
       continue;
-    }
-
-    if (c === "{") depth += 1;
+    }    if (c === "{") depth += 1;
     if (c === "}") depth -= 1;
   }
   return depth;

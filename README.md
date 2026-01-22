@@ -124,13 +124,13 @@ chmod +x validate-dsl.sh
 
 This will:
 1. Configure paths to your DSL commons and sample project
-2. Extract the ANTLR3 grammar
+2. Extract the ANTLR3 grammar from upstream
 3. Convert it to ANTLR4
 4. Generate the TypeScript parser
-5. Generate linting rules
-6. Generate BIF metadata
-7. Generate language metadata (keywords, primitive types, model BIFs) from grammar
-8. Generate TextMate grammar for syntax highlighting
+5. Extract linting rules
+6. Generate BIF metadata (extracts namespace:function tokens from grammar)
+7. Generate language metadata (keywords, primitive types, model BIFs from grammar + role fields from BuiltinObjects.java)
+8. Generate TextMate grammar for syntax highlighting (uses generated metadata, no hardcoded lists)
 9. Build the language server
 10. Validate parser against the sample project (fails fast on parser errors)
 11. Build the VSCode extension
@@ -271,7 +271,14 @@ RoleDetails:getPermissionsTable()
 
 When typing `:` after a user-defined type name (e.g., `SomeModel:`), IntelliSense shows model Built-In Functions (BIFs).
 
-Important: the **model BIF list is not hardcoded** in the language server; it is derived from the grammar and written to `helium-vscode-tooling/generated/language/helium-language-metadata.json` during the build pipeline.
+Important: **All language metadata is sourced from upstream** - nothing is hardcoded:
+- **Model BIFs**: Extracted from grammar rules (`persistenceBIFStatement`, `persistenceBIFExpression`, `simpleSelectorBIF`, `selectorBIF`)
+- **Primitive types**: Extracted from grammar `primitiveType` rule
+- **Keywords**: Extracted from grammar word literals
+- **Role implicit fields**: Mined from `appexec-dsl-commons/WebCompiler-lib/.../BuiltinObjects.java` (Identity.ATTRIBUTE_NAMES)
+- **BIF namespaces**: Extracted from grammar token definitions (e.g., `Mez:alert`, `String:concat`)
+
+All metadata is written to `helium-vscode-tooling/generated/language/helium-language-metadata.json` during the build pipeline.
 - **CRUD operations**: `all`, `new`, `read`, `delete`
 - **Query operations**: `equals`, `empty`, `between`, `lessThan`, `greaterThan`, `contains`, `beginsWith`, `endsWith`, `attributeIn`, `relationshipIn`
 - **Negated queries**: `notEquals`, `notEmpty`, `notBetween`, `notContains`, `notBeginWith`, `notEndsWith`, `notAttributeIn`, `notRelationshipIn`
@@ -691,6 +698,66 @@ When packaged, the extension includes:
 - If missing, the language server dependencies weren't copied - rebuild with `npm run package`
 - Verify language server dependencies are installed locally: `ls helium-dsl-language-server/node_modules`
 
+## Upstream Metadata Sources
+
+The extension no longer uses hardcoded lists. All language metadata is sourced from upstream:
+
+### Metadata Generation Pipeline
+
+1. **Grammar Extraction** (`build:extract`)
+   - Extracts ANTLR3 grammar from `appexec-dsl-commons/WebDSLParser-lib/.../MezDSL.g`
+
+2. **Grammar Conversion** (`build:grammar`)
+   - Converts ANTLR3 to ANTLR4 format
+   - Output: `generated/grammar/MezDSL.g4`
+
+3. **BIF Metadata** (`build:bifs`)
+   - Extracts BIF namespaces and functions from grammar token definitions
+   - Pattern: `TOKEN_NAME : 'Namespace:function';`
+   - Output: `generated/bifs/bif-metadata.json`
+   - Example: `Mez:alert`, `String:concat`, `sql:query`
+
+4. **Language Metadata** (`build:language`)
+   - Extracts keywords, primitive types, model BIFs from grammar rules
+   - Mines role implicit fields from `BuiltinObjects.java` (Identity.ATTRIBUTE_NAMES)
+   - Requires `DSL_COMMONS_PATH` to access upstream Java sources
+   - Output: `generated/language/helium-language-metadata.json`
+
+5. **TextMate Grammar** (`build:textmate`)
+   - Uses `helium-language-metadata.json` for primitive types and keywords
+   - Uses `bif-metadata.json` for BIF namespaces
+   - No hardcoded lists - all data comes from generated metadata
+
+### Upstream Source Files
+
+- **Grammar**: `appexec-dsl-commons/WebDSLParser-lib/src/main/antlr3/com/mezzanine/dsl/web/MezDSL.g`
+- **Role Fields**: `appexec-dsl-commons/WebCompiler-lib/src/main/java/com/mezzanine/program/web/builder/BuiltinObjects.java`
+- **Completion Catalog** (reference): `appexec-dsl-commons/WebDSLParser-lib/src/main/java/com/mezzanine/dsl/web/completion/DslAppCompletionState.java`
+
+### Migration from Hardcoded Lists
+
+Previously, the extension had hardcoded lists in:
+- `generate-textmate.ts`: `systemTypes`, `commonBifNamespaces`, `keywordRegex`
+- `semantic/diagnostics.ts`: `DEFAULT_MODEL_BIFS`, `ROLE_IMPLICIT_FIELDS` fallback
+
+**All hardcoded lists have been migrated** to use generated metadata:
+- ✅ Primitive types → `languageMetadata.primitiveTypes`
+- ✅ BIF namespaces → `bifMetadata.namespaces`
+- ✅ Model BIFs → `languageMetadata.modelBifs`
+- ✅ Role implicit fields → `languageMetadata.roleImplicitFields`
+- ✅ Keywords → `languageMetadata.keywords` (filtered for control keywords)
+
+### Modifying Metadata Sources
+
+If you need to update language metadata:
+
+1. **Grammar changes**: Update the source grammar in `appexec-dsl-commons`, then re-run `build:extract` and `build:grammar`
+2. **BIF additions**: Add new BIF tokens to the grammar (e.g., `NEW_BIF : 'NewNamespace:newFunction';`), then re-run `build:bifs`
+3. **Role fields**: Update `Identity.ATTRIBUTE_NAMES` in `BuiltinObjects.java`, then re-run `build:language`
+4. **Model BIFs**: Update grammar rules (`persistenceBIFStatement`, etc.), then re-run `build:language`
+
+**Never edit generated metadata files directly** - they are regenerated from upstream sources.
+
 ## Contributing
 
 When the Helium Rapid DSL (ANTLR4) is updated:
@@ -699,6 +766,7 @@ When the Helium Rapid DSL (ANTLR4) is updated:
 2. Review any new linting errors
 3. Update linting rules if needed
 4. Commit any changes to tooling scripts
+5. **Ensure metadata generation scripts are updated** if upstream sources change
 
 ## Script Reference
 
@@ -728,10 +796,23 @@ When the Helium Rapid DSL (ANTLR4) is updated:
 - Extracts linting rules from grammar
 
 **`npm run build:bifs`** → `scripts/generate-bif-metadata.ts`
-- Generates metadata for Built-In Functions
+- Generates metadata for Built-In Functions (BIFs) by extracting namespace:function tokens from the converted grammar
+- Extracts BIF namespaces (Mez, String, sql, Math, Date, etc.) and their functions from grammar token definitions
+- Output: `generated/bifs/bif-metadata.json`
+
+**`npm run build:language`** → `scripts/generate-language-metadata.ts`
+- Generates comprehensive language metadata from grammar and upstream sources
+- Extracts keywords, primitive types, and model BIFs from grammar rules
+- Mines role implicit fields from `appexec-dsl-commons/WebCompiler-lib/.../BuiltinObjects.java` (Identity.ATTRIBUTE_NAMES)
+- Requires `DSL_COMMONS_PATH` environment variable or `--dsl-commons` CLI flag
+- Output: `generated/language/helium-language-metadata.json`
 
 **`npm run build:textmate`** → `scripts/generate-textmate.ts`
 - Generates TextMate grammar for syntax highlighting
+- **No longer uses hardcoded lists** - reads primitive types from `helium-language-metadata.json`
+- **No longer uses hardcoded BIF namespaces** - reads from `bif-metadata.json`
+- Uses control keywords filtered from language metadata
+- Output: `generated/syntaxes/helium-dsl.tmLanguage.json`
 
 ## Syntax Highlighting Best Practices
 

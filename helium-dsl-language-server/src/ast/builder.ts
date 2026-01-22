@@ -185,6 +185,9 @@ class AstListener {
 
   enterPersistentObject(ctx: any) {
     this.persistentDepth += 1;
+    // #region agent log
+    fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'builder.ts:186',message:'enterPersistentObject called',data:{persistentDepth:this.persistentDepth,ctxText:ctx?.getText?.()?.substring(0,100)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+    // #endregion
     
     // Backup: Try to extract object name from persistentObject context
     // This is a fallback in case enterSimpleObject fails
@@ -390,6 +393,11 @@ class AstListener {
     }
     
     const objectName = nameToken.text.trim();
+    // #region agent log
+    if (objectName === "CaseWithCampaignContact") {
+      fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'builder.ts:392',message:'Creating CaseWithCampaignContact object',data:{objectName,isPersistent,persistentDepth:this.persistentDepth,ctxText:ctx?.getText?.()?.substring(0,200)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+    }
+    // #endregion
     
     // Check for duplicates (in case enterPersistentObject backup handler already added it)
     const existing = this.ast.objects.find(obj => obj.name === objectName);

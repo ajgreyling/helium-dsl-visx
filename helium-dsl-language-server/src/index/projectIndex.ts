@@ -162,6 +162,14 @@ export class ProjectIndex {
     const ast = this.files.get(uri);
     if (!ast) return null;
 
+    // Helper function to check if position a is before or equal to position b
+    const positionLeq = (
+      a: { line: number; character: number },
+      b: { line: number; character: number }
+    ): boolean => {
+      return a.line < b.line || (a.line === b.line && a.character <= b.character);
+    };
+
     // Trigger pseudo-scope variables inside model triggers:
     // - `before` is available in beforeCreate/beforeUpdate/beforeDelete code blocks
     // - `after` is available in afterCreate/afterUpdate/afterDelete code blocks
@@ -190,7 +198,13 @@ export class ProjectIndex {
       const param = containingFn.params.find((p) => p.name === name);
       if (param) return param.typeName;
       const locals = containingFn.locals
-        .filter((v) => v.name === name)
+        .filter((v) => {
+          // Only include variables declared before or at the usage position
+          if (v.name !== name) return false;
+          const declStart = v.declRange?.start;
+          if (!declStart) return true; // If no declRange, include it (shouldn't happen, but be safe)
+          return positionLeq(declStart, position);
+        })
         .sort((a, b) => {
           if (a.nameRange.start.line !== b.nameRange.start.line) {
             return b.nameRange.start.line - a.nameRange.start.line;

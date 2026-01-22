@@ -277,6 +277,10 @@ export async function createSemanticDiagnostics(
   // We intentionally only validate when the receiver type is a *known user-defined object*.
   // Platform/library types (e.g. MezApiRequest) are skipped to avoid noise.
   const ROLE_IMPLICIT_FIELDS = (languageMetadata.roleImplicitFields ?? []).filter(Boolean);
+  const PLATFORM_IMPLICIT_FIELDS = (languageMetadata.platformImplicitFields ?? []).filter(Boolean);
+  // #region agent log
+  fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'diagnostics.ts:280',message:'Platform implicit fields loaded',data:{platformImplicitFields:PLATFORM_IMPLICIT_FIELDS,hasPlatformFields:!!languageMetadata.platformImplicitFields,metadataKeys:Object.keys(languageMetadata)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B,D'})}).catch(()=>{});
+  // #endregion
 
   for (const ref of ast?.propertyReferences || []) {
     const receiverName: string | undefined = ref?.receiverName;
@@ -299,13 +303,26 @@ export async function createSemanticDiagnostics(
     if (!obj) continue;
 
     const memberSet = new Set<string>(projectManager.getObjectMembers(baseType, uri));
+    // #region agent log
+    if (propName === "_id" && baseType === "CaseWithCampaignContact") {
+      fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'diagnostics.ts:302',message:'Before adding platform fields',data:{baseType,propName,isPersistent:obj.isPersistent,memberSetSize:memberSet.size,memberSetHasId:memberSet.has('_id'),platformFieldsCount:PLATFORM_IMPLICIT_FIELDS.length,platformFields:PLATFORM_IMPLICIT_FIELDS},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'A,B,C,E'})}).catch(()=>{});
+    }
+    // #endregion
 
-    // Platform implicit fields
+    // Platform implicit fields (mined from upstream ObjectBuilder.java)
+    // These fields are available on all objects, not just persistent ones,
+    // because SQL queries can return objects with _id and _tstamp even if
+    // the object is not declared as persistent.
+    PLATFORM_IMPLICIT_FIELDS.forEach((f) => memberSet.add(f));
+    // #region agent log
+    if (propName === "_id" && baseType === "CaseWithCampaignContact") {
+      fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'diagnostics.ts:313',message:'After adding platform fields to all objects',data:{memberSetSize:memberSet.size,memberSetHasId:memberSet.has('_id'),memberSetArray:Array.from(memberSet)},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'A,B,C'})}).catch(()=>{});
+    }
+    // #endregion
+
+    // Role implicit fields (best-effort; without role annotations in the AST,
+    // allow on any persistent object to avoid false positives).
     if (obj.isPersistent) {
-      memberSet.add("_id");
-
-      // Role implicit fields (best-effort; without role annotations in the AST,
-      // allow on any persistent object to avoid false positives).
       ROLE_IMPLICIT_FIELDS.forEach((f) => memberSet.add(f));
     }
 
@@ -318,7 +335,17 @@ export async function createSemanticDiagnostics(
       }
     }
 
+    // #region agent log
+    if (propName === "_id" && baseType === "CaseWithCampaignContact") {
+      fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'diagnostics.ts:322',message:'Checking memberSet.has',data:{propName,baseType,memberSetHasProp:memberSet.has(propName),memberSetArray:Array.from(memberSet),propNameLength:propName.length,propNameCharCodes:Array.from(propName).map(c=>c.charCodeAt(0))},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+    }
+    // #endregion
     if (!memberSet.has(propName)) {
+      // #region agent log
+      if (propName === "_id" && baseType === "CaseWithCampaignContact") {
+        fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'diagnostics.ts:323',message:'Adding diagnostic for missing _id',data:{propName,baseType,memberSetArray:Array.from(memberSet)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B,C,E'})}).catch(()=>{});
+      }
+      // #endregion
       diagnostics.push(
         toDiagnostic(nameRange, `Invalid attribute/relationship \`${propName}\` on type \`${baseType}\`.`)
       );
