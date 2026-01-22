@@ -31,6 +31,7 @@ import { SourceRange } from "../ast/span.js";
 import { LanguageMetadata } from "../language/metadata.js";
 import { buildVxmlAst } from "../vxml/parser.js";
 import { VxmlRange, VxmlReference } from "../vxml/types.js";
+import { readRapidProjectConfig, UnusedDiagnosticSeverity, RapidProjectConfigV1 } from "../projects/rapidProjectConfig.js";
 
 type ResolvedSymbol = {
   kind: "object" | "unit" | "enum" | "function" | "variable" | "param" | "attribute" | "relationship";
@@ -70,6 +71,7 @@ export class ProjectIndex {
   // objectName -> (memberName -> count) where memberName is an attribute or relationship name
   private memberUsage = new Map<string, Map<string, number>>();
   private isIndexing = false;
+  private cachedConfig: RapidProjectConfigV1 | null = null;
 
   constructor(projectRoot: string, metadata: LanguageMetadata) {
     this.projectRoot = projectRoot;
@@ -675,16 +677,66 @@ export class ProjectIndex {
     }
   }
 
+  private getProjectConfig(): RapidProjectConfigV1 | null {
+    if (this.cachedConfig === null) {
+      this.cachedConfig = readRapidProjectConfig(this.projectRoot);
+    }
+    return this.cachedConfig;
+  }
+
+  private severityStringToDiagnosticSeverity(severity: UnusedDiagnosticSeverity | undefined): DiagnosticSeverity | null {
+    switch (severity) {
+      case "None":
+        return null;
+      case "Info":
+        return DiagnosticSeverity.Information;
+      case "Warning":
+        return DiagnosticSeverity.Warning;
+      case "Error":
+        return DiagnosticSeverity.Error;
+      default:
+        // Default fallback: use Information (current behavior)
+        return DiagnosticSeverity.Information;
+    }
+  }
+
+  private getUnusedSeverityConfig(): {
+    attributes: DiagnosticSeverity | null;
+    functions: DiagnosticSeverity | null;
+    units: DiagnosticSeverity | null;
+  } {
+    const config = this.getProjectConfig();
+    const unusedConfig = config?.diagnostics?.unused;
+
+    // Defaults if config is missing
+    const defaultAttributes: UnusedDiagnosticSeverity = "None";
+    const defaultFunctions: UnusedDiagnosticSeverity = "Warning";
+    const defaultUnits: UnusedDiagnosticSeverity = "Warning";
+
+    return {
+      attributes: this.severityStringToDiagnosticSeverity(unusedConfig?.attributes ?? defaultAttributes),
+      functions: this.severityStringToDiagnosticSeverity(unusedConfig?.functions ?? defaultFunctions),
+      units: this.severityStringToDiagnosticSeverity(unusedConfig?.units ?? defaultUnits),
+    };
+  }
+
   getUnusedWarningsForFile(uri: string, astOverride?: FileAst): Diagnostic[] {
     const ast = astOverride ?? this.files.get(uri);
     if (!ast) return [];
 
-    const toWarning = (range: SourceRange, message: string): Diagnostic => ({
-      message,
-      range: toLspRange(range),
-      severity: DiagnosticSeverity.Information,
-      source: "helium-dsl-unused",
-    });
+    const severityConfig = this.getUnusedSeverityConfig();
+
+    const toWarning = (range: SourceRange, message: string, severity: DiagnosticSeverity | null): Diagnostic | null => {
+      if (severity === null) {
+        return null; // Skip diagnostic if severity is None
+      }
+      return {
+        message,
+        range: toLspRange(range),
+        severity,
+        source: "helium-dsl-unused",
+      };
+    };
 
     const warnings: Diagnostic[] = [];
 
@@ -693,13 +745,20 @@ export class ProjectIndex {
       for (const attr of obj.attributes || []) {
         const count = this.getNestedUsage(this.memberUsage, obj.name, attr.name);
         if (count <= 0) {
-          warnings.push(toWarning(attr.nameRange, `Attribute ${attr.name} is not used anywhere`));
+          const diagnostic = toWarning(attr.nameRange, `Attribute ${attr.name} is not used anywhere`, severityConfig.attributes);
+          if (diagnostic) {
+            warnings.push(diagnostic);
+          }
         }
       }
       for (const rel of obj.relationships || []) {
         const count = this.getNestedUsage(this.memberUsage, obj.name, rel.name);
         if (count <= 0) {
-          warnings.push(toWarning(rel.nameRange, `Relationship ${rel.name} is not used anywhere`));
+          // Relationships use the same severity as attributes
+          const diagnostic = toWarning(rel.nameRange, `Relationship ${rel.name} is not used anywhere`, severityConfig.attributes);
+          if (diagnostic) {
+            warnings.push(diagnostic);
+          }
         }
       }
     }
@@ -708,13 +767,19 @@ export class ProjectIndex {
     for (const unit of ast.units || []) {
       const unitCount = this.unitUsage.get(unit.name) ?? 0;
       if (unitCount <= 0) {
-        warnings.push(toWarning(unit.nameRange, `Unit ${unit.name} is not used anywhere`));
+        const diagnostic = toWarning(unit.nameRange, `Unit ${unit.name} is not used anywhere`, severityConfig.units);
+        if (diagnostic) {
+          warnings.push(diagnostic);
+        }
       }
 
       for (const fn of unit.functions || []) {
         const fnCount = this.getNestedUsage(this.functionUsage, unit.name, fn.name);
         if (fnCount <= 0) {
-          warnings.push(toWarning(fn.nameRange, `Function ${unit.name}:${fn.name} is not used anywhere`));
+          const diagnostic = toWarning(fn.nameRange, `Function ${unit.name}:${fn.name} is not used anywhere`, severityConfig.functions);
+          if (diagnostic) {
+            warnings.push(diagnostic);
+          }
         }
       }
     }

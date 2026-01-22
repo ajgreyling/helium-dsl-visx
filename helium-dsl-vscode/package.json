@@ -1,7 +1,7 @@
 {
   "name": "helium-dsl-vscode",
   "displayName": "Helium Rapid DSL (ANTLR4)",
-  "version": "1.3.1769091816",
+  "version": "1.5.0",
   "publisher": "mezzanineware",
   "readme": "./README.md",
   "repository": {

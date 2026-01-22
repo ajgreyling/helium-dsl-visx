@@ -5,6 +5,8 @@ export const RAPID_PROJECT_FILE_NAME = "helium-rapid-dsl-project.json";
 
 export type RapidDebugEnvironment = "preprod" | "production";
 
+export type UnusedDiagnosticSeverity = "None" | "Info" | "Warning" | "Error";
+
 export type RapidProjectConfigV1 = {
   schemaVersion: 1;
   debug: {
@@ -15,6 +17,13 @@ export type RapidProjectConfigV1 = {
     heliumPassword: string;
     logging: {
       wsPath: string;
+    };
+  };
+  diagnostics?: {
+    unused?: {
+      attributes?: UnusedDiagnosticSeverity;
+      functions?: UnusedDiagnosticSeverity;
+      units?: UnusedDiagnosticSeverity;
     };
   };
 };
@@ -46,6 +55,13 @@ export function defaultRapidProjectConfig(
         wsPath: "/api/ws2/logging",
       },
     },
+    diagnostics: {
+      unused: {
+        attributes: "None",
+        functions: "Warning",
+        units: "Warning",
+      },
+    },
   };
 }
 
@@ -56,6 +72,29 @@ export function readRapidProjectConfig(projectRoot: string): RapidProjectConfigV
     const raw = fs.readFileSync(filePath, "utf8");
     const json = JSON.parse(raw) as RapidProjectConfigV1;
     if (!json || (json as any).schemaVersion !== 1) return null;
+    
+    // If diagnostics section is missing, add it with default values
+    if (!json.diagnostics) {
+      json.diagnostics = {
+        unused: {
+          attributes: "None",
+          functions: "Warning",
+          units: "Warning",
+        },
+      };
+      // Write the updated config back to the file
+      fs.writeFileSync(filePath, JSON.stringify(json, null, 2) + "\n", "utf8");
+    } else if (!json.diagnostics.unused) {
+      // If diagnostics exists but unused is missing, add it
+      json.diagnostics.unused = {
+        attributes: "None",
+        functions: "Warning",
+        units: "Warning",
+      };
+      // Write the updated config back to the file
+      fs.writeFileSync(filePath, JSON.stringify(json, null, 2) + "\n", "utf8");
+    }
+    
     return json;
   } catch {
     return null;

@@ -205,6 +205,84 @@ The validation script automatically configures the following paths:
 - **Rules**: Defined in `scripts/extract-rules.ts`
 - **Sample Project**: Path provided via `-p` parameter
 
+### Project Configuration File
+
+Each Helium Rapid DSL project can include a `helium-rapid-dsl-project.json` configuration file in the project root. This file configures project-specific settings including unused code diagnostics.
+
+**Location**: `helium-rapid-dsl-project.json` in the project root directory.
+
+**Structure**:
+```json
+{
+  "schemaVersion": 1,
+  "debug": {
+    "environment": "preprod",
+    "baseUrl": "https://preprod.mezzanineware.com",
+    "appId": "",
+    "heliumUser": "",
+    "heliumPassword": "",
+    "logging": {
+      "wsPath": "/api/ws2/logging"
+    }
+  },
+  "diagnostics": {
+    "unused": {
+      "attributes": "None",
+      "functions": "Warning",
+      "units": "Warning"
+    }
+  }
+}
+```
+
+**Unused Code Diagnostics Configuration**:
+
+The `diagnostics.unused` section controls the severity level for unused code warnings:
+
+- **`attributes`** - Severity for unused object attributes and relationships
+  - Options: `"None"`, `"Info"`, `"Warning"`, `"Error"`
+  - Default: `"None"` (no diagnostics)
+  
+- **`functions`** - Severity for unused unit functions (methods)
+  - Options: `"None"`, `"Info"`, `"Warning"`, `"Error"`
+  - Default: `"Warning"`
+  
+- **`units`** - Severity for unused units (not referenced anywhere and contains no entry points)
+  - Options: `"None"`, `"Info"`, `"Warning"`, `"Error"`
+  - Default: `"Warning"`
+
+**Auto-Configuration**:
+
+If the `diagnostics` section is missing from an existing `helium-rapid-dsl-project.json` file, it will be automatically added with default values when the file is read by the language server. This ensures backward compatibility while enabling the feature.
+
+**Example Configuration**:
+
+To disable all unused code warnings:
+```json
+{
+  "diagnostics": {
+    "unused": {
+      "attributes": "None",
+      "functions": "None",
+      "units": "None"
+    }
+  }
+}
+```
+
+To show all unused code as errors:
+```json
+{
+  "diagnostics": {
+    "unused": {
+      "attributes": "Error",
+      "functions": "Error",
+      "units": "Error"
+    }
+  }
+}
+```
+
 ### Extension Settings
 
 The extension supports the following configuration options:

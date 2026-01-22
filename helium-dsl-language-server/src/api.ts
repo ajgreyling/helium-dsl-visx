@@ -38,7 +38,7 @@ export {
   isRapidProjectRoot,
   readRapidProjectConfig,
 } from "./projects/rapidProjectConfig.js";
-export type { RapidDebugEnvironment, RapidProjectConfigV1 } from "./projects/rapidProjectConfig.js";
+export type { RapidDebugEnvironment, RapidProjectConfigV1, UnusedDiagnosticSeverity } from "./projects/rapidProjectConfig.js";
 
 // LSP-style helpers used by in-repo tooling (e.g. MCP server). Keep this minimal.
 export {

@@ -48,6 +48,132 @@ The extension activates automatically when you open any `.mez` or `.vxml` file. 
 
 ## Configuration
 
+### Project Configuration File
+
+Each Helium Rapid DSL project can include a `helium-rapid-dsl-project.json` configuration file in the project root. This file configures project-specific settings including unused code diagnostics and debug environment settings.
+
+**Location**: Create `helium-rapid-dsl-project.json` in your project root directory (same level as `model/`, `web-app/`, etc.).
+
+**File Structure**:
+```json
+{
+  "schemaVersion": 1,
+  "debug": {
+    "environment": "preprod",
+    "baseUrl": "https://preprod.mezzanineware.com",
+    "appId": "your-app-id",
+    "heliumUser": "your-username",
+    "heliumPassword": "your-password",
+    "logging": {
+      "wsPath": "/api/ws2/logging"
+    }
+  },
+  "diagnostics": {
+    "unused": {
+      "attributes": "None",
+      "functions": "Warning",
+      "units": "Warning"
+    }
+  }
+}
+```
+
+#### Unused Code Diagnostics
+
+The `diagnostics.unused` section controls the severity level for unused code warnings in your project. These diagnostics help identify code that is defined but never used, which can indicate dead code or missing references.
+
+**Configuration Options**:
+
+- **`attributes`** - Severity for unused object attributes and relationships
+  - Options: `"None"`, `"Info"`, `"Warning"`, `"Error"`
+  - Default: `"None"` (no diagnostics for unused attributes)
+  - Example: If an object has an attribute `phoneNumber` that is never accessed, it will be flagged according to this setting
+
+- **`functions`** - Severity for unused unit functions (methods)
+  - Options: `"None"`, `"Info"`, `"Warning"`, `"Error"`
+  - Default: `"Warning"`
+  - Example: If a unit has a function `calculateTotal()` that is never called, it will be flagged according to this setting
+
+- **`units`** - Severity for unused units (not referenced anywhere and contains no entry points)
+  - Options: `"None"`, `"Info"`, `"Warning"`, `"Error"`
+  - Default: `"Warning"`
+  - Example: If a unit `UtilityUnit` is defined but never referenced (no `UtilityUnit:method()` calls, not used in VXML, no entry point annotations), it will be flagged according to this setting
+
+**Severity Levels**:
+
+- **`"None"`** - No diagnostic is shown (unused code is ignored)
+- **`"Info"`** - Shows as informational message (blue underline in most themes)
+- **`"Warning"`** - Shows as warning (yellow/orange underline in most themes)
+- **`"Error"`** - Shows as error (red underline in most themes)
+
+**Auto-Configuration**:
+
+If you have an existing `helium-rapid-dsl-project.json` file without the `diagnostics` section, it will be automatically added with default values when the file is read by the language server. This ensures backward compatibility while enabling the feature.
+
+**Example Configurations**:
+
+**Disable all unused code warnings**:
+```json
+{
+  "diagnostics": {
+    "unused": {
+      "attributes": "None",
+      "functions": "None",
+      "units": "None"
+    }
+  }
+}
+```
+
+**Show all unused code as errors** (strict mode):
+```json
+{
+  "diagnostics": {
+    "unused": {
+      "attributes": "Error",
+      "functions": "Error",
+      "units": "Error"
+    }
+  }
+}
+```
+
+**Custom configuration** (warn on unused functions/units, ignore unused attributes):
+```json
+{
+  "diagnostics": {
+    "unused": {
+      "attributes": "None",
+      "functions": "Warning",
+      "units": "Warning"
+    }
+  }
+}
+```
+
+**How It Works**:
+
+1. The language server scans your project to build an index of all defined symbols (attributes, functions, units)
+2. It tracks usage across all files (`.mez` files, `.vxml` files for view bindings)
+3. Entry point annotations (e.g., `@Scheduled`, `@HttpGet`) are automatically marked as used
+4. Unused symbols are reported according to your configured severity levels
+5. Diagnostics appear in the Problems panel and as underlines in the editor
+
+**Note**: The unused code detection is project-wide, meaning it considers usage across all files in your project, not just the current file. This ensures accurate detection even when code is used in other files.
+
+#### Debug Configuration
+
+The `debug` section configures connection settings for the Helium platform debug environment. This is used by the MCP server and other tooling for connecting to preprod or production environments.
+
+- **`environment`** - Target environment: `"preprod"` or `"production"`
+- **`baseUrl`** - Base URL for the Helium platform API
+- **`appId`** - Application ID for authentication
+- **`heliumUser`** - Username for authentication
+- **`heliumPassword`** - Password for authentication
+- **`logging.wsPath`** - WebSocket path for debug logging
+
+### Extension Settings
+
 Configure linting rules in your settings (Command Palette → "Preferences: Open Settings (JSON)"):
 
 ```json
@@ -57,7 +183,7 @@ Configure linting rules in your settings (Command Palette → "Preferences: Open
 }
 ```
 
-### Available Settings
+#### Available Settings
 
 - **`heliumDsl.lint.noVarInElse`** - Controls whether variables can be declared in else blocks
   - Options: `"error"` (default), `"warning"`, `"info"`, `"off"`
@@ -187,6 +313,11 @@ The extension includes several linting rules:
 2. **dot-notation-limit** - Limits dot notation usage per statement (default: warning)
 3. **naming-conventions** - Enforces naming conventions (default: warning)
 4. **forbidden-operators** - Detects use of forbidden operators
+5. **unused-code** - Detects unused attributes, functions, and units (configurable via `helium-rapid-dsl-project.json`)
+   - Configure severity levels in your project's `helium-rapid-dsl-project.json` file
+   - Project-wide detection considers usage across all files
+   - Entry point annotations (e.g., `@Scheduled`) are automatically marked as used
+   - See [Project Configuration File](#project-configuration-file) for details
 
 ## Troubleshooting
 
