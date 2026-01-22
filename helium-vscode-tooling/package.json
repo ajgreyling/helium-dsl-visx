@@ -14,6 +14,7 @@
     "build:rules": "npx tsx scripts/extract-rules.ts",
     "build:bifs": "npx tsx scripts/generate-bif-metadata.ts",
     "build:language": "npx tsx scripts/generate-language-metadata.ts",
+    "build:vxml": "npx tsx scripts/generate-vxml-metadata.ts",
     "build:textmate": "npx tsx scripts/generate-textmate.ts",
     "version-check": "npx tsx scripts/version-check.ts",
     "watch": "npx tsx scripts/watch.ts",

@@ -327,13 +327,40 @@ echo -e "${BLUE}=== Step 7: Generate Language Metadata ===${NC}"
 DSL_COMMONS_PATH="$DSL_COMMONS_PATH" npm run build:language
 
 echo ""
-echo -e "${BLUE}=== Step 8: Generate TextMate Grammar ===${NC}"
+echo -e "${BLUE}=== Step 8: Generate VXML Metadata ===${NC}"
+DSL_COMMONS_PATH="$DSL_COMMONS_PATH" npm run build:vxml
+
+echo ""
+echo -e "${BLUE}=== Step 8.5: Copy VXML Metadata to Language Server ===${NC}"
+VXML_METADATA_FILE="$SCRIPT_DIR/generated/vxml/function-value-nodes.json"
+LANG_SERVER_VXML_DIR="$SCRIPT_DIR/../helium-dsl-language-server/generated/vxml"
+mkdir -p "$LANG_SERVER_VXML_DIR"
+if [ -f "$VXML_METADATA_FILE" ]; then
+    cp "$VXML_METADATA_FILE" "$LANG_SERVER_VXML_DIR/function-value-nodes.json"
+    echo -e "${GREEN}✓ VXML metadata copied to language server${NC}"
+else
+    echo -e "${YELLOW}⚠ Warning: VXML metadata file not found, creating stub file${NC}"
+    # Use node to generate stub file for cross-platform compatibility
+    node -e "
+    const fs = require('fs');
+    const data = {
+      version: '0.1.0',
+      extractedFrom: 'stub',
+      extractedAt: new Date().toISOString(),
+      functionValueNodes: []
+    };
+    fs.writeFileSync('$LANG_SERVER_VXML_DIR/function-value-nodes.json', JSON.stringify(data, null, 2));
+    "
+fi
+
+echo ""
+echo -e "${BLUE}=== Step 9: Generate TextMate Grammar ===${NC}"
 # Note: SAMPLE_PROJECT_PATH is no longer needed for TextMate grammar generation
 # User-defined types are now handled dynamically via semantic tokens
 npm run build:textmate
 
 echo ""
-echo -e "${BLUE}=== Step 9: Build Language Server ===${NC}"
+echo -e "${BLUE}=== Step 10: Build Language Server ===${NC}"
 cd "$SCRIPT_DIR/../helium-dsl-language-server"
 npm run build
 
@@ -429,12 +456,12 @@ EOF
 fi
 
 echo ""
-echo -e "${BLUE}=== Step 10: Build VSCode Extension ===${NC}"
+echo -e "${BLUE}=== Step 11: Build VSCode Extension ===${NC}"
 cd "$SCRIPT_DIR/../helium-dsl-vscode"
 npm run build
 
 echo ""
-echo -e "${BLUE}=== Step 11: Update Version with Epoch Build Number ===${NC}"
+echo -e "${BLUE}=== Step 12: Update Version with Epoch Build Number ===${NC}"
 cd "$SCRIPT_DIR/../helium-dsl-vscode"
 PACKAGE_JSON="$SCRIPT_DIR/../helium-dsl-vscode/package.json"
 EPOCH=$(date +%s)
@@ -457,13 +484,13 @@ fs.writeFileSync('$PACKAGE_JSON', JSON.stringify(pkg, null, 2) + '\n');
 echo -e "${GREEN}Version updated: ${ORIGINAL_VERSION} -> ${NEW_VERSION}${NC}"
 
 echo ""
-echo -e "${BLUE}=== Step 12: Package VSCode Extension ===${NC}"
+echo -e "${BLUE}=== Step 13: Package VSCode Extension ===${NC}"
 cd "$SCRIPT_DIR/../helium-dsl-vscode"
 export HELIUM_PARSER_ERRORS_FILE="$PARSER_ERRORS_FILE"
 npm run package
 
 echo ""
-echo -e "${BLUE}=== Step 13: Restore Original Version ===${NC}"
+echo -e "${BLUE}=== Step 14: Restore Original Version ===${NC}"
 cd "$SCRIPT_DIR/../helium-dsl-vscode"
 # Restore original version
 node -e "
@@ -476,9 +503,9 @@ echo -e "${GREEN}Version restored to: ${ORIGINAL_VERSION}${NC}"
 
 echo ""
 if [ "${HELIUM_SKIP_TESTS:-0}" = "1" ]; then
-    echo -e "${YELLOW}=== Skipping Step 14: Run Validation Tests (HELIUM_SKIP_TESTS=1) ===${NC}"
+    echo -e "${YELLOW}=== Skipping Step 15: Run Validation Tests (HELIUM_SKIP_TESTS=1) ===${NC}"
 else
-    echo -e "${BLUE}=== Step 14: Run Validation Tests ===${NC}"
+    echo -e "${BLUE}=== Step 15: Run Validation Tests ===${NC}"
     STEP14_START=$(date +%s)
     cd "$SCRIPT_DIR/../helium-dsl-language-server"
     # Use npm test which uses the package.json test script with proper tsx import and --exit flag
@@ -507,10 +534,10 @@ else
     fi
 fi
 
-# Force output flush before proceeding to Step 15
+# Force output flush before proceeding to Step 16
 # Use printf instead of echo for immediate output (no buffering)
 printf "\n"
-printf "${BLUE}=== Step 15: Install Extension in Cursor ===${NC}\n"
+printf "${BLUE}=== Step 16: Install Extension in Cursor ===${NC}\n"
 
 # VSIX file is created in dist/ directory by the local packaging script
 VSIX_FILE="$SCRIPT_DIR/dist/helium-dsl.vsix"

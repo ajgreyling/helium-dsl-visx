@@ -6,6 +6,7 @@ import {
   VxmlRange,
   VxmlReference,
 } from "./types.js";
+import functionValueNodesData from "../../generated/vxml/function-value-nodes.json" with { type: "json" };
 
 type OffsetRange = { start: number; end: number };
 
@@ -237,12 +238,23 @@ function collectReferences(nodes: VxmlNode[]): VxmlReference[] {
     for (const attr of node.attributes) {
       if (!attr.value) continue;
       if (isLangKeyAttr(attr.name)) {
-        refs.push({
-          kind: "langKey",
-          name: attr.value,
-          range: attr.valueRange ?? attr.nameRange,
-          attrName: attr.name,
-        });
+        // Special case: value attributes on function-reference nodes should be function refs
+        if (attr.name === "value" && isFunctionValueNode(node.name)) {
+          refs.push({
+            kind: "function",
+            name: attr.value,
+            range: attr.valueRange ?? attr.nameRange,
+            attrName: attr.name,
+            nodeName: node.name,
+          });
+        } else {
+          refs.push({
+            kind: "langKey",
+            name: attr.value,
+            range: attr.valueRange ?? attr.nameRange,
+            attrName: attr.name,
+          });
+        }
       }
       if (attr.name === "unit" && node.name === "view") {
         refs.push({
@@ -320,6 +332,10 @@ function collectReferences(nodes: VxmlNode[]): VxmlReference[] {
 
 function isLangKeyAttr(name: string): boolean {
   return ["label", "title", "heading", "tooltip", "value", "subject", "body"].includes(name);
+}
+
+function isFunctionValueNode(nodeName: string): boolean {
+  return functionValueNodesData.functionValueNodes.includes(nodeName);
 }
 
 function isFunctionBindingNode(name: string): boolean {

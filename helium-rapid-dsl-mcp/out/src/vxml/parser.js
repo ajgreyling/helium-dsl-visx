@@ -1,3 +1,4 @@
+import functionValueNodesData from "../../../helium-vscode-tooling/generated/vxml/function-value-nodes.json" with { type: "json" };
 export function buildVxmlAst(text, uri) {
     const lineStarts = computeLineStarts(text);
     const offsetToPos = (offset) => {
@@ -198,12 +199,24 @@ function collectReferences(nodes) {
             if (!attr.value)
                 continue;
             if (isLangKeyAttr(attr.name)) {
-                refs.push({
-                    kind: "langKey",
-                    name: attr.value,
-                    range: attr.valueRange ?? attr.nameRange,
-                    attrName: attr.name,
-                });
+                // Special case: value attributes on function-reference nodes should be function refs
+                if (attr.name === "value" && isFunctionValueNode(node.name)) {
+                    refs.push({
+                        kind: "function",
+                        name: attr.value,
+                        range: attr.valueRange ?? attr.nameRange,
+                        attrName: attr.name,
+                        nodeName: node.name,
+                    });
+                }
+                else {
+                    refs.push({
+                        kind: "langKey",
+                        name: attr.value,
+                        range: attr.valueRange ?? attr.nameRange,
+                        attrName: attr.name,
+                    });
+                }
             }
             if (attr.name === "unit" && node.name === "view") {
                 refs.push({ kind: "unit", name: attr.value, range: attr.valueRange ?? attr.nameRange });
@@ -244,6 +257,9 @@ function collectReferences(nodes) {
 }
 function isLangKeyAttr(name) {
     return ["label", "title", "heading", "tooltip", "value", "subject", "body"].includes(name);
+}
+function isFunctionValueNode(nodeName) {
+    return functionValueNodesData.functionValueNodes.includes(nodeName);
 }
 function isFunctionBindingNode(name) {
     return ["binding", "visible", "collectionSource", "content"].includes(name);

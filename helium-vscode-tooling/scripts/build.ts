@@ -19,6 +19,7 @@ async function ensureGenerated() {
   await fs.ensureDir(path.join(generated, "bifs"));
   await fs.ensureDir(path.join(generated, "language"));
   await fs.ensureDir(path.join(generated, "syntaxes"));
+  await fs.ensureDir(path.join(generated, "vxml"));
 }
 
 async function main() {
@@ -48,14 +49,19 @@ async function main() {
   // 7. Generate language metadata
   run("npx tsx scripts/generate-language-metadata.ts");
 
-  // 8. Generate TextMate grammar
+  // 8. Generate VXML metadata
+  run("npx tsx scripts/generate-vxml-metadata.ts");
+
+  // 9. Generate TextMate grammar
   run("npx tsx scripts/generate-textmate.ts");
 
-  // 9. Copy parser files to language server for compilation
+  // 10. Copy parser files and VXML metadata to language server for compilation
   // This ensures parser files are compiled as ES modules by the language server's TypeScript compiler
   const parserSourceDir = path.join(generated, "parser");
+  const vxmlMetadataFile = path.join(generated, "vxml", "function-value-nodes.json");
   const languageServerRoot = path.join(root, "..", "helium-dsl-language-server");
   const languageServerGeneratedDir = path.join(languageServerRoot, "generated", "parser");
+  const languageServerVxmlDir = path.join(languageServerRoot, "generated", "vxml");
   
   if (await fs.pathExists(parserSourceDir)) {
     console.log("Copying parser files to language server for compilation...");
@@ -72,7 +78,29 @@ async function main() {
     console.warn("  ⚠ Warning: Parser source directory not found, skipping copy");
   }
 
-  // 10. Build language server + extension
+  // Always ensure the VXML metadata directory exists and copy the file if it exists
+  // If it doesn't exist, create a stub file to prevent TypeScript compilation errors
+  await fs.ensureDir(languageServerVxmlDir);
+  const targetVxmlFile = path.join(languageServerVxmlDir, "function-value-nodes.json");
+  
+  if (await fs.pathExists(vxmlMetadataFile)) {
+    console.log("Copying VXML metadata to language server for compilation...");
+    await fs.copy(vxmlMetadataFile, targetVxmlFile, {
+      overwrite: true,
+    });
+    console.log("  ✓ VXML metadata copied to language server");
+  } else {
+    console.warn("  ⚠ Warning: VXML metadata file not found, creating stub file");
+    // Create a stub file to prevent TypeScript compilation errors
+    await fs.writeJson(targetVxmlFile, {
+      version: "0.1.0",
+      extractedFrom: "stub",
+      extractedAt: new Date().toISOString(),
+      functionValueNodes: [],
+    }, { spaces: 2 });
+  }
+
+  // 11. Build language server + extension
   run("npm run build", { cwd: languageServerRoot });
   run("npm run build", { cwd: path.join(root, "..", "helium-dsl-vscode") });
 }
