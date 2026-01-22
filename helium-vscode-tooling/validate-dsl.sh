@@ -324,7 +324,7 @@ npm run build:bifs
 
 echo ""
 echo -e "${BLUE}=== Step 7: Generate Language Metadata ===${NC}"
-npm run build:language
+DSL_COMMONS_PATH="$DSL_COMMONS_PATH" npm run build:language
 
 echo ""
 echo -e "${BLUE}=== Step 8: Generate TextMate Grammar ===${NC}"

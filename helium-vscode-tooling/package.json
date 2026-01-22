@@ -18,20 +18,23 @@
     "version-check": "npx tsx scripts/version-check.ts",
     "watch": "npx tsx scripts/watch.ts",
     "lint": "echo \"No lint configured yet\"",
-    "test": "echo \"No tests configured yet\"",
+    "test": "node --import=tsx ../node_modules/mocha/bin/mocha.js --exit \"tests/**/*.test.ts\"",
     "package": "bash scripts/package-local.sh",
     "package:all": "npx tsx scripts/package.ts"
   },
   "devDependencies": {
+    "@types/chai": "^4.3.20",
+    "@types/mocha": "^10.0.10",
     "@types/node": "^22.9.0",
     "antlr4ts": "^0.5.0-alpha.4",
     "antlr4ts-cli": "^0.5.0-alpha.4",
+    "chai": "^4.5.0",
     "chokidar": "^4.0.1",
     "commander": "^12.1.0",
     "fs-extra": "^11.2.0",
     "glob": "^10.4.5",
+    "mocha": "^10.8.2",
     "tsx": "^4.19.2",
     "typescript": "^5.6.3"
   }
 }
-

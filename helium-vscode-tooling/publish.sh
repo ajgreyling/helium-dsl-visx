@@ -14,7 +14,7 @@ NC='\033[0m' # No Color
 
 # Default paths
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DSL_COMMONS_PATH=""
+DSL_COMMONS_PATH="${DSL_COMMONS_PATH:-}"
 OVSX_TOKEN=""
 
 # Extension details
@@ -51,6 +51,7 @@ done
 # Validate required arguments
 if [ -z "$DSL_COMMONS_PATH" ]; then
     echo -e "${RED}Error: DSL commons path is required${NC}"
+    echo -e "${YELLOW}Provide it via -d flag or DSL_COMMONS_PATH environment variable${NC}"
     usage
 fi
 
@@ -158,21 +159,25 @@ echo -e "${BLUE}=== Step 6: Generate BIF Metadata ===${NC}"
 npm run build:bifs
 
 echo ""
-echo -e "${BLUE}=== Step 7: Generate TextMate Grammar ===${NC}"
+echo -e "${BLUE}=== Step 7: Generate Language Metadata ===${NC}"
+DSL_COMMONS_PATH="$DSL_COMMONS_PATH" npm run build:language
+
+echo ""
+echo -e "${BLUE}=== Step 8: Generate TextMate Grammar ===${NC}"
 npm run build:textmate
 
 echo ""
-echo -e "${BLUE}=== Step 8: Build Language Server ===${NC}"
+echo -e "${BLUE}=== Step 9: Build Language Server ===${NC}"
 cd "$SCRIPT_DIR/../helium-dsl-language-server"
 npm run build
 
 echo ""
-echo -e "${BLUE}=== Step 9: Build VSCode Extension ===${NC}"
+echo -e "${BLUE}=== Step 10: Build VSCode Extension ===${NC}"
 cd "$SCRIPT_DIR/../helium-dsl-vscode"
 npm run build
 
 echo ""
-echo -e "${BLUE}=== Step 10: Update Version with Epoch Build Number ===${NC}"
+echo -e "${BLUE}=== Step 11: Update Version with Epoch Build Number ===${NC}"
 cd "$SCRIPT_DIR/../helium-dsl-vscode"
 PACKAGE_JSON="$SCRIPT_DIR/../helium-dsl-vscode/package.json"
 EPOCH=$(date +%s)
@@ -195,7 +200,7 @@ fs.writeFileSync('$PACKAGE_JSON', JSON.stringify(pkg, null, 2) + '\n');
 echo -e "${GREEN}Version updated: ${ORIGINAL_VERSION} -> ${NEW_VERSION}${NC}"
 
 echo ""
-echo -e "${BLUE}=== Step 11: Package VSCode Extension ===${NC}"
+echo -e "${BLUE}=== Step 12: Package VSCode Extension ===${NC}"
 cd "$SCRIPT_DIR/../helium-dsl-vscode"
 npm run package
 
@@ -211,7 +216,7 @@ echo -e "${GREEN}✓ VSIX packaged: $VSIX_FILE${NC}"
 
 # Publish to Open VSX
 echo ""
-echo -e "${BLUE}=== Step 12: Publishing to Open VSX Registry ===${NC}"
+echo -e "${BLUE}=== Step 13: Publishing to Open VSX Registry ===${NC}"
 
 echo -e "${BLUE}Publishing extension: $EXTENSION_ID${NC}"
 echo -e "${BLUE}VSIX file: $VSIX_FILE${NC}"
@@ -245,7 +250,7 @@ echo -e "${GREEN}Version restored to: ${ORIGINAL_VERSION}${NC}"
 
 # Install from local VSIX file (Cursor doesn't support Open VSX registry directly)
 echo ""
-echo -e "${BLUE}=== Step 13: Installing Extension from Local VSIX ===${NC}"
+echo -e "${BLUE}=== Step 14: Installing Extension from Local VSIX ===${NC}"
 echo -e "${BLUE}Installing from: $VSIX_FILE${NC}"
 
 if command -v cursor &> /dev/null; then

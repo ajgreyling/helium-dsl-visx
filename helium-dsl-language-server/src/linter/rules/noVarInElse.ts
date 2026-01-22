@@ -178,9 +178,7 @@ function braceDepthAtOffset(text: string, startOffset: number, targetOffset: num
   const end = Math.min(text.length, Math.max(startOffset, targetOffset));
   for (let i = Math.max(0, startOffset); i < end; i++) {
     const c = text[i];
-    const n = i + 1 < end ? text[i + 1] : "";
-
-    if (inLineComment) {
+    const n = i + 1 < end ? text[i + 1] : "";    if (inLineComment) {
       if (c === "\n") inLineComment = false;
       continue;
     }

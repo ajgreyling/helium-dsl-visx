@@ -6,38 +6,35 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
 const grammarPath = path.join(root, "generated/grammar/MezDSL.g4");
 const bifMetaPath = path.join(root, "generated/bifs/bif-metadata.json");
+const languageMetaPath = path.join(root, "generated/language/helium-language-metadata.json");
 const output = path.join(root, "generated/syntaxes/helium-dsl.tmLanguage.json");
 const vxmlXsdPath = path.join(root, "assets", "vxml", "View.xsd");
 const vxmlOutput = path.join(root, "generated/syntaxes/helium-vxml.tmLanguage.json");
 const vxmlInjectOutput = path.join(root, "generated/syntaxes/helium-vxml-inject.tmLanguage.json");
 
-// System/primitive types
-const systemTypes = [
-  "int",
-  "decimal",
-  "bigint",
-  "uuid",
-  "blob",
-  "bool",
-  "string",
-  "void",
-  "date",
-  "datetime",
-  "json",
-  "jsonarray",
-];
+type LanguageMetadata = {
+  keywords?: string[];
+  primitiveTypes?: string[];
+};
 
-// Common built-in function namespaces (always available)
-const commonBifNamespaces = [
-  "Mez",
-  "sql",
-  "String",
-  "Math",
-  "Date",
-  "Integer",
-  "Decimal",
-  "Uuid",
-  "api",
+// Keep this list intentionally small to avoid over-highlighting method-like keywords
+// (e.g. collection operations) that exist as tokens in the grammar.
+const CONTROL_KEYWORDS = [
+  "unit",
+  "persistent",
+  "object",
+  "enum",
+  "validator",
+  "if",
+  "else",
+  "for",
+  "foreach",
+  "return",
+  "try",
+  "catch",
+  "finally",
+  "throw",
+  "via",
 ];
 
 function escapeRegex(lit: string): string {
@@ -58,22 +55,32 @@ async function main() {
     throw new Error(`Missing grammar: ${grammarPath}`);
   }
 
+  const grammar = await fs.readFile(grammarPath, "utf8");
+  const languageMeta: LanguageMetadata = (await fs.pathExists(languageMetaPath))
+    ? await fs.readJson(languageMetaPath)
+    : {};
+
+  const primitiveTypes = (languageMeta.primitiveTypes ?? []).filter(Boolean);
+  if (primitiveTypes.length === 0) {
+    throw new Error(
+      [
+        "Missing primitive types for TextMate generation.",
+        `Expected ${languageMetaPath} to exist and contain primitiveTypes[].`,
+        "Run: npm run build:language",
+      ].join("\n")
+    );
+  }
+
+  const keywordSet = new Set<string>(
+    CONTROL_KEYWORDS.filter((kw) => (languageMeta.keywords ?? []).includes(kw))
+  );
+
   const bifMeta = (await fs.pathExists(bifMetaPath))
     ? await fs.readJson(bifMetaPath)
     : { namespaces: {} };
 
-  // Keywords from primitive rules (simple heuristic).
-  const grammar = await fs.readFile(grammarPath, "utf8");
-  const keywordSet = new Set<string>();
-  const keywordRegex = /\b(unit|persistent|object|enum|validator|if|else|for|foreach|return)\b/g;
-  let m: RegExpExecArray | null;
-  while ((m = keywordRegex.exec(grammar))) {
-    keywordSet.add(m[1]);
-  }
-
   const bifNamespacesFromMeta = Object.keys(bifMeta.namespaces ?? {});
-  // Merge common namespaces with metadata namespaces, removing duplicates
-  const bifNamespaces = Array.from(new Set([...commonBifNamespaces, ...bifNamespacesFromMeta]));
+  const bifNamespaces = Array.from(new Set(bifNamespacesFromMeta));
 
   // Note: User-defined types are now handled dynamically via semantic tokens
   // (provided by the language server based on the current workspace's model folder).
@@ -97,7 +104,7 @@ async function main() {
   // Add system types pattern
   patterns.push({
     name: "storage.type",
-    match: `\\b(${systemTypes.join("|")})\\b`,
+    match: `\\b(${primitiveTypes.join("|")})\\b`,
   });
 
   // Add object definition patterns (must come before user-defined types to catch definitions)
@@ -204,7 +211,7 @@ async function main() {
   // Add function definition pattern (must come before variable patterns)
   patterns.push({
     name: "meta.function.definition.helium",
-    begin: `\\b(${systemTypes.join("|")})\\s+([a-z_][a-zA-Z0-9_]*)\\s*\\(`,
+    begin: `\\b(${primitiveTypes.join("|")})\\s+([a-z_][a-zA-Z0-9_]*)\\s*\\(`,
     end: "\\)\\s*\\{",
     beginCaptures: {
       1: {
@@ -227,7 +234,7 @@ async function main() {
   // Add variable declaration pattern (must come after function patterns)
   patterns.push({
     name: "meta.variable.declaration.helium",
-    match: `\\b(${systemTypes.join("|")})\\s+([a-z_][a-zA-Z0-9_]*)\\b`,
+    match: `\\b(${primitiveTypes.join("|")})\\s+([a-z_][a-zA-Z0-9_]*)\\b`,
     captures: {
       1: {
         name: "storage.type",
@@ -332,7 +339,7 @@ async function main() {
             // Match parameter declarations: type name
             // Use negative lookbehind to prevent matching parameterName: TypeName patterns
             name: "variable.parameter",
-            match: `(?<!:)\\b(${systemTypes.join("|")}|[A-Z_][A-Z0-9_]*)\\s+([a-z_][a-zA-Z0-9_]*)\\b`,
+            match: `(?<!:)\\b(${primitiveTypes.join("|")}|[A-Z_][A-Z0-9_]*)\\s+([a-z_][a-zA-Z0-9_]*)\\b`,
             captures: {
               1: { name: "storage.type" },
               2: { name: "variable.parameter" },

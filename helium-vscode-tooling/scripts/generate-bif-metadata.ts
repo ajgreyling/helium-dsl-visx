@@ -1,5 +1,5 @@
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import fs from "fs-extra";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -19,16 +19,12 @@ type Bif = {
 
 type Namespace = Record<string, Bif>;
 
-async function main() {
-  if (!(await fs.pathExists(grammarPath))) {
-    throw new Error(`Generated grammar not found at ${grammarPath}`);
-  }
-
-  const grammar = await fs.readFile(grammarPath, "utf8");
+export function extractBifMetadataFromGrammar(grammar: string): Record<string, Bif[]> {
   const namespaces: Record<string, Bif[]> = {};
 
-  // Very lightweight extraction: find tokens ending with namespaces.
-  const tokenRegex = /^([A-Z0-9_]+)\\s*:\\s*'([A-Za-z0-9:_]+)';/gm;
+  // Extract lexer token rules with literals like: TOKEN_NAME : 'Mez:alert';
+  // NOTE: Use \s (not \\s) because this is a RegExp literal, not a string.
+  const tokenRegex = /^([A-Z0-9_]+)\s*:\s*'([A-Za-z0-9:_]+)';/gm;
   let match: RegExpExecArray | null;
   while ((match = tokenRegex.exec(grammar))) {
     const [, tokenName, literal] = match;
@@ -44,6 +40,17 @@ async function main() {
       });
     }
   }
+
+  return namespaces;
+}
+
+async function main() {
+  if (!(await fs.pathExists(grammarPath))) {
+    throw new Error(`Generated grammar not found at ${grammarPath}`);
+  }
+
+  const grammar = await fs.readFile(grammarPath, "utf8");
+  const namespaces = extractBifMetadataFromGrammar(grammar);
 
   const data = {
     version: "0.1.0",
@@ -62,8 +69,17 @@ async function main() {
   );
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+// Only run when executed as a script (not when imported by tests).
+const isEntrypoint =
+  typeof process !== "undefined"
+  && Array.isArray(process.argv)
+  && process.argv[1]
+  && import.meta.url === pathToFileURL(process.argv[1]).href;
+
+if (isEntrypoint) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}
 

@@ -36,36 +36,6 @@ function loadBifMetadata(): BifMetadata | null {
   }
 }
 
-const DEFAULT_MODEL_BIFS = [
-  "all",
-  "read",
-  "delete",
-  "new",
-  "equals",
-  "empty",
-  "between",
-  "lessThanOrEqual",
-  "lessThan",
-  "greaterThan",
-  "attributeIn",
-  "relationshipIn",
-  "contains",
-  "beginsWith",
-  "endsWith",
-  "notEquals",
-  "notEmpty",
-  "notBetween",
-  "notContains",
-  "notBeginWith",
-  "notEndsWith",
-  "notAttributeIn",
-  "notRelationshipIn",
-  "union",
-  "diff",
-  "intersect",
-  "and",
-];
-
 function toDiagnostic(
   range: { start: { line: number; character: number }; end: { line: number; character: number } },
   message: string
@@ -123,11 +93,8 @@ export async function createSemanticDiagnostics(
   ]);
 
   const languageMetadata = getLanguageMetadataSync();
-  const modelBifs = new Set<string>(
-    (languageMetadata.modelBifs && languageMetadata.modelBifs.length > 0)
-      ? languageMetadata.modelBifs
-      : DEFAULT_MODEL_BIFS
-  );
+  const modelBifs = new Set<string>((languageMetadata.modelBifs ?? []).filter(Boolean));
+  const hasModelBifCatalog = modelBifs.size > 0;
 
   const bifMeta = loadBifMetadata();
   const bifNamespaces = bifMeta?.namespaces || {};
@@ -178,7 +145,8 @@ export async function createSemanticDiagnostics(
       return projectManager.hasUnitFunction(namespace, callee);
     })();
 
-    const modelHasBif = isModelType ? modelBifs.has(callee) : false;
+    // If the generated metadata isn't available, avoid producing noisy false-positives.
+    const modelHasBif = isModelType ? (!hasModelBifCatalog || modelBifs.has(callee)) : false;
 
     if (isUnit && isModelType) {
       if (!unitHasFunction && !modelHasBif) {
@@ -308,8 +276,7 @@ export async function createSemanticDiagnostics(
   //
   // We intentionally only validate when the receiver type is a *known user-defined object*.
   // Platform/library types (e.g. MezApiRequest) are skipped to avoid noise.
-  const ROLE_IMPLICIT_FIELDS =
-    languageMetadata.roleImplicitFields ?? ["_firstNames", "_nickName", "_surname"];
+  const ROLE_IMPLICIT_FIELDS = (languageMetadata.roleImplicitFields ?? []).filter(Boolean);
 
   for (const ref of ast?.propertyReferences || []) {
     const receiverName: string | undefined = ref?.receiverName;
