@@ -1,6 +1,9 @@
 import path from "node:path";
 import fs from "fs-extra";
 import { fileURLToPath } from "url";
+import { mineAllImplicitFromDslCommons } from "./dslCommonsMiner.js";
+
+export type BlobSuffixes = { fname: string; mtype: string; size: string };
 
 export type LanguageMetadata = {
   keywords: string[];
@@ -9,14 +12,25 @@ export type LanguageMetadata = {
   bifNamespaces: string[];
   bifFunctions: string[];
   reservedIdentifiers: string[];
-  // Optional to support older generated metadata files.
   roleImplicitFields?: string[];
   platformImplicitFields?: string[];
+  blobSuffixes?: BlobSuffixes;
 };
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const root = path.resolve(__dirname, "..", "..");
+
+let dslCommonsPath: string | undefined;
+
+/**
+ * Set the path to appexec-dsl-commons for runtime mining of implicit fields.
+ * Clears the metadata cache so the next get will re-read or re-mine.
+ */
+export function setDslCommonsPath(p: string | undefined) {
+  dslCommonsPath = p;
+  cachedMetadata = null;
+}
 
 function getMetadataPath(): string {
   const bundledPath = path.join(
@@ -44,6 +58,21 @@ function getMetadataPath(): string {
   return devPath;
 }
 
+function fillImplicitFromMiner(meta: LanguageMetadata): void {
+  if (!dslCommonsPath) return;
+  const mined = mineAllImplicitFromDslCommons(dslCommonsPath);
+  if (!mined) return;
+  if (!meta.roleImplicitFields?.length) {
+    meta.roleImplicitFields = mined.roleImplicitFields;
+  }
+  if (!meta.platformImplicitFields?.length) {
+    meta.platformImplicitFields = mined.platformImplicitFields;
+  }
+  if (!meta.blobSuffixes) {
+    meta.blobSuffixes = mined.blobSuffixes;
+  }
+}
+
 let cachedMetadata: LanguageMetadata | null = null;
 
 export function getLanguageMetadataSync(): LanguageMetadata {
@@ -63,11 +92,10 @@ export function getLanguageMetadataSync(): LanguageMetadata {
       reservedIdentifiers: [],
     };
   }
+  fillImplicitFromMiner(cachedMetadata);
   return cachedMetadata;
 }
 
-// Test/support helper: allow forcing a re-read of the on-disk metadata.
-// (Useful because some tests load this module early and cache an empty fallback.)
 export function resetLanguageMetadataCache() {
   cachedMetadata = null;
 }
@@ -87,5 +115,6 @@ export async function getLanguageMetadata(): Promise<LanguageMetadata> {
       reservedIdentifiers: [],
     };
   }
+  fillImplicitFromMiner(cachedMetadata);
   return cachedMetadata;
 }

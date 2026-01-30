@@ -114,5 +114,45 @@ void unusedViewFn() {
     // Another view function is unused, should warn
     expect(hasInfo(viewWarnings, "Function ViewUnit:unusedViewFn is not used anywhere")).to.equal(true);
   });
+
+  it("does not warn for unit referenced only via VXML menu binding (dynamicUserRoles function)", async function () {
+    const metadata = getLanguageMetadataSync();
+    const index = new ProjectIndex("/tmp/helium-test-unused-menu", metadata);
+
+    const menuItemPermissionMez = `unit MenuItemPermission;
+bool mayViewMovables() {
+  return true;
+}`;
+    const viewUnitMez = `unit MovablesViewUnit;
+void init() {
+  // no-op
+}`;
+    const vxmlWithMenuBinding = `<view unit="MovablesViewUnit" init="init">
+  <menuitem>
+    <dynamicUserRoles function="MenuItemPermission:mayViewMovables" />
+  </menuitem>
+</view>`;
+
+    const menuItemPermissionUri = URI.file("/tmp/helium-test-unused-menu/MenuItemPermission.mez").toString();
+    const viewUnitUri = URI.file("/tmp/helium-test-unused-menu/MovablesViewUnit.mez").toString();
+    const viewVxmlUri = URI.file("/tmp/helium-test-unused-menu/MovablesView.vxml").toString();
+
+    await index.updateFile(menuItemPermissionUri, menuItemPermissionMez);
+    await index.updateFile(viewUnitUri, viewUnitMez);
+    await index.updateVxmlFile(viewVxmlUri, vxmlWithMenuBinding);
+
+    const menuItemPermissionAst = index.getFileAst(menuItemPermissionUri);
+    if (!menuItemPermissionAst || menuItemPermissionAst.units.length === 0) {
+      this.skip();
+    }
+
+    const warnings = index.getUnusedWarningsForFile(menuItemPermissionUri);
+    const hasUnusedUnit = warnings.some(
+      (d) =>
+        (d.severity === DiagnosticSeverity.Information || d.severity === DiagnosticSeverity.Warning) &&
+        String(d.message).includes("Unit MenuItemPermission is not used anywhere")
+    );
+    expect(hasUnusedUnit).to.equal(false);
+  });
 });
 

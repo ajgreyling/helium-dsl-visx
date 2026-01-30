@@ -47,6 +47,11 @@
           ],
           "default": "warning",
           "description": "Naming conventions enforcement."
+        },
+        "heliumDsl.dslCommonsPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to appexec-dsl-commons repo. Required for role/platform/blob implicit field validation (mined from BuiltinObjects.java and ObjectBuilder.java). Can also be set via DSL_COMMONS_PATH env var."
         }
       }
     },

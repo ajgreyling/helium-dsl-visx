@@ -221,9 +221,13 @@ function startLanguageClient(context: vscode.ExtensionContext) {
   );
   context.subscriptions.push(outputChannel);
 
-  // Read trace level from configuration
+  // Read configuration
   const config = vscode.workspace.getConfiguration("heliumDsl");
   const traceConfig = config.get<string>("trace.server", "off");
+  const dslCommonsPath =
+    config.get<string>("dslCommonsPath") ||
+    process.env.DSL_COMMONS_PATH ||
+    undefined;
 
   // Map configuration values to Trace enum
   let traceLevel: Trace;
@@ -259,6 +263,7 @@ function startLanguageClient(context: vscode.ExtensionContext) {
     traceOutputChannel: outputChannel,
     initializationOptions: {
       trace: traceConfig,
+      ...(dslCommonsPath ? { dslCommonsPath } : {}),
     },
   };
 

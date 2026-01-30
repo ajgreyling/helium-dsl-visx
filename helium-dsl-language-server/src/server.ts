@@ -79,7 +79,7 @@ import {
   createNamingConventionFix,
   createForbiddenOperatorFix,
 } from "./codeActions/quickFixes.js";
-import { getLanguageMetadataSync } from "./language/metadata.js";
+import { getLanguageMetadataSync, setDslCommonsPath } from "./language/metadata.js";
 import { formatDocument, formatOnType } from "./formatting/formatter.js";
 import {
   findFunctionCalls,
@@ -155,7 +155,13 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
     "off";
   initializeLogger(traceLevel);
   console.error(`[Server] Logger initialized with trace level: ${traceLevel}`);
-  
+
+  const dslCommonsPath = (params.initializationOptions as { dslCommonsPath?: string })?.dslCommonsPath;
+  if (dslCommonsPath) {
+    setDslCommonsPath(dslCommonsPath);
+    logVerbose(`[Server] dsl-commons path set: ${dslCommonsPath}`);
+  }
+
   // Initialize project manager with workspace folders
   console.error("[Server] Initializing project manager...");
   // Background indexing makes initialization fast on large workspaces (I/O-bound).

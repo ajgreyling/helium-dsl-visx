@@ -281,6 +281,7 @@ export async function createSemanticDiagnostics(
   // Platform/library types (e.g. MezApiRequest) are skipped to avoid noise.
   const ROLE_IMPLICIT_FIELDS = (languageMetadata.roleImplicitFields ?? []).filter(Boolean);
   const PLATFORM_IMPLICIT_FIELDS = (languageMetadata.platformImplicitFields ?? []).filter(Boolean);
+  const blobSuffixes = languageMetadata.blobSuffixes;
 
   for (const ref of ast?.propertyReferences || []) {
     const receiverName: string | undefined = ref?.receiverName;
@@ -304,24 +305,19 @@ export async function createSemanticDiagnostics(
 
     const memberSet = new Set<string>(projectManager.getObjectMembers(baseType, uri));
 
-    // Platform implicit fields (mined from upstream ObjectBuilder.java)
-    // These fields are available on all objects, not just persistent ones,
-    // because SQL queries can return objects with _id and _tstamp even if
-    // the object is not declared as persistent.
     PLATFORM_IMPLICIT_FIELDS.forEach((f) => memberSet.add(f));
 
-    // Role implicit fields (best-effort; without role annotations in the AST,
-    // allow on any persistent object to avoid false positives).
     if (obj.isPersistent) {
       ROLE_IMPLICIT_FIELDS.forEach((f) => memberSet.add(f));
     }
 
-    // Blob metadata fields: <field>_fname__, <field>_mtype__, <field>_size__
-    for (const attr of obj.attributes || []) {
-      if ((attr as any).typeName === "blob") {
-        memberSet.add(`${attr.name}_fname__`);
-        memberSet.add(`${attr.name}_mtype__`);
-        memberSet.add(`${attr.name}_size__`);
+    if (blobSuffixes) {
+      for (const attr of obj.attributes || []) {
+        if ((attr as any).typeName === "blob") {
+          memberSet.add(`${attr.name}${blobSuffixes.fname}`);
+          memberSet.add(`${attr.name}${blobSuffixes.mtype}`);
+          memberSet.add(`${attr.name}${blobSuffixes.size}`);
+        }
       }
     }
 

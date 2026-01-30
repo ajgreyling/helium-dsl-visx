@@ -272,7 +272,10 @@ function collectReferences(nodes: VxmlNode[]): VxmlReference[] {
           nodeName: node.name,
         });
       }
-      if (attr.name === "action" && (node.name === "action" || node.name === "rowAction")) {
+      if (
+        attr.name === "action" &&
+        (node.name === "action" || node.name === "rowAction" || node.name === "subMenuItem")
+      ) {
         refs.push({
           kind: "function",
           name: attr.value,
@@ -339,11 +342,30 @@ function isFunctionValueNode(nodeName: string): boolean {
 }
 
 function isFunctionBindingNode(name: string): boolean {
-  return ["binding", "visible", "collectionSource", "content", "variant"].includes(name);
+  return [
+    "binding",
+    "visible",
+    "collectionSource",
+    "content",
+    "variant",
+    "dynamicUserRoles",
+    "dynamicIcon",
+    "dynamicLabel",
+    "dynamicOrder",
+  ].includes(name);
 }
 
 function isVariableBindingNode(name: string): boolean {
-  return ["binding", "visible", "collectionSource", "content"].includes(name);
+  return [
+    "binding",
+    "visible",
+    "collectionSource",
+    "content",
+    "dynamicUserRoles",
+    "dynamicIcon",
+    "dynamicLabel",
+    "dynamicOrder",
+  ].includes(name);
 }
 
 function getTrimmedText(node: VxmlNode): { value: string | null; range: VxmlRange } {

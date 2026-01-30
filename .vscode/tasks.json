@@ -1,0 +1,52 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "build-language-server",
+			"type": "shell",
+			"command": "npm run build",
+			"options": {
+				"cwd": "${workspaceFolder}/helium-dsl-language-server"
+			},
+			"group": "build",
+			"problemMatcher": "$tsc",
+			"presentation": {
+				"reveal": "silent",
+				"panel": "shared"
+			}
+		},
+		{
+			"label": "build-extension",
+			"type": "shell",
+			"command": "npm run build",
+			"options": {
+				"cwd": "${workspaceFolder}/helium-dsl-vscode"
+			},
+			"dependsOn": ["build-language-server"],
+			"group": "build",
+			"problemMatcher": "$tsc",
+			"presentation": {
+				"reveal": "silent",
+				"panel": "shared"
+			}
+		},
+		{
+			"label": "prepare-extension-host",
+			"type": "shell",
+			"command": "mkdir -p helium-dsl-vscode/server/out && cp -r helium-dsl-language-server/out/* helium-dsl-vscode/server/out/ && rm -rf helium-dsl-vscode/server/out/node_modules && cp -r helium-dsl-language-server/node_modules helium-dsl-vscode/server/out/",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"dependsOn": ["build-extension"],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"problemMatcher": [],
+			"presentation": {
+				"reveal": "silent",
+				"panel": "shared"
+			}
+		}
+	]
+}
