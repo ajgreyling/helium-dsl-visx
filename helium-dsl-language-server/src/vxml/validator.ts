@@ -23,6 +23,32 @@ function resolveVxmlQualified(raw: string, fallbackUnitName: string | undefined)
   return { unitName: fallbackUnitName ?? null, memberName: trimmed };
 }
 
+/**
+ * Check if a reference string violates dot notation rules.
+ * Returns true if the string has more than one dot (e.g., "a.b.c" or "Unit:obj.attr.more").
+ * For unit-qualified references, only the part after the colon is checked.
+ */
+function hasDotNotationViolation(refName: string): boolean {
+  const trimmed = (refName ?? "").trim();
+  if (!trimmed) return false;
+  
+  const colon = trimmed.indexOf(":");
+  if (colon !== -1) {
+    // Unit-qualified: check only the part after the colon
+    // Example: "Unit:obj.attr" -> "obj.attr" has 1 dot (valid)
+    // Example: "Unit:obj.attr.more" -> "obj.attr.more" has 2 dots (invalid)
+    const afterColon = trimmed.slice(colon + 1).trim();
+    const dotCount = (afterColon.match(/\./g) || []).length;
+    return dotCount > 1;
+  } else {
+    // Non-unit-qualified: check all dots
+    // Example: "obj.attr" has 1 dot (valid)
+    // Example: "obj.attr.more" has 2 dots (invalid)
+    const dotCount = (trimmed.match(/\./g) || []).length;
+    return dotCount > 1;
+  }
+}
+
 export function validateVxml(ast: VxmlAst, projectManager: ProjectManager): VxmlDiagnostic[] {
   const diagnostics: VxmlDiagnostic[] = [];
   const source = "helium-vxml";
@@ -96,6 +122,16 @@ export function validateVxml(ast: VxmlAst, projectManager: ProjectManager): Vxml
     }
 
     if (ref.kind === "function") {
+      // Check for dot notation violations
+      if (hasDotNotationViolation(ref.name)) {
+        diagnostics.push({
+          message: "Dot notation is only supported one level deep.",
+          range: ref.range,
+          severity: DiagnosticSeverity.Error,
+          source,
+        });
+      }
+      
       const resolved = resolveVxmlQualified(ref.name, viewUnit);
       if (!resolved?.unitName || !resolved.memberName) continue;
       if (!projectManager.isUnit(resolved.unitName)) {
@@ -119,6 +155,16 @@ export function validateVxml(ast: VxmlAst, projectManager: ProjectManager): Vxml
     }
 
     if (ref.kind === "variable") {
+      // Check for dot notation violations
+      if (hasDotNotationViolation(ref.name)) {
+        diagnostics.push({
+          message: "Dot notation is only supported one level deep.",
+          range: ref.range,
+          severity: DiagnosticSeverity.Error,
+          source,
+        });
+      }
+      
       const resolved = resolveVxmlQualified(ref.name, viewUnit);
       if (!resolved?.unitName || !resolved.memberName) continue;
       if (!projectManager.isUnit(resolved.unitName)) {

@@ -1,6 +1,8 @@
 import { ANTLRInputStream, CommonTokenStream } from "antlr4ts";
 import { ParseTreeWalker } from "antlr4ts/tree/ParseTreeWalker.js";
 import { ParserRuleContext } from "antlr4ts/ParserRuleContext.js";
+import { CollectingErrorListener, AlwaysReportErrorStrategy } from "../parser/index.js";
+import type { Diagnostic } from "vscode-languageserver/node.js";
 import {
   FileAst,
   ObjectDecl,
@@ -185,9 +187,6 @@ class AstListener {
 
   enterPersistentObject(ctx: any) {
     this.persistentDepth += 1;
-    // #region agent log
-    fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'builder.ts:186',message:'enterPersistentObject called',data:{persistentDepth:this.persistentDepth,ctxText:ctx?.getText?.()?.substring(0,100)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-    // #endregion
     
     // Backup: Try to extract object name from persistentObject context
     // This is a fallback in case enterSimpleObject fails
@@ -393,11 +392,6 @@ class AstListener {
     }
     
     const objectName = nameToken.text.trim();
-    // #region agent log
-    if (objectName === "CaseWithCampaignContact") {
-      fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'builder.ts:392',message:'Creating CaseWithCampaignContact object',data:{objectName,isPersistent,persistentDepth:this.persistentDepth,ctxText:ctx?.getText?.()?.substring(0,200)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-    }
-    // #endregion
     
     // Check for duplicates (in case enterPersistentObject backup handler already added it)
     const existing = this.ast.objects.find(obj => obj.name === objectName);
@@ -952,27 +946,32 @@ class AstListener {
   }
 }
 
-export async function buildFileAst(text: string, uri: string): Promise<FileAst> {
+export async function buildFileAst(text: string, uri: string): Promise<{ ast: FileAst; diagnostics: Diagnostic[] }> {
   const MezDSLLexer = await loadGenerated("MezDSLLexer");
   const MezDSLParser = await loadGenerated("MezDSLParser");
 
   if (!MezDSLLexer || !MezDSLParser) {
     return {
-      uri,
-      objects: [],
-      units: [],
-      enums: [],
-      typeReferences: [],
-      unitReferences: [],
-      functionCalls: [],
-      variableReferences: [],
-      propertyReferences: [],
-      triggerScopes: [],
-      elseBlocks: [],
+      ast: {
+        uri,
+        objects: [],
+        units: [],
+        enums: [],
+        typeReferences: [],
+        unitReferences: [],
+        functionCalls: [],
+        variableReferences: [],
+        propertyReferences: [],
+        triggerScopes: [],
+        elseBlocks: [],
+      },
+      diagnostics: [],
     };
   }
 
+  let errorListener: CollectingErrorListener | undefined;
   try {
+    errorListener = new CollectingErrorListener(text);
     const input = new ANTLRInputStream(text);
     const lexer = new MezDSLLexer(input);
     const tokens = new CommonTokenStream(lexer);
@@ -996,6 +995,13 @@ export async function buildFileAst(text: string, uri: string): Promise<FileAst> 
     // Remove default error listeners to prevent stderr logging
     lexer.removeErrorListeners();
     parser.removeErrorListeners();
+    // Add error listener to capture parser errors during AST building
+    // These errors should be reported as diagnostics even though AST building continues
+    lexer.addErrorListener(errorListener);
+    parser.addErrorListener(errorListener);
+    // Use custom error strategy that always calls syntaxError before recovering
+    // This ensures errors are detected even when DefaultErrorStrategy silently recovers
+    parser.errorHandler = new AlwaysReportErrorStrategy(errorListener);
     let tree;
     try {
       tree = parser.script();
@@ -1004,6 +1010,28 @@ export async function buildFileAst(text: string, uri: string): Promise<FileAst> 
         console.error("[DEBUG] Parser failed with stack overflow for:", uri);
         // Return empty AST if parsing fails with stack overflow
         return {
+          ast: {
+            uri,
+            objects: [],
+            units: [],
+            enums: [],
+            typeReferences: [],
+            unitReferences: [],
+            functionCalls: [],
+            variableReferences: [],
+            propertyReferences: [],
+            triggerScopes: [],
+            elseBlocks: [],
+          },
+          diagnostics: errorListener.diagnostics,
+        };
+      }
+      throw parseErr;
+    }
+    
+    if (!tree) {
+      return {
+        ast: {
           uri,
           objects: [],
           units: [],
@@ -1015,24 +1043,8 @@ export async function buildFileAst(text: string, uri: string): Promise<FileAst> 
           propertyReferences: [],
           triggerScopes: [],
           elseBlocks: [],
-        };
-      }
-      throw parseErr;
-    }
-    
-    if (!tree) {
-      return {
-        uri,
-        objects: [],
-        units: [],
-        enums: [],
-        typeReferences: [],
-        unitReferences: [],
-        functionCalls: [],
-        variableReferences: [],
-        propertyReferences: [],
-        triggerScopes: [],
-        elseBlocks: [],
+        },
+        diagnostics: errorListener.diagnostics,
       };
     }
     
@@ -1181,7 +1193,7 @@ export async function buildFileAst(text: string, uri: string): Promise<FileAst> 
       if (walkErr instanceof Error && walkErr.message.includes('Maximum call stack')) {
         console.error("[DEBUG] Walker failed with stack overflow for:", uri);
         // Return AST as-is (may be partially populated) if walker fails with stack overflow
-        return listener.ast;
+        return { ast: listener.ast, diagnostics: errorListener.diagnostics };
       }
       console.error("[DEBUG] Walker error:", walkErr instanceof Error ? walkErr.message : String(walkErr));
       console.error("[DEBUG] Walker error stack:", walkErr instanceof Error ? walkErr.stack : undefined);
@@ -1200,7 +1212,7 @@ export async function buildFileAst(text: string, uri: string): Promise<FileAst> 
         listenerProtoKeys: Object.keys(listenerProto)
       });
     }
-    return listener.ast;
+    return { ast: listener.ast, diagnostics: errorListener.diagnostics };
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
     
@@ -1209,18 +1221,23 @@ export async function buildFileAst(text: string, uri: string): Promise<FileAst> 
     } else {
       console.error("[DEBUG] Exception in buildFileAst:", errorMsg);
     }
+    // errorListener may not be initialized if error occurs before it's created
+    const diagnostics = errorListener?.diagnostics || [];
     return {
-      uri,
-      objects: [],
-      units: [],
-      enums: [],
-      typeReferences: [],
-      unitReferences: [],
-      functionCalls: [],
-      variableReferences: [],
-      propertyReferences: [],
-      triggerScopes: [],
-      elseBlocks: [],
+      ast: {
+        uri,
+        objects: [],
+        units: [],
+        enums: [],
+        typeReferences: [],
+        unitReferences: [],
+        functionCalls: [],
+        variableReferences: [],
+        propertyReferences: [],
+        triggerScopes: [],
+        elseBlocks: [],
+      },
+      diagnostics,
     };
   }
 }

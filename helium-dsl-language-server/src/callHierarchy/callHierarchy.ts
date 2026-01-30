@@ -12,7 +12,7 @@ export async function findFunctionCalls(
   const text = doc.getText();
   const calls: Location[] = [];
 
-  const ast = await buildFileAst(text, doc.uri);
+  const { ast } = await buildFileAst(text, doc.uri);
   for (const ref of ast.functionCalls) {
     if (ref.name !== functionName) continue;
     calls.push({
@@ -35,7 +35,7 @@ export async function findFunctionDefinition(
   functionName: string
 ): Promise<Location | null> {
   const text = doc.getText();
-  const ast = await buildFileAst(text, doc.uri);
+  const { ast } = await buildFileAst(text, doc.uri);
   for (const unit of ast.units) {
     for (const fn of unit.functions) {
       if (fn.name === functionName) {

@@ -50,8 +50,8 @@ function defaultRules(): Record<string, LoadedRule> {
     },
     "dot-notation-limit": {
       id: "dot-notation-limit",
-      severity: "warning",
-      message: "Dot notation can only be used once per statement",
+      severity: "error",
+      message: "Dot notation is only supported one level deep. Declare a variable and set it to the first level (e.g., `case_entity entity = lastConversationWithCaseWorker.lnk_case_entity; entity._id`).",
       category: "style",
     },
     "naming-conventions": {

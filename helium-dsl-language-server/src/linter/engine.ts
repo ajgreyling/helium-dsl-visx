@@ -23,7 +23,7 @@ export async function runLints(text: string): Promise<Diagnostic[]> {
   // console.warn("[Linter] Applying forbidden-operators rule...");
   applyForbiddenOperators(ctx); // Enabled - boolean comparison rule added
   // console.warn(`[Linter] forbidden-operators complete, found ${diagnostics.length} total issues`);
-  // applyDotNotationLimit(ctx); // Disabled - causes false positives (flags valid nested attribute access)
+  await applyDotNotationLimit(ctx); // Enabled - uses AST-based detection for accurate multi-level dot notation detection
 
   // console.warn(`[Linter] All rules complete, returning ${diagnostics.length} diagnostics`);
   return diagnostics;

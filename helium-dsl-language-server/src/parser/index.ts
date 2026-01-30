@@ -1,8 +1,20 @@
 import { ANTLRInputStream, CommonTokenStream } from "antlr4ts";
-import { Diagnostic } from "vscode-languageserver";
+import { Diagnostic, DiagnosticSeverity } from "vscode-languageserver/node.js";
 import * as path from "path";
 import * as fs from "fs";
 import { fileURLToPath } from "url";
+import type { ANTLRErrorListener } from "antlr4ts/ANTLRErrorListener.js";
+import type { Token } from "antlr4ts/Token.js";
+import type { Recognizer } from "antlr4ts/Recognizer.js";
+import { RecognitionException } from "antlr4ts/RecognitionException.js";
+import { ErrorNode } from "antlr4ts/tree/ErrorNode.js";
+import { TerminalNode } from "antlr4ts/tree/TerminalNode.js";
+import { ParseTreeWalker } from "antlr4ts/tree/ParseTreeWalker.js";
+import { DefaultErrorStrategy } from "antlr4ts/DefaultErrorStrategy.js";
+import { NoViableAltException } from "antlr4ts/NoViableAltException.js";
+import { InputMismatchException } from "antlr4ts/InputMismatchException.js";
+import { FailedPredicateException } from "antlr4ts/FailedPredicateException.js";
+import { checkDotNotation } from "./dotNotation.js";
 
 // Note: We don't register ts-node here because we're using --loader ts-node/esm
 // which handles TypeScript files directly via the ESM loader.
@@ -177,7 +189,79 @@ function isParserRuntimeError(errorMsg: string): boolean {
   return false;
 }
 
-class CollectingErrorListener {
+/**
+ * Custom error strategy that always calls syntaxError before recovering.
+ * This ensures errors are detected even when DefaultErrorStrategy silently recovers.
+ * 
+ * The key insight: DefaultErrorStrategy.reportNoViableAlternative() calls notifyErrorListeners()
+ * which should trigger syntaxError, but sometimes recovery happens before that.
+ * By overriding reportError() to always call syntaxError first, we ensure errors are reported.
+ */
+export class AlwaysReportErrorStrategy extends DefaultErrorStrategy {
+  private errorListener: CollectingErrorListener;
+
+  constructor(errorListener: CollectingErrorListener) {
+    super();
+    this.errorListener = errorListener;
+  }
+
+  reportNoViableAlternative(recognizer: any, e: NoViableAltException): void {
+    // Always call syntaxError before recovering
+    // This ensures "no viable alternative" errors are detected even when DefaultErrorStrategy silently recovers
+    const listener = recognizer.getErrorListenerDispatch();
+    if (listener && listener.syntaxError) {
+      const token = e.getOffendingToken ? e.getOffendingToken(recognizer) : undefined;
+      const line = token ? token.line : 0;
+      const charPositionInLine = token ? token.charPositionInLine : 0;
+      const msg = this.getErrorMessage(e, recognizer);
+      listener.syntaxError(recognizer, token, line, charPositionInLine, msg, e);
+    }
+    // Then call parent to do recovery
+    super.reportNoViableAlternative(recognizer, e);
+  }
+
+  reportInputMismatch(recognizer: any, e: InputMismatchException): void {
+    // Always call syntaxError before recovering
+    const listener = recognizer.getErrorListenerDispatch();
+    if (listener && listener.syntaxError) {
+      const token = e.getOffendingToken ? e.getOffendingToken(recognizer) : undefined;
+      const line = token ? token.line : 0;
+      const charPositionInLine = token ? token.charPositionInLine : 0;
+      const msg = this.getErrorMessage(e, recognizer);
+      listener.syntaxError(recognizer, token, line, charPositionInLine, msg, e);
+    }
+    // Then call parent to do recovery
+    super.reportInputMismatch(recognizer, e);
+  }
+
+  reportFailedPredicate(recognizer: any, e: FailedPredicateException): void {
+    // Always call syntaxError before recovering
+    const listener = recognizer.getErrorListenerDispatch();
+    if (listener && listener.syntaxError) {
+      const token = e.getOffendingToken ? e.getOffendingToken(recognizer) : undefined;
+      const line = token ? token.line : 0;
+      const charPositionInLine = token ? token.charPositionInLine : 0;
+      const msg = this.getErrorMessage(e, recognizer);
+      listener.syntaxError(recognizer, token, line, charPositionInLine, msg, e);
+    }
+    // Then call parent to do recovery
+    super.reportFailedPredicate(recognizer, e);
+  }
+
+  private getErrorMessage(e: RecognitionException, recognizer: any): string {
+    if (e.message) {
+      return e.message;
+    }
+    // Generate error message similar to DefaultErrorStrategy
+    const token = e.getOffendingToken ? e.getOffendingToken(recognizer) : undefined;
+    if (token) {
+      return `no viable alternative at input '${token.text || ''}'`;
+    }
+    return "syntax error";
+  }
+}
+
+export class CollectingErrorListener implements ANTLRErrorListener<Token> {
   public diagnostics: Diagnostic[] = [];
   private sourceText: string;
   private strict: boolean;
@@ -199,6 +283,13 @@ class CollectingErrorListener {
     // Filter out "Maximum call stack size exceeded" errors
     if (msg.includes("Maximum call stack size exceeded")) {
       return true;
+    }
+
+    // CRITICAL: Do NOT filter "no viable alternative" errors - these are real parser errors
+    // that should be reported. The error "no viable alternative at input 'conversation'"
+    // indicates the parser cannot parse the code at that point.
+    if (msg.includes("no viable alternative")) {
+      return false; // Always report these errors
     }
 
     // Pattern 1: Filter "mismatched input ')' expecting {',', '==', ...}" errors
@@ -295,25 +386,28 @@ class CollectingErrorListener {
     return false;
   }
 
-  syntaxError(
-    _recognizer: any,
-    _offendingSymbol: any,
+  syntaxError<T extends Token>(
+    _recognizer: Recognizer<T, any>,
+    _offendingSymbol: T | undefined,
     line: number,
     charPositionInLine: number,
-    msg: string
-  ) {
+    msg: string,
+    _e: RecognitionException | undefined // RecognitionException | undefined - required 6th parameter (can be undefined but parameter itself is required)
+  ): void {
     // In strict mode, treat all parser diagnostics as real (used for build fail-fast).
     // Otherwise, filter out known false positives (editor UX).
-    if (this.strict || !this.isFalsePositive(line, charPositionInLine, msg)) {
-      this.diagnostics.push({
+    const isFalsePos = this.isFalsePositive(line, charPositionInLine, msg);
+    if (this.strict || !isFalsePos) {
+      const diag = {
         message: msg,
         range: {
           start: { line: line - 1, character: charPositionInLine },
           end: { line: line - 1, character: charPositionInLine + 1 },
         },
-        severity: 2, // Warning instead of error, since code builds fine
+        severity: DiagnosticSeverity.Error, // Parser syntax errors are real errors that should be reported
         source: "helium-dsl-parser",
-      });
+      };
+      this.diagnostics.push(diag);
     }
   }
 }
@@ -357,11 +451,16 @@ export async function parseText(text: string): Promise<{ diagnostics: Diagnostic
   const listener = new CollectingErrorListener(text);
   lexer.removeErrorListeners();
   parser.removeErrorListeners();
-  lexer.addErrorListener(listener as any);
-  parser.addErrorListener(listener as any);
+  // Explicitly add the listener - don't cast to any, let TypeScript check the interface
+  lexer.addErrorListener(listener);
+  parser.addErrorListener(listener);
+  // Use custom error strategy that always calls syntaxError before recovering
+  // This ensures errors are detected even when DefaultErrorStrategy silently recovers
+  parser.errorHandler = new AlwaysReportErrorStrategy(listener);
 
+  let tree: any = null;
   try {
-    parser.script();
+    tree = parser.script();
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
     // Filter out false positive parser errors for code that builds fine
@@ -376,6 +475,27 @@ export async function parseText(text: string): Promise<{ diagnostics: Diagnostic
         severity: 2, // Warning instead of error, since code builds fine
         source: "helium-dsl-parser",
       });
+    }
+  }
+
+  // Check for dot notation violations if parsing succeeded
+  if (tree) {
+    try {
+      const dotNotationDiagnostics = checkDotNotation(tree);
+      for (const diag of dotNotationDiagnostics) {
+        listener.diagnostics.push({
+          message: "Dot notation is only supported one level deep.",
+          range: {
+            start: { line: diag.line, character: diag.character },
+            end: { line: diag.line, character: diag.character + diag.length },
+          },
+          severity: DiagnosticSeverity.Error,
+          source: "helium-dsl-parser",
+        });
+      }
+    } catch (dotErr) {
+      // If dot notation checking fails (e.g., stack overflow), continue without those diagnostics
+      // This prevents parser diagnostics from failing entirely
     }
   }
 

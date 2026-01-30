@@ -197,10 +197,10 @@ function buildFileAstWithTimeout(
 ): Promise<FileAst> {
   return Promise.race([
     new Promise<FileAst>((resolve, reject) => {
-      setImmediate(() => {
+      setImmediate(async () => {
         try {
-          const result = buildFileAst(text, uri);
-          resolve(result);
+          const result = await buildFileAst(text, uri);
+          resolve(result.ast);
         } catch (err) {
           reject(err);
         }

@@ -48,20 +48,11 @@ let cachedMetadata: LanguageMetadata | null = null;
 
 export function getLanguageMetadataSync(): LanguageMetadata {
   if (cachedMetadata) {
-    // #region agent log
-    fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'metadata.ts:49',message:'Returning cached metadata',data:{hasPlatformFields:!!cachedMetadata.platformImplicitFields,platformFields:cachedMetadata.platformImplicitFields,metadataKeys:Object.keys(cachedMetadata)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-    // #endregion
     return cachedMetadata;
   }
   const metadataPath = getMetadataPath();
-  // #region agent log
-  fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'metadata.ts:51',message:'Loading metadata from file',data:{metadataPath,fileExists:fs.existsSync(metadataPath)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B'})}).catch(()=>{});
-  // #endregion
   if (fs.existsSync(metadataPath)) {
     cachedMetadata = fs.readJsonSync(metadataPath) as LanguageMetadata;
-    // #region agent log
-    fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'metadata.ts:53',message:'Metadata loaded from file',data:{hasPlatformFields:!!cachedMetadata.platformImplicitFields,platformFields:cachedMetadata.platformImplicitFields,metadataKeys:Object.keys(cachedMetadata)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B'})}).catch(()=>{});
-    // #endregion
   } else {
     cachedMetadata = {
       keywords: [],
@@ -71,9 +62,6 @@ export function getLanguageMetadataSync(): LanguageMetadata {
       bifFunctions: [],
       reservedIdentifiers: [],
     };
-    // #region agent log
-    fetch('http://127.0.0.1:7249/ingest/2d3a9c8a-c014-44ca-b636-6599bc56fc4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'metadata.ts:62',message:'Using fallback empty metadata',data:{metadataPath},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
   }
   return cachedMetadata;
 }

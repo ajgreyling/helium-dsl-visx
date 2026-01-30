@@ -361,7 +361,6 @@ async function validateDocument(document: TextDocument) {
   let semanticDiagnostics: Diagnostic[] = [];
   if (indexingComplete) {
     semanticDiagnostics = await createSemanticDiagnostics(text, document.uri, projectManager);
-  } else {
   }
   const diagnostics = [...syntaxDiagnostics, ...lintDiagnostics, ...semanticDiagnostics];
   connection.sendDiagnostics({ uri: document.uri, diagnostics });
@@ -771,7 +770,7 @@ connection.onHover(async (params: HoverParams): Promise<Hover | null> => {
             try {
               const unitFilePath = URI.parse(unitLocation.uri).fsPath;
               const unitFileContent = fs.readFileSync(unitFilePath, "utf8");
-              const unitAst = await buildFileAst(unitFileContent, unitLocation.uri);
+              const { ast: unitAst } = await buildFileAst(unitFileContent, unitLocation.uri);
               const fn = findFunctionDecl(unitAst, methodName, fullWord);
               if (fn) {
                 const signature = formatFunctionSignatureFromAst(fn);
@@ -815,7 +814,7 @@ connection.onHover(async (params: HoverParams): Promise<Hover | null> => {
     } else {
       // Variable / function hover from AST (no heuristic symbol table).
       try {
-        const ast = await buildFileAst(text, doc.uri);
+        const { ast } = await buildFileAst(text, doc.uri);
         const localVar = findLocalVariable(ast, fullWord, position);
         if (localVar) {
           content.push(`**Variable**: \`${fullWord}\``);
@@ -1349,7 +1348,8 @@ connection.languages.callHierarchy.onOutgoingCalls(async (params: CallHierarchyO
   const functionName = params.item.name;
   let ast: any;
   try {
-    ast = await buildFileAst(text, doc.uri);
+    const result = await buildFileAst(text, doc.uri);
+    ast = result.ast;
   } catch {
     return [];
   }
@@ -1414,7 +1414,8 @@ connection.languages.inlayHint.on(async (params: InlayHintParams): Promise<Inlay
 
   let ast: any;
   try {
-    ast = await buildFileAst(text, doc.uri);
+    const result = await buildFileAst(text, doc.uri);
+    ast = result.ast;
   } catch {
     return [];
   }
@@ -1583,7 +1584,7 @@ connection.onDefinition(async (params: DefinitionParams): Promise<Location | Loc
       try {
         const unitFilePath = URI.parse(unitLoc.uri).fsPath;
         const unitFileContent = fs.readFileSync(unitFilePath, "utf8");
-        const unitAst = await buildFileAst(unitFileContent, unitLoc.uri);
+        const { ast: unitAst } = await buildFileAst(unitFileContent, unitLoc.uri);
         const unitDecl = (unitAst.units || []).find((u: any) => u.name === resolved.unitName);
         if (!unitDecl) return null;
 
@@ -1728,7 +1729,7 @@ connection.languages.semanticTokens.on(async (params: SemanticTokensParams) => {
 
   try {
     // Parse the current document text for accurate, up-to-date ranges.
-    const ast = await buildFileAst(text, params.textDocument.uri);
+    const { ast } = await buildFileAst(text, params.textDocument.uri);
 
     // Highlight user-defined types based on structural type references.
     for (const ref of ast.typeReferences) {
@@ -1856,7 +1857,7 @@ connection.languages.semanticTokens.onRange(async (params: SemanticTokensRangePa
   };
 
   try {
-    const ast = await buildFileAst(text, params.textDocument.uri);
+    const { ast } = await buildFileAst(text, params.textDocument.uri);
     for (const ref of ast.typeReferences) {
       if (isUserType(ref.name)) pushRange(ref.nameRange, 0);
     }

@@ -4,7 +4,7 @@ import { buildFileAst, rangeContains } from "../../ast/builder.js";
 export async function applyNoVarInElse(ctx: LintContext) {
   if (!ctx.rules["no-var-in-else"]) return;
   try {
-    const ast = await buildFileAst(ctx.text, "memory://lint");
+    const { ast } = await buildFileAst(ctx.text, "memory://lint");
     if (ast.elseBlocks.length === 0) {
       applyLegacyNoVarInElse(ctx);
       return;
@@ -173,9 +173,7 @@ function braceDepthAtOffset(text: string, startOffset: number, targetOffset: num
   let inBlockString = false;
   let inSingleQuote = false;
   let inDoubleQuote = false;
-  let escaped = false;
-
-  const end = Math.min(text.length, Math.max(startOffset, targetOffset));
+  let escaped = false;  const end = Math.min(text.length, Math.max(startOffset, targetOffset));
   for (let i = Math.max(0, startOffset); i < end; i++) {
     const c = text[i];
     const n = i + 1 < end ? text[i + 1] : "";    if (inLineComment) {
@@ -209,9 +207,7 @@ function braceDepthAtOffset(text: string, startOffset: number, targetOffset: num
         continue;
       }
       continue;
-    }
-
-    if (c === "/" && n === "/") {
+    }    if (c === "/" && n === "/") {
       inLineComment = true;
       i += 1;
       continue;

@@ -23,7 +23,7 @@ function buildFileAstWithTimeout(
       setImmediate(async () => {
         try {
           const result = await buildFileAst(text, uri);
-          resolve(result);
+          resolve(result.ast);
         } catch (err) {
           reject(err);
         }
@@ -84,7 +84,7 @@ describe("AST Building on munic-chat Project", () => {
     const uri = "file:///test.mez";
     const result = await buildFileAst(simpleText, uri);
     // Verify AST was built
-    expect(result).to.exist;
+    expect(result.ast).to.exist;
   });
 
   it("should build ASTs for all .mez files in munic-chat project", async function () {

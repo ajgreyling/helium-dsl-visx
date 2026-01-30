@@ -227,7 +227,7 @@ export class ProjectIndex {
   }
 
   async updateFile(uri: string, text: string, skipRebuild?: boolean) {
-    const ast = await buildFileAst(text, uri);
+    const { ast } = await buildFileAst(text, uri);
     this.files.set(uri, ast);
     // Don't rebuild if explicitly skipped, or if we're in the middle of initial indexing
     // (the final rebuild will happen after all files are indexed)
