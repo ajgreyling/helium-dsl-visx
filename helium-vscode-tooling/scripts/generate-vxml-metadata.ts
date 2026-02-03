@@ -72,6 +72,52 @@ function extractFunctionValueNodes(xsdContent: string): string[] {
   return Array.from(functionValueNodes).sort();
 }
 
+/**
+ * Extracts function/variable binding node names from the XSD schema.
+ * Finds all elements whose type is v:Binding (Binding has function and variable attributes).
+ * Uses [^>]* to stay within the same element tag and avoid matching across elements.
+ */
+function extractFunctionBindingNodes(xsdContent: string): string[] {
+  const names = new Set<string>();
+  // name then type, or type then name (attribute order varies)
+  const nameFirst = /<element\s+name="([^"]+)"[^>]*type="v:Binding"[^>]*>/g;
+  const typeFirst = /<element\s+[^>]*type="v:Binding"[^>]*name="([^"]+)"[^>]*>/g;
+  let match: RegExpExecArray | null;
+  while ((match = nameFirst.exec(xsdContent)) !== null) names.add(match[1]);
+  while ((match = typeFirst.exec(xsdContent)) !== null) names.add(match[1]);
+  return Array.from(names).sort();
+}
+
+/**
+ * Extracts action-ref node names from the XSD schema.
+ * Finds all elements whose type has an action attribute of type v:QualifiedName.
+ */
+function extractActionRefNodes(xsdContent: string): string[] {
+  const actionRefNodes = new Set<string>();
+
+  // Step 1: Find all complexTypes that have <attribute name="action" type="v:QualifiedName"
+  const complexTypePattern = /<complexType\s+name="([^"]+)">([\s\S]*?)<\/complexType>/g;
+  const actionAttributeTypes = new Set<string>();
+  let match: RegExpExecArray | null;
+  while ((match = complexTypePattern.exec(xsdContent)) !== null) {
+    const [, typeName, typeBody] = match;
+    if (typeBody.includes('<attribute name="action" type="v:QualifiedName"')) {
+      actionAttributeTypes.add(typeName);
+    }
+  }
+
+  // Step 2: Find all elements that reference these complexTypes
+  const elementPattern = /<element\s+name="([^"]+)"[\s\S]*?type="v:([^"]+)"[\s\S]*?>/g;
+  while ((match = elementPattern.exec(xsdContent)) !== null) {
+    const [, elementName, referencedType] = match;
+    if (actionAttributeTypes.has(referencedType)) {
+      actionRefNodes.add(elementName);
+    }
+  }
+
+  return Array.from(actionRefNodes).sort();
+}
+
 async function main() {
   const dslCommonsPath = resolveDslCommonsPath();
   const xsdPath = path.join(dslCommonsPath, DEFAULT_VIEW_XSD_RELATIVE_PATH);
@@ -82,6 +128,8 @@ async function main() {
 
   const xsdContent = await fs.readFile(xsdPath, "utf8");
   const functionValueNodes = extractFunctionValueNodes(xsdContent);
+  const functionBindingNodes = extractFunctionBindingNodes(xsdContent);
+  const actionRefNodes = extractActionRefNodes(xsdContent);
 
   const output = path.join(root, "generated/vxml/function-value-nodes.json");
   const data = {
@@ -89,12 +137,14 @@ async function main() {
     extractedFrom: xsdPath,
     extractedAt: new Date().toISOString(),
     functionValueNodes,
+    functionBindingNodes,
+    actionRefNodes,
   };
 
   await fs.ensureDir(path.dirname(output));
   await fs.writeJson(output, data, { spaces: 2 });
   console.log(
-    `Generated VXML function-value nodes metadata to ${output} (${functionValueNodes.length} nodes)`
+    `Generated VXML metadata to ${output} (functionValue: ${functionValueNodes.length}, functionBinding: ${functionBindingNodes.length}, actionRef: ${actionRefNodes.length})`
   );
 }
 

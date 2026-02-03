@@ -606,7 +606,7 @@ This runs `scripts/package-local.sh`, which performs local packaging in a tempor
    - These are required for the language server to run at runtime
 
 4. **Copy Generated Files**
-   - Copies `generated/` directory (parser, BIF metadata, rules) into extension
+   - Copies `generated/` directory (parser, BIF metadata, rules, VXML metadata) into extension
    - These files are needed by the language server for parsing and linting
 
 5. **Install Extension Dependencies**
@@ -743,7 +743,7 @@ When packaged, the extension includes:
 - `out/` - Compiled extension code
 - `server/out/` - Bundled language server
 - `server/node_modules/` - Language server dependencies
-- `generated/` - Required generated files (parser, BIF metadata, rules)
+- `generated/` - Required generated files (parser, BIF metadata, rules, vxml metadata)
 - `syntaxes/` - TextMate grammar for syntax highlighting
 - `language-configuration.json` - Language configuration
 - `node_modules/` - Extension dependencies (including `vscode-languageclient` and all transitive dependencies like `minimatch`, `semver`, `brace-expansion`)
@@ -801,7 +801,12 @@ The extension no longer uses hardcoded lists. All language metadata is sourced f
    - Requires `DSL_COMMONS_PATH` to access upstream Java sources
    - Output: `generated/language/helium-language-metadata.json`
 
-5. **TextMate Grammar** (`build:textmate`)
+5. **VXML Metadata** (`build:vxml`)
+   - Mines View.xsd (appexec-dsl-commons) for function-value nodes, function-binding nodes (type v:Binding), action-ref nodes (action attribute)
+   - Requires `DSL_COMMONS_PATH` or `--dsl-commons`
+   - Output: `generated/vxml/function-value-nodes.json` (copied to language server during build)
+
+6. **TextMate Grammar** (`build:textmate`)
    - Uses `helium-language-metadata.json` for primitive types and keywords
    - Uses `bif-metadata.json` for BIF namespaces
    - No hardcoded lists - all data comes from generated metadata
@@ -810,6 +815,7 @@ The extension no longer uses hardcoded lists. All language metadata is sourced f
 
 - **Grammar**: `appexec-dsl-commons/WebDSLParser-lib/src/main/antlr3/com/mezzanine/dsl/web/MezDSL.g`
 - **Role Fields**: `appexec-dsl-commons/WebCompiler-lib/src/main/java/com/mezzanine/program/web/builder/BuiltinObjects.java`
+- **View.xsd** (VXML metadata): `appexec-dsl-commons/WebViewParser-lib/src/main/resources/com/mezzanine/dsl/web/View.xsd`
 - **Completion Catalog** (reference): `appexec-dsl-commons/WebDSLParser-lib/src/main/java/com/mezzanine/dsl/web/completion/DslAppCompletionState.java`
 
 ### Migration from Hardcoded Lists
@@ -824,6 +830,7 @@ Previously, the extension had hardcoded lists in:
 - ✅ Model BIFs → `languageMetadata.modelBifs`
 - ✅ Role implicit fields → `languageMetadata.roleImplicitFields`
 - ✅ Keywords → `languageMetadata.keywords` (filtered for control keywords)
+- ✅ VXML binding/action nodes → `function-value-nodes.json` (functionValueNodes, functionBindingNodes, actionRefNodes mined from View.xsd)
 
 ### Modifying Metadata Sources
 
@@ -884,6 +891,14 @@ When the Helium Rapid DSL (ANTLR4) is updated:
 - Mines role implicit fields from `appexec-dsl-commons/WebCompiler-lib/.../BuiltinObjects.java` (Identity.ATTRIBUTE_NAMES)
 - Requires `DSL_COMMONS_PATH` environment variable or `--dsl-commons` CLI flag
 - Output: `generated/language/helium-language-metadata.json`
+
+**`npm run build:vxml`** → `scripts/generate-vxml-metadata.ts`
+- Generates VXML reference metadata from View.xsd (appexec-dsl-commons)
+- Mines function-value nodes, function-binding nodes (elements with type v:Binding), and action-ref nodes (elements whose type has action attribute)
+- Requires `DSL_COMMONS_PATH` or `--dsl-commons`
+- Output: `generated/vxml/function-value-nodes.json` (copied to language server during build)
+
+**VXML validation (language server)**: Index-dependent VXML diagnostics (e.g. "Unknown unit" for `<view unit="...">`) are deferred until project indexing completes to avoid false positives. Dot-notation and other structural checks run immediately. When indexing completes, all open `.mez` and `.vxml` documents are revalidated so diagnostics update correctly.
 
 **`npm run build:textmate`** → `scripts/generate-textmate.ts`
 - Generates TextMate grammar for syntax highlighting

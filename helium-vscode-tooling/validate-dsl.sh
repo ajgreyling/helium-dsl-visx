@@ -347,7 +347,9 @@ else
       version: '0.1.0',
       extractedFrom: 'stub',
       extractedAt: new Date().toISOString(),
-      functionValueNodes: []
+      functionValueNodes: [],
+      functionBindingNodes: ['binding', 'visible', 'collectionSource', 'content', 'variant', 'dynamicUserRoles', 'dynamicIcon', 'dynamicLabel', 'dynamicOrder'],
+      actionRefNodes: ['action', 'rowAction', 'subMenuItem']
     };
     fs.writeFileSync('$LANG_SERVER_VXML_DIR/function-value-nodes.json', JSON.stringify(data, null, 2));
     "

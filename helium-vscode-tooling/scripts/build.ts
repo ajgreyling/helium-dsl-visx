@@ -91,12 +91,24 @@ async function main() {
     console.log("  ✓ VXML metadata copied to language server");
   } else {
     console.warn("  ⚠ Warning: VXML metadata file not found, creating stub file");
-    // Create a stub file to prevent TypeScript compilation errors
+    // Create a stub file to prevent TypeScript compilation errors (includes fallback lists for parser)
     await fs.writeJson(targetVxmlFile, {
       version: "0.1.0",
       extractedFrom: "stub",
       extractedAt: new Date().toISOString(),
       functionValueNodes: [],
+      functionBindingNodes: [
+        "binding",
+        "visible",
+        "collectionSource",
+        "content",
+        "variant",
+        "dynamicUserRoles",
+        "dynamicIcon",
+        "dynamicLabel",
+        "dynamicOrder",
+      ],
+      actionRefNodes: ["action", "rowAction", "subMenuItem"],
     }, { spaces: 2 });
   }
 

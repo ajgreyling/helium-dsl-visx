@@ -98,6 +98,7 @@ The `diagnostics.unused` section controls the severity level for unused code war
   - Options: `"None"`, `"Info"`, `"Warning"`, `"Error"`
   - Default: `"Warning"`
   - Example: If a unit `UtilityUnit` is defined but never referenced (no `UtilityUnit:method()` calls, not used in VXML, no entry point annotations), it will be flagged according to this setting
+  - Units and functions referenced only by VXML (e.g. `<binding function="UnitName:run"/>`) are counted as used and will not be reported as unused
 
 **Severity Levels**:
 
@@ -105,6 +106,8 @@ The `diagnostics.unused` section controls the severity level for unused code war
 - **`"Info"`** - Shows as informational message (blue underline in most themes)
 - **`"Warning"`** - Shows as warning (yellow/orange underline in most themes)
 - **`"Error"`** - Shows as error (red underline in most themes)
+
+**VXML validation**: Index-dependent VXML diagnostics (e.g. "Unknown unit 'X' referenced by view unit=...") are not shown until project indexing has completed. This avoids false positives when a VXML file is opened before the corresponding `.mez` unit has been indexed. Dot-notation and other structural checks run immediately. When indexing completes, all open `.mez` and `.vxml` documents are revalidated so diagnostics update.
 
 **Auto-Configuration**:
 
@@ -461,7 +464,15 @@ The build process transforms the original ANTLR3 grammar from the Helium Java pr
 - **Output**: `generated/language/helium-language-metadata.json`
 - **Purpose**: Central “no-hardcoding” metadata bundle consumed by the language server for keywords/primitive types/model BIFs/reserved identifiers.
 
-#### 8. TextMate Grammar Generation (`npm run build:textmate`)
+#### 8. VXML Metadata Generation (`npm run build:vxml`)
+
+**Script**: `scripts/generate-vxml-metadata.ts`
+
+- **Input**: View.xsd from appexec-dsl-commons (requires `DSL_COMMONS_PATH` or `--dsl-commons`)
+- **Output**: `generated/vxml/function-value-nodes.json` (function-value nodes, function-binding nodes, action-ref nodes; copied to language server during build)
+- **Purpose**: VXML parser uses this to collect unit/function references from view bindings (e.g. menu items, roles) for unused-code diagnostics.
+
+#### 9. TextMate Grammar Generation (`npm run build:textmate`)
 
 **Script**: `scripts/generate-textmate.ts`
 
@@ -470,7 +481,7 @@ The build process transforms the original ANTLR3 grammar from the Helium Java pr
 - **Purpose**: Generates TextMate grammar for syntax highlighting in the editor
 - **Features**: Maps grammar tokens to TextMate scopes (`support.class`, `support.function`, `keyword.control`, etc.)
 
-#### 9. Language Server Build
+#### 10. Language Server Build
 
 **Location**: `helium-dsl-language-server/`
 
@@ -481,7 +492,7 @@ The build process transforms the original ANTLR3 grammar from the Helium Java pr
   - `out/` - All compiled language server modules
   - `node_modules/` - Language server runtime dependencies
 
-#### 10. Extension Build
+#### 11. Extension Build
 
 **Location**: `helium-dsl-vscode/`
 
@@ -489,7 +500,7 @@ The build process transforms the original ANTLR3 grammar from the Helium Java pr
 - **Build**: Compiles TypeScript extension code (`src/extension.ts`) to `out/extension.js`
 - **Output**: Compiled extension client code
 
-#### 11. Local VSIX Packaging (`npm run package`)
+#### 12. Local VSIX Packaging (`npm run package`)
 
 **Packaging script**: `scripts/package-local.sh` (local packaging in a temporary directory)
 
@@ -510,7 +521,7 @@ The packaging process uses local packaging with temporary directories to ensure 
 2. **Copy Language Server**: 
    - Copies `helium-dsl-language-server/out/` → `server/out/`
    - Copies `helium-dsl-language-server/node_modules/` → `server/node_modules/`
-3. **Copy Generated Files**: Copies `generated/` directory (parser, rules, BIFs, TextMate grammar)
+3. **Copy Generated Files**: Copies `generated/` directory (parser, rules, BIFs, VXML metadata, TextMate grammar)
 4. **Install Dependencies**: Runs `npm install --omit=dev` in temporary working copy
 5. **Flatten Dependencies**: Moves nested `node_modules` to root (ensures `vsce` includes all transitive dependencies)
 6. **Validate**: Runs `npm list --omit=dev` to verify dependency tree
@@ -578,6 +589,7 @@ npm run build:validate     # Validate grammar
 npm run build:parser       # Generate TypeScript parser
 npm run build:rules        # Extract linting rules
 npm run build:bifs         # Generate BIF metadata
+npm run build:vxml         # Generate VXML metadata (requires DSL_COMMONS_PATH)
 npm run build:textmate     # Generate TextMate grammar
 
 # Build components
@@ -596,6 +608,7 @@ All generated files are stored in `helium-vscode-tooling/generated/`:
 - `parser/` - Generated TypeScript parser files
 - `rules/` - Linting rules metadata
 - `bifs/` - Built-in function metadata
+- `vxml/` - VXML reference metadata (function-value, function-binding, action-ref nodes; mined from View.xsd)
 - `syntaxes/` - TextMate grammar for syntax highlighting
 
 These files are **not** committed to git and are regenerated during each build.

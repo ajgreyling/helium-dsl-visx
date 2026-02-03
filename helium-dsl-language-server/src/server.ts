@@ -164,8 +164,27 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
 
   // Initialize project manager with workspace folders
   console.error("[Server] Initializing project manager...");
+  // Show LSP work-done progress during background indexing (client shows native progress UI).
+  let progress: Awaited<ReturnType<typeof connection.window.createWorkDoneProgress>> | undefined;
+  try {
+    progress = await connection.window.createWorkDoneProgress();
+    progress.begin("Indexing Helium Rapid DSL", 0, "Discovering projects...");
+  } catch {
+    // Client may not support work done progress; continue without progress UI.
+  }
+  // Optional: send log lines for extension modal/output channel.
+  connection.sendNotification("helium/indexingLog", { line: "Discovering projects..." });
   // Background indexing makes initialization fast on large workspaces (I/O-bound).
-  await projectManager.initialize(params.workspaceFolders || null, { mode: "background" });
+  await projectManager.initialize(params.workspaceFolders || null, {
+    mode: "background",
+    onProgress: (current, total, projectRoot) => {
+      if (total > 0) {
+        const msg = `Project ${current}/${total}: ${path.basename(projectRoot)}`;
+        progress?.report(Math.round((100 * current) / total), msg);
+        connection.sendNotification("helium/indexingLog", { line: msg });
+      }
+    },
+  });
   console.error("[Server] Project manager initialized");
 
   // Send user-defined types once background indexing completes.
@@ -182,7 +201,7 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
       // Revalidate open documents now that semantic indexing is complete.
       // This ensures any gated semantic diagnostics appear without requiring an edit.
       for (const doc of documents.all()) {
-        if (isMezDocument(doc)) {
+        if (isMezDocument(doc) || isVxmlDocument(doc)) {
           validateDocument(doc).catch(() => {});
         }
       }
@@ -193,8 +212,14 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
     } catch (err) {
       console.error("[Server] ERROR sending userTypes notification:", err);
       console.error("[Server] Error stack:", err instanceof Error ? err.stack : String(err));
+    } finally {
+      connection.sendNotification("helium/indexingLog", { line: "Indexing complete." });
+      progress?.done();
     }
-  }).catch(() => {});
+  }).catch(() => {
+    connection.sendNotification("helium/indexingLog", { line: "Indexing failed." });
+    progress?.done();
+  });
 
   // Note: File watcher registration moved to onInitialized callback
 
@@ -351,7 +376,8 @@ async function validateDocument(document: TextDocument) {
   if (isVxmlDocument(document)) {
     // VXML is XML, not Helium DSL: avoid ANTLR parser/lints and validate via VXML rules.
     const ast = buildVxmlAst(text, document.uri);
-    const vxmlDiagnostics = validateVxml(ast, projectManager);
+    const indexReady = (projectManager as any)?.isIndexingComplete?.() === true;
+    const vxmlDiagnostics = validateVxml(ast, projectManager, { indexReady });
     connection.sendDiagnostics({
       uri: document.uri,
       diagnostics: vxmlDiagnostics.map(toLspDiagnostic),

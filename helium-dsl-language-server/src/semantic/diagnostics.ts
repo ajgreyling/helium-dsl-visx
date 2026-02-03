@@ -280,7 +280,11 @@ export async function createSemanticDiagnostics(
   // We intentionally only validate when the receiver type is a *known user-defined object*.
   // Platform/library types (e.g. MezApiRequest) are skipped to avoid noise.
   const ROLE_IMPLICIT_FIELDS = (languageMetadata.roleImplicitFields ?? []).filter(Boolean);
-  const PLATFORM_IMPLICIT_FIELDS = (languageMetadata.platformImplicitFields ?? []).filter(Boolean);
+  // Always include _id (ObjectBuilder.ATTR_ID); upstream adds it to every user-defined object.
+  const platformImplicit = new Set([
+    ...(languageMetadata.platformImplicitFields ?? []).filter(Boolean),
+    "_id",
+  ]);
   const blobSuffixes = languageMetadata.blobSuffixes;
 
   for (const ref of ast?.propertyReferences || []) {
@@ -305,7 +309,7 @@ export async function createSemanticDiagnostics(
 
     const memberSet = new Set<string>(projectManager.getObjectMembers(baseType, uri));
 
-    PLATFORM_IMPLICIT_FIELDS.forEach((f) => memberSet.add(f));
+    platformImplicit.forEach((f) => memberSet.add(f));
 
     if (obj.isPersistent) {
       ROLE_IMPLICIT_FIELDS.forEach((f) => memberSet.add(f));

@@ -8,6 +8,26 @@ import {
 } from "./types.js";
 import functionValueNodesData from "../../generated/vxml/function-value-nodes.json" with { type: "json" };
 
+const vxmlMetadata = functionValueNodesData as {
+  functionValueNodes?: string[];
+  functionBindingNodes?: string[];
+  actionRefNodes?: string[];
+};
+
+const FALLBACK_FUNCTION_BINDING_NODES = [
+  "binding",
+  "visible",
+  "collectionSource",
+  "content",
+  "variant",
+  "dynamicUserRoles",
+  "dynamicIcon",
+  "dynamicLabel",
+  "dynamicOrder",
+];
+
+const FALLBACK_ACTION_REF_NODES = ["action", "rowAction", "subMenuItem"];
+
 type OffsetRange = { start: number; end: number };
 
 export function buildVxmlAst(text: string, uri: string): VxmlAst {
@@ -231,6 +251,13 @@ function extractViewInfo(nodes: VxmlNode[]): VxmlAst["view"] {
   };
 }
 
+/** XSD QualifiedName: optional UnitName: followed by memberName, or single identifier. */
+function looksLikeQualifiedName(value: string): boolean {
+  const trimmed = (value ?? "").trim();
+  if (!trimmed) return false;
+  return /^([A-Za-z][A-Za-z0-9_]*:)?[A-Za-z][A-Za-z0-9_]*$/.test(trimmed);
+}
+
 function collectReferences(nodes: VxmlNode[]): VxmlReference[] {
   const refs: VxmlReference[] = [];
   const allNodes = flatten(nodes);
@@ -272,10 +299,7 @@ function collectReferences(nodes: VxmlNode[]): VxmlReference[] {
           nodeName: node.name,
         });
       }
-      if (
-        attr.name === "action" &&
-        (node.name === "action" || node.name === "rowAction" || node.name === "subMenuItem")
-      ) {
+      if (attr.name === "action" && getActionRefNodes().includes(node.name)) {
         refs.push({
           kind: "function",
           name: attr.value,
@@ -284,7 +308,10 @@ function collectReferences(nodes: VxmlNode[]): VxmlReference[] {
           nodeName: node.name,
         });
       }
-      if (attr.name === "function" && isFunctionBindingNode(node.name)) {
+      if (
+        attr.name === "function" &&
+        (isFunctionBindingNode(node.name) || looksLikeQualifiedName(attr.value))
+      ) {
         refs.push({
           kind: "function",
           name: attr.value,
@@ -341,31 +368,20 @@ function isFunctionValueNode(nodeName: string): boolean {
   return functionValueNodesData.functionValueNodes.includes(nodeName);
 }
 
+function getFunctionBindingNodes(): string[] {
+  return vxmlMetadata.functionBindingNodes ?? FALLBACK_FUNCTION_BINDING_NODES;
+}
+
+function getActionRefNodes(): string[] {
+  return vxmlMetadata.actionRefNodes ?? FALLBACK_ACTION_REF_NODES;
+}
+
 function isFunctionBindingNode(name: string): boolean {
-  return [
-    "binding",
-    "visible",
-    "collectionSource",
-    "content",
-    "variant",
-    "dynamicUserRoles",
-    "dynamicIcon",
-    "dynamicLabel",
-    "dynamicOrder",
-  ].includes(name);
+  return getFunctionBindingNodes().includes(name);
 }
 
 function isVariableBindingNode(name: string): boolean {
-  return [
-    "binding",
-    "visible",
-    "collectionSource",
-    "content",
-    "dynamicUserRoles",
-    "dynamicIcon",
-    "dynamicLabel",
-    "dynamicOrder",
-  ].includes(name);
+  return getFunctionBindingNodes().includes(name);
 }
 
 function getTrimmedText(node: VxmlNode): { value: string | null; range: VxmlRange } {

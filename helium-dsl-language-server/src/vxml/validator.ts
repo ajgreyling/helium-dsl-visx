@@ -49,15 +49,25 @@ function hasDotNotationViolation(refName: string): boolean {
   }
 }
 
-export function validateVxml(ast: VxmlAst, projectManager: ProjectManager): VxmlDiagnostic[] {
+export type ValidateVxmlOptions = {
+  /** When false, skip index-dependent diagnostics (unknown unit/function/variable, missing lang key). Default true. */
+  indexReady?: boolean;
+};
+
+export function validateVxml(
+  ast: VxmlAst,
+  projectManager: ProjectManager,
+  opts?: ValidateVxmlOptions
+): VxmlDiagnostic[] {
   const diagnostics: VxmlDiagnostic[] = [];
   const source = "helium-vxml";
+  const indexReady = opts?.indexReady !== false;
 
   const viewUnit = ast.view?.unitName;
   const viewInit = ast.view?.initFunction;
   const viewLabel = ast.view?.labelKey;
 
-  if (viewUnit && !projectManager.isUnit(viewUnit)) {
+  if (indexReady && viewUnit && !projectManager.isUnit(viewUnit)) {
     diagnostics.push({
       message: `Unknown unit '${viewUnit}' referenced by <view unit="...">`,
       range: ast.view!.range,
@@ -66,7 +76,7 @@ export function validateVxml(ast: VxmlAst, projectManager: ProjectManager): Vxml
     });
   }
 
-  if (viewUnit && viewInit && !projectManager.hasUnitFunction(viewUnit, viewInit)) {
+  if (indexReady && viewUnit && viewInit && !projectManager.hasUnitFunction(viewUnit, viewInit)) {
     diagnostics.push({
       message: `Unknown init function '${viewInit}' on unit '${viewUnit}'`,
       range: ast.view!.range,
@@ -75,7 +85,7 @@ export function validateVxml(ast: VxmlAst, projectManager: ProjectManager): Vxml
     });
   }
 
-  if (viewLabel && !projectManager.hasLangKey(viewLabel)) {
+  if (indexReady && viewLabel && !projectManager.hasLangKey(viewLabel)) {
     diagnostics.push({
       message: `Missing language key '${viewLabel}' (referenced by <view label="...">)`,
       range: ast.view!.range,
@@ -86,7 +96,7 @@ export function validateVxml(ast: VxmlAst, projectManager: ProjectManager): Vxml
 
   for (const ref of ast.references ?? []) {
     if (ref.kind === "unit") {
-      if (!projectManager.isUnit(ref.name)) {
+      if (indexReady && !projectManager.isUnit(ref.name)) {
         diagnostics.push({
           message: `Unknown unit '${ref.name}'`,
           range: ref.range,
@@ -98,7 +108,7 @@ export function validateVxml(ast: VxmlAst, projectManager: ProjectManager): Vxml
     }
 
     if (ref.kind === "enum") {
-      if (!projectManager.isEnum(ref.name)) {
+      if (indexReady && !projectManager.isEnum(ref.name)) {
         diagnostics.push({
           message: `Unknown enum '${ref.name}'`,
           range: ref.range,
@@ -110,7 +120,7 @@ export function validateVxml(ast: VxmlAst, projectManager: ProjectManager): Vxml
     }
 
     if (ref.kind === "langKey") {
-      if (!projectManager.hasLangKey(ref.name)) {
+      if (indexReady && !projectManager.hasLangKey(ref.name)) {
         diagnostics.push({
           message: `Missing language key '${ref.name}'`,
           range: ref.range,
@@ -122,7 +132,7 @@ export function validateVxml(ast: VxmlAst, projectManager: ProjectManager): Vxml
     }
 
     if (ref.kind === "function") {
-      // Check for dot notation violations
+      // Always run: dot notation
       if (hasDotNotationViolation(ref.name)) {
         diagnostics.push({
           message: "Dot notation is only supported one level deep.",
@@ -131,7 +141,9 @@ export function validateVxml(ast: VxmlAst, projectManager: ProjectManager): Vxml
           source,
         });
       }
-      
+
+      if (!indexReady) continue;
+
       const resolved = resolveVxmlQualified(ref.name, viewUnit);
       if (!resolved?.unitName || !resolved.memberName) continue;
       if (!projectManager.isUnit(resolved.unitName)) {
@@ -155,7 +167,7 @@ export function validateVxml(ast: VxmlAst, projectManager: ProjectManager): Vxml
     }
 
     if (ref.kind === "variable") {
-      // Check for dot notation violations
+      // Always run: dot notation
       if (hasDotNotationViolation(ref.name)) {
         diagnostics.push({
           message: "Dot notation is only supported one level deep.",
@@ -164,7 +176,9 @@ export function validateVxml(ast: VxmlAst, projectManager: ProjectManager): Vxml
           source,
         });
       }
-      
+
+      if (!indexReady) continue;
+
       const resolved = resolveVxmlQualified(ref.name, viewUnit);
       if (!resolved?.unitName || !resolved.memberName) continue;
       if (!projectManager.isUnit(resolved.unitName)) {

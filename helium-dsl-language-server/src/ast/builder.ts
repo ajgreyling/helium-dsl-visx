@@ -140,6 +140,8 @@ class AstListener {
   private currentObject: ObjectDecl | null = null;
   private currentEnum: EnumDecl | null = null;
   private persistentDepth = 0;
+  /** Set when persistentObject has @Role annotation; makes object effectively persistent. */
+  private objectHasRoleAnnotation = false;
   private inForEachLoop: boolean = false;
   private pendingFunctionAnnotations: string[] = [];
   public tokenStream: any = null; // Store token stream for accessing tokens by index
@@ -187,7 +189,23 @@ class AstListener {
 
   enterPersistentObject(ctx: any) {
     this.persistentDepth += 1;
-    
+    this.objectHasRoleAnnotation = false;
+    try {
+      const anns = ctx.objectAnnotation
+        ? Array.isArray(ctx.objectAnnotation())
+          ? ctx.objectAnnotation()
+          : [ctx.objectAnnotation(0)].filter(Boolean)
+        : [];
+      for (const ann of anns) {
+        if (ann.roleAnnotation && ann.roleAnnotation()) {
+          this.objectHasRoleAnnotation = true;
+          break;
+        }
+      }
+    } catch {
+      // ignore
+    }
+
     // Backup: Try to extract object name from persistentObject context
     // This is a fallback in case enterSimpleObject fails
     // The persistentObject rule contains a simpleObject child, so we can try to find the ID there
@@ -219,6 +237,7 @@ class AstListener {
 
   exitPersistentObject(_ctx: ParserRuleContext) {
     this.persistentDepth = Math.max(0, this.persistentDepth - 1);
+    this.objectHasRoleAnnotation = false;
   }
 
   enterPersistenceElement(ctx: any) {
@@ -236,7 +255,7 @@ class AstListener {
     // We need the ID token that comes right after "object" keyword
     // The object name should be at startToken.tokenIndex + 1
     let nameToken = ctx.ID();
-    const isPersistent = this.persistentDepth > 0;
+    const isPersistent = this.persistentDepth > 0 || this.objectHasRoleAnnotation;
     
     // Only try to use token stream if fill() succeeded - otherwise use ctx.ID() directly
     if (nameToken && ctx.start && this.tokenStream && this.tokenFillSucceeded) {

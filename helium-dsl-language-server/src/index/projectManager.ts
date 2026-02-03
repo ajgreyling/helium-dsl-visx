@@ -31,14 +31,20 @@ export class ProjectManager {
 
   async initialize(
     workspaceFolders: WorkspaceFolder[] | null,
-    opts?: { mode?: "blocking" | "background" }
+    opts?: {
+      mode?: "blocking" | "background";
+      onProgress?: (current: number, total: number, projectRoot: string) => void;
+    }
   ) {
     this.indexingComplete = false;
     this.projectRoots = discoverProjectRoots(workspaceFolders);
     const metadata = getLanguageMetadataSync();
     this.indexes.clear();
-    
+    const total = this.projectRoots.length;
+    const onProgress = opts?.onProgress;
+
     // Index all projects in parallel (optionally in background)
+    let doneCount = 0;
     const indexingPromises = this.projectRoots.map(async (root) => {
       // Create the marker/config file if missing so subsequent discovery is fast and explicit.
       // Do not overwrite an existing (possibly user-edited) file.
@@ -51,8 +57,10 @@ export class ProjectManager {
       // Register immediately so open/change events can update an index even while background indexing runs.
       this.indexes.set(root, index);
       await index.indexProjectFiles();
+      doneCount++;
+      onProgress?.(doneCount, total, root);
     });
-    
+
     const all = Promise.all(indexingPromises).then(() => {
       this.indexingComplete = true;
     });

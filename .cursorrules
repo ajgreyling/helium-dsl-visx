@@ -179,6 +179,7 @@ If you add any new ESM imports in `helium-dsl-language-server`, follow that patt
 - `rules/dsl-rules.json` - Linting rules metadata
 - `bifs/bif-metadata.json` - Built-in function metadata
 - `language/helium-language-metadata.json` - Packaged language metadata (keywords, primitive types, model BIFs, reserved identifiers)
+- `vxml/function-value-nodes.json` - VXML reference metadata (function-value nodes, function-binding nodes, action-ref nodes; mined from View.xsd)
 - `syntaxes/helium-dsl.tmLanguage.json` - TextMate syntax highlighting grammar
 
 **helium-dsl-language-server/out/** (All compiled TypeScript output):
@@ -186,7 +187,8 @@ If you add any new ESM imports in `helium-dsl-language-server`, follow that patt
 - `tsconfig.tsbuildinfo` - TypeScript incremental build info
 - All subdirectories and their contents (completion/, diagnostics.js, linter/, parser/, symbols/, tests/, etc.)
 
-**helium-dsl-language-server/generated/** (Generated test files):
+**helium-dsl-language-server/generated/** (Generated/copied files):
+- `vxml/function-value-nodes.json` - Copied from helium-vscode-tooling during build (VXML metadata for parser)
 - `tests/<corpus>.test.ts` - Dynamically generated validation test (name derived from the `-p` corpus path passed to `helium-vscode-tooling/validate-dsl.sh`)
 
 **helium-vscode-tooling/helium-dsl-vscode/out/** (Compiled extension output):
@@ -219,17 +221,29 @@ If you need to change any of these files:
    - Modify `helium-vscode-tooling/scripts/generate-bif-metadata.ts`
    - Or update the grammar file to include new BIF tokens
 
-5. **TextMate grammar** (`helium-vscode-tooling/generated/syntaxes/helium-dsl.tmLanguage.json`):
+5. **VXML metadata** (`helium-vscode-tooling/generated/vxml/function-value-nodes.json`):
+   - Modify `helium-vscode-tooling/scripts/generate-vxml-metadata.ts`
+   - Script mines View.xsd (appexec-dsl-commons) for function-value nodes, function-binding nodes (elements with type v:Binding), and action-ref nodes (elements whose type has action attribute). Requires `DSL_COMMONS_PATH` or `--dsl-commons`. Output is copied to `helium-dsl-language-server/generated/vxml/` during build.
+
+### VXML validation (index-dependent diagnostics)
+
+**Location**: `helium-dsl-language-server/src/vxml/validator.ts`, `helium-dsl-language-server/src/server.ts`
+
+**Index-ready gating**: VXML validation accepts an optional `opts.indexReady`. When `indexReady === false` (e.g. project indexing not yet complete), index-dependent diagnostics are skipped to avoid false positives like "Unknown unit 'X' referenced by view unit=...". Dot-notation checks always run. When `indexReady === true` (default when omitted), full validation runs. The server passes `{ indexReady: projectManager.isIndexingComplete() }` when validating VXML.
+
+**Revalidation on indexing complete**: When project indexing completes, the server revalidates all open `.mez` and `.vxml` documents so that index-dependent VXML diagnostics (unknown unit/function/variable, missing lang key) appear or clear correctly without requiring an edit.
+
+6. **TextMate grammar** (`helium-vscode-tooling/generated/syntaxes/helium-dsl.tmLanguage.json`):
    - Modify `helium-vscode-tooling/scripts/generate-textmate.ts`
 
-6. **Compiled output** (`helium-dsl-language-server/out/**` and `helium-vscode-tooling/helium-dsl-vscode/out/**`):
+7. **Compiled output** (`helium-dsl-language-server/out/**` and `helium-vscode-tooling/helium-dsl-vscode/out/**`):
    - Modify the corresponding TypeScript source files
    - Run `npm run build` to regenerate
 
-7. **Test files** (`helium-dsl-language-server/generated/tests/*`):
+8. **Test files** (`helium-dsl-language-server/generated/tests/*`):
    - Modify `helium-vscode-tooling/validate-dsl.sh` script that generates the test file
 
-8. **VSIX package** (`helium-vscode-tooling/dist/*.vsix`):
+9. **VSIX package** (`helium-vscode-tooling/dist/*.vsix`):
    - Modify packaging scripts or extension source
    - Regenerate by running the full build pipeline
 
@@ -592,3 +606,9 @@ The rule detects:
 - The rule must track multi-line string blocks (`/% ... %/`) across lines, not just within a single line
 - Lines inside multi-line blocks should be skipped entirely to prevent timeouts on large JSON/text content
 - The `--exit` flag should be used with mocha to prevent hanging on active timers from timeout protection code
+
+### Unused symbols and VXML
+
+**Location**: `helium-dsl-language-server/src/index/projectIndex.ts`, `helium-dsl-language-server/src/vxml/parser.ts`
+
+Units and functions referenced only by VXML (e.g. `<binding function="UnitName:run"/>`) are counted as used so they are not reported as unused. The VXML parser emits a function reference for any attribute named `function` whose value looks like a qualified name (`UnitName:memberName` or a single identifier), not only when the element is in the function-binding nodes list. Usage counts from VXML are applied in `rebuildUsageIndexes()` after VXML files are indexed.

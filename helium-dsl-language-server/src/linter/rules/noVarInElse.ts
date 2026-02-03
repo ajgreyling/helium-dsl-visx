@@ -179,17 +179,13 @@ function braceDepthAtOffset(text: string, startOffset: number, targetOffset: num
     const n = i + 1 < end ? text[i + 1] : "";    if (inLineComment) {
       if (c === "\n") inLineComment = false;
       continue;
-    }
-
-    if (inBlockString) {
+    }    if (inBlockString) {
       if (c === "%" && n === "/") {
         inBlockString = false;
         i += 1;
       }
       continue;
-    }
-
-    if (inSingleQuote || inDoubleQuote) {
+    }    if (inSingleQuote || inDoubleQuote) {
       if (escaped) {
         escaped = false;
         continue;

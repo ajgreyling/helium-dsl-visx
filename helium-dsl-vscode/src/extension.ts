@@ -13,6 +13,7 @@ import {
 let client: LanguageClient | undefined;
 let userDefinedTypes: string[] = [];
 let outputChannel: vscode.OutputChannel | undefined;
+let indexingOutputChannel: vscode.OutputChannel | undefined;
 let mcpChild: childProcess.ChildProcessWithoutNullStreams | undefined;
 let hasStartedLanguageClient = false;
 
@@ -289,6 +290,21 @@ function startLanguageClient(context: vscode.ExtensionContext) {
       if (outputChannel) {
         outputChannel.appendLine(`ERROR: ${errorMsg}`);
       }
+    }
+  });
+
+  // Register handler for indexing log lines (show in dedicated channel / modal-style log)
+  client.onNotification("helium/indexingLog", (payload: { line?: string }) => {
+    try {
+      const line = payload?.line ?? "";
+      if (!indexingOutputChannel) {
+        indexingOutputChannel = vscode.window.createOutputChannel("Helium DSL Indexing");
+        context.subscriptions.push(indexingOutputChannel);
+      }
+      indexingOutputChannel.appendLine(line);
+      indexingOutputChannel.show(true);
+    } catch (err) {
+      console.error(`[HeliumDSL] Error handling helium/indexingLog: ${err}`);
     }
   });
 

@@ -2,6 +2,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import fs from "fs-extra";
 
+type BlobSuffixes = { fname: string; mtype: string; size: string };
+
 type LanguageMetadata = {
   keywords: string[];
   primitiveTypes: string[];
@@ -11,6 +13,7 @@ type LanguageMetadata = {
   reservedIdentifiers: string[];
   roleImplicitFields: string[];
   platformImplicitFields: string[];
+  blobSuffixes: BlobSuffixes;
 };
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -196,6 +199,25 @@ function extractPlatformImplicitFieldsFromObjectBuilder(javaSource: string): str
   return fields.sort();
 }
 
+function extractBlobSuffixesFromObjectBuilder(javaSource: string): BlobSuffixes {
+  const fnameRe = /\bpublic\s+static\s+final\s+String\s+BLOB_FILE_NAME\s*=\s*"([^"]+)";/;
+  const mtypeRe = /\bpublic\s+static\s+final\s+String\s+BLOB_MIME_TYPE\s*=\s*"([^"]+)";/;
+  const sizeRe = /\bpublic\s+static\s+final\s+String\s+BLOB_SIZE\s*=\s*"([^"]+)";/;
+  const fnameMatch = javaSource.match(fnameRe);
+  const mtypeMatch = javaSource.match(mtypeRe);
+  const sizeMatch = javaSource.match(sizeRe);
+  if (!fnameMatch || !mtypeMatch || !sizeMatch) {
+    throw new Error(
+      "Unable to find BLOB_FILE_NAME, BLOB_MIME_TYPE, or BLOB_SIZE constants in ObjectBuilder.java"
+    );
+  }
+  return {
+    fname: fnameMatch[1],
+    mtype: mtypeMatch[1],
+    size: sizeMatch[1],
+  };
+}
+
 async function main() {
   if (!(await fs.pathExists(grammarPath))) {
     throw new Error(`Grammar file not found: ${grammarPath}`);
@@ -264,6 +286,7 @@ async function main() {
   }
   const objectBuilderSrc = await fs.readFile(objectBuilderPath, "utf8");
   const platformImplicitFields = extractPlatformImplicitFieldsFromObjectBuilder(objectBuilderSrc);
+  const blobSuffixes = extractBlobSuffixesFromObjectBuilder(objectBuilderSrc);
 
   const metadata: LanguageMetadata = {
     keywords: keywords.sort(),
@@ -274,6 +297,7 @@ async function main() {
     reservedIdentifiers: reservedIdentifiers.sort(),
     roleImplicitFields,
     platformImplicitFields,
+    blobSuffixes,
   };
 
   await fs.ensureDir(path.dirname(outputPath));

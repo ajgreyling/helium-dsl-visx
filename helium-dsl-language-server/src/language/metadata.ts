@@ -93,6 +93,28 @@ export function getLanguageMetadataSync(): LanguageMetadata {
     };
   }
   fillImplicitFromMiner(cachedMetadata);
+  // Default blob suffixes (ObjectBuilder.BLOB_*) when missing. Ensures blob implicit fields
+  // (attr_fname__, attr_mtype__, attr_size__) work even without dslCommonsPath or packaged metadata.
+  if (!cachedMetadata.blobSuffixes) {
+    cachedMetadata.blobSuffixes = { fname: "_fname__", mtype: "_mtype__", size: "_size__" };
+  }
+  // Default platform implicit fields when missing (ObjectBuilder.ATTR_ID). Preserve explicit [].
+  if (cachedMetadata.platformImplicitFields == null) {
+    cachedMetadata.platformImplicitFields = ["_id"];
+  }
+  // Default role implicit fields (BuiltinObjects.Identity) when missing. Ensures _timeZone etc.
+  // work on Role types even when helium-language-metadata.json is not found (e.g. packaged layout).
+  if (!cachedMetadata.roleImplicitFields?.length) {
+    cachedMetadata.roleImplicitFields = [
+      "_firstNames",
+      "_lastPasswordReset",
+      "_locale",
+      "_mustResetPassword",
+      "_nickName",
+      "_surname",
+      "_timeZone",
+    ];
+  }
   return cachedMetadata;
 }
 
@@ -116,5 +138,27 @@ export async function getLanguageMetadata(): Promise<LanguageMetadata> {
     };
   }
   fillImplicitFromMiner(cachedMetadata);
+  // Default blob suffixes (ObjectBuilder.BLOB_*) when missing. Ensures blob implicit fields
+  // (attr_fname__, attr_mtype__, attr_size__) work even without dslCommonsPath or packaged metadata.
+  if (!cachedMetadata.blobSuffixes) {
+    cachedMetadata.blobSuffixes = { fname: "_fname__", mtype: "_mtype__", size: "_size__" };
+  }
+  // Default platform implicit fields when missing (ObjectBuilder.ATTR_ID). Preserve explicit [].
+  if (cachedMetadata.platformImplicitFields == null) {
+    cachedMetadata.platformImplicitFields = ["_id"];
+  }
+  // Default role implicit fields (BuiltinObjects.Identity) when missing. Ensures _timeZone etc.
+  // work on Role types even when helium-language-metadata.json is not found (e.g. packaged layout).
+  if (!cachedMetadata.roleImplicitFields?.length) {
+    cachedMetadata.roleImplicitFields = [
+      "_firstNames",
+      "_lastPasswordReset",
+      "_locale",
+      "_mustResetPassword",
+      "_nickName",
+      "_surname",
+      "_timeZone",
+    ];
+  }
   return cachedMetadata;
 }
