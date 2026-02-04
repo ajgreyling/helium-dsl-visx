@@ -1,6 +1,7 @@
 import { CodeAction, TextEdit, Range, Diagnostic } from "vscode-languageserver";
 import { TextDocument } from "vscode-languageserver-textdocument";
 import { CodeActionKind } from "vscode-languageserver";
+import type { FileAst } from "../ast/nodes.js";
 
 /**
  * Create a quick fix for no-var-in-else: move variable declaration before if statement
@@ -204,4 +205,89 @@ export function createForbiddenOperatorFix(
       },
     },
   };
+}
+
+function toLspRange(range: { start: { line: number; character: number }; end: { line: number; character: number } }): Range {
+  return Range.create(range.start.line, range.start.character, range.end.line, range.end.character);
+}
+
+/**
+ * Create a quick fix for unused units: delete the file (only when file contains exactly one unit).
+ * Create a quick fix for unused functions: delete the function declaration from the document.
+ */
+export function createUnusedSymbolDeleteFix(
+  doc: TextDocument,
+  diagnostic: Diagnostic,
+  ast: FileAst
+): CodeAction | null {
+  if (diagnostic.source !== "helium-dsl-unused") {
+    return null;
+  }
+
+  const msg = diagnostic.message;
+
+  // Unit: "Unit X is not used anywhere"
+  const unitMatch = msg.match(/^Unit\s+(\w+)\s+is not used anywhere$/);
+  if (unitMatch) {
+    const unitName = unitMatch[1];
+    const unit = ast.units?.find((u) => u.name === unitName);
+    if (!unit) return null;
+
+    // Only offer "Delete file" when the file contains exactly one unit
+    if (ast.units.length !== 1) {
+      return null;
+    }
+
+    const fileName = doc.uri.split("/").pop() ?? doc.uri.split("\\").pop() ?? "file";
+    return {
+      title: `Delete file ${fileName}`,
+      kind: CodeActionKind.QuickFix,
+      diagnostics: [diagnostic],
+      edit: {
+        documentChanges: [{ kind: "delete", uri: doc.uri }],
+      },
+    };
+  }
+
+  // Function: "Function X:Y is not used anywhere"
+  const fnMatch = msg.match(/^Function\s+(\w+):(\w+)\s+is not used anywhere$/);
+  if (fnMatch) {
+    const unitName = fnMatch[1];
+    const fnName = fnMatch[2];
+    const unit = ast.units?.find((u) => u.name === unitName);
+    const fn = unit?.functions?.find((f) => f.name === fnName);
+    if (!unit || !fn) return null;
+    if (!fn.bodyRange) return null;
+
+    const lines = doc.getText().split(/\r?\n/);
+    const endLine = fn.bodyRange.end.line;
+    const hasNextLine = endLine + 1 < lines.length;
+
+    const deleteRange: Range = hasNextLine
+      ? Range.create(
+          fn.returnTypeRange.start.line,
+          fn.returnTypeRange.start.character,
+          endLine + 1,
+          0
+        )
+      : Range.create(
+          fn.returnTypeRange.start.line,
+          fn.returnTypeRange.start.character,
+          fn.bodyRange.end.line,
+          fn.bodyRange.end.character
+        );
+
+    return {
+      title: `Delete function ${unitName}:${fnName}`,
+      kind: CodeActionKind.QuickFix,
+      diagnostics: [diagnostic],
+      edit: {
+        changes: {
+          [doc.uri]: [{ range: deleteRange, newText: "" }],
+        },
+      },
+    };
+  }
+
+  return null;
 }

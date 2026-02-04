@@ -78,6 +78,7 @@ import {
   createNoVarInElseFix,
   createNamingConventionFix,
   createForbiddenOperatorFix,
+  createUnusedSymbolDeleteFix,
 } from "./codeActions/quickFixes.js";
 import { getLanguageMetadataSync, setDslCommonsPath } from "./language/metadata.js";
 import { formatDocument, formatOnType } from "./formatting/formatter.js";
@@ -948,7 +949,7 @@ connection.onSignatureHelp(async (params: SignatureHelpParams): Promise<Signatur
   return buildSignatureHelpFromLabel(label, call.activeParameter);
 });
 
-connection.onCodeAction((params: CodeActionParams): CodeAction[] => {
+connection.onCodeAction(async (params: CodeActionParams): Promise<CodeAction[]> => {
   const doc = documents.get(params.textDocument.uri);
   if (!doc) {
     return [];
@@ -957,18 +958,31 @@ connection.onCodeAction((params: CodeActionParams): CodeAction[] => {
   const text = doc.getText();
   const actions: CodeAction[] = [];
 
-  // Process each diagnostic to create quick fixes
+  const hasUnusedDiagnostic = params.context.diagnostics.some((d) => d.source === "helium-dsl-unused");
+  let ast: Awaited<ReturnType<typeof buildFileAst>>["ast"] | null = null;
+  if (hasUnusedDiagnostic && params.textDocument.uri.endsWith(".mez")) {
+    try {
+      const result = await buildFileAst(text, params.textDocument.uri);
+      ast = result.ast;
+    } catch {
+      // Best-effort; continue without unused fixes
+    }
+  }
+
   for (const diagnostic of params.context.diagnostics) {
     const message = diagnostic.message.toLowerCase();
 
-    if (message.includes("variable") && message.includes("else")) {
-      // no-var-in-else rule
+    if (diagnostic.source === "helium-dsl-unused" && ast) {
+      const fix = createUnusedSymbolDeleteFix(doc, diagnostic, ast);
+      if (fix) {
+        actions.push(fix);
+      }
+    } else if (message.includes("variable") && message.includes("else")) {
       const fix = createNoVarInElseFix(doc, diagnostic, text);
       if (fix) {
         actions.push(fix);
       }
     } else if (message.includes("naming") || message.includes("convention")) {
-      // naming-conventions rule
       const fix = createNamingConventionFix(doc, diagnostic, text);
       if (fix) {
         actions.push(fix);
@@ -981,7 +995,6 @@ connection.onCodeAction((params: CodeActionParams): CodeAction[] => {
       message.includes("compound") ||
       message.includes("boolean")
     ) {
-      // forbidden-operators rule
       const fix = createForbiddenOperatorFix(doc, diagnostic, text);
       if (fix) {
         actions.push(fix);

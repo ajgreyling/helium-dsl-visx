@@ -299,7 +299,10 @@ function collectReferences(nodes: VxmlNode[]): VxmlReference[] {
           nodeName: node.name,
         });
       }
-      if (attr.name === "action" && getActionRefNodes().includes(node.name)) {
+      if (
+        attr.name === "action" &&
+        (getActionRefNodes().includes(node.name) || looksLikeQualifiedName(attr.value))
+      ) {
         refs.push({
           kind: "function",
           name: attr.value,

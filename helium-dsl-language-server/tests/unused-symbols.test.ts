@@ -154,5 +154,43 @@ void init() {
     );
     expect(hasUnusedUnit).to.equal(false);
   });
+
+  it("does not warn for unit referenced only via VXML button action attribute", async function () {
+    const metadata = getLanguageMetadataSync();
+    const index = new ProjectIndex("/tmp/helium-test-unused-button-action", metadata);
+
+    const scheduleUnitMez = `unit ScheduleFunction_ProcessDelta;
+void run() {
+  // no-op
+}`;
+    const viewUnitMez = `unit SystemAdminViewUnit;
+void init() {
+  // no-op
+}`;
+    const vxmlWithButtonAction = `<view unit="SystemAdminViewUnit" init="init">
+  <button action="ScheduleFunction_ProcessDelta:run" label="Run" />
+</view>`;
+
+    const scheduleUnitUri = URI.file("/tmp/helium-test-unused-button-action/ScheduleFunction_ProcessDelta.mez").toString();
+    const viewUnitUri = URI.file("/tmp/helium-test-unused-button-action/SystemAdminViewUnit.mez").toString();
+    const viewVxmlUri = URI.file("/tmp/helium-test-unused-button-action/SystemAdminGeneral.vxml").toString();
+
+    await index.updateFile(scheduleUnitUri, scheduleUnitMez);
+    await index.updateFile(viewUnitUri, viewUnitMez);
+    await index.updateVxmlFile(viewVxmlUri, vxmlWithButtonAction);
+
+    const scheduleUnitAst = index.getFileAst(scheduleUnitUri);
+    if (!scheduleUnitAst || scheduleUnitAst.units.length === 0) {
+      this.skip();
+    }
+
+    const warnings = index.getUnusedWarningsForFile(scheduleUnitUri);
+    const hasUnusedUnit = warnings.some(
+      (d) =>
+        (d.severity === DiagnosticSeverity.Information || d.severity === DiagnosticSeverity.Warning) &&
+        String(d.message).includes("Unit ScheduleFunction_ProcessDelta is not used anywhere")
+    );
+    expect(hasUnusedUnit).to.equal(false);
+  });
 });
 

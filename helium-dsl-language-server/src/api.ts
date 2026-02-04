@@ -50,6 +50,7 @@ export {
   createNoVarInElseFix,
   createNamingConventionFix,
   createForbiddenOperatorFix,
+  createUnusedSymbolDeleteFix,
 } from "./codeActions/quickFixes.js";
 
 export {
