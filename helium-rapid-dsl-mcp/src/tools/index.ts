@@ -8,7 +8,21 @@ export type ToolHandler = (args: Record<string, unknown>) => Promise<CallToolRes
 export const tools: Tool[] = [
   {
     name: "helium_mez_validate",
-    description: "Validate a .mez file (parser + lints).",
+    description:
+      "Legacy validation for a .mez file. Runs parser, lint, and semantic checks and returns diagnostics. Prefer helium_mez_lint for lint-focused workflows.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        filePath: { type: "string", description: "Absolute path to the .mez file." },
+        text: { type: "string", description: "Optional in-memory text override." }
+      },
+      required: ["filePath"]
+    }
+  },
+  {
+    name: "helium_mez_lint",
+    description:
+      "Preferred .mez linting tool. Runs parser + lint + semantic analysis, then returns diagnostics plus a severity summary (errors/warnings/info/hints).",
     inputSchema: {
       type: "object",
       properties: {
@@ -220,7 +234,21 @@ export const tools: Tool[] = [
   },
   {
     name: "helium_vxml_validate",
-    description: "Validate a .vxml file (structure, unit/function/variable references, model attributes, and language keys).",
+    description:
+      "Legacy validation for a .vxml file. Checks structure and cross-file references (units/functions/variables, model attributes, enums, language keys). Prefer helium_vxml_lint for lint-focused workflows.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        filePath: { type: "string", description: "Absolute path to the .vxml file." },
+        text: { type: "string", description: "Optional in-memory text override." }
+      },
+      required: ["filePath"]
+    }
+  },
+  {
+    name: "helium_vxml_lint",
+    description:
+      "Preferred .vxml linting tool. Validates view structure and cross-file references, then returns diagnostics plus a severity summary (errors/warnings/info/hints).",
     inputSchema: {
       type: "object",
       properties: {

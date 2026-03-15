@@ -1,4 +1,4 @@
-import functionValueNodesData from "../../../helium-vscode-tooling/generated/vxml/function-value-nodes.json" with { type: "json" };
+import functionValueNodesData from "../../generated/vxml/function-value-nodes.json" with { type: "json" };
 export function buildVxmlAst(text, uri) {
     const lineStarts = computeLineStarts(text);
     const offsetToPos = (offset) => {

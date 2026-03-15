@@ -1,5 +1,5 @@
 import { VxmlAst, VxmlAttribute, VxmlNode, VxmlPosition, VxmlRange, VxmlReference } from "./types.js";
-import functionValueNodesData from "../../../helium-vscode-tooling/generated/vxml/function-value-nodes.json" with { type: "json" };
+import functionValueNodesData from "../../generated/vxml/function-value-nodes.json" with { type: "json" };
 
 type OffsetRange = { start: number; end: number };
 

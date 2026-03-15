@@ -1,0 +1,9 @@
+#!/bin/sh
+# Pre-commit hook: bump minor version in helium-dsl-vscode/package.json and stage it
+# so the commit includes the new version.
+set -e
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+node scripts/bump-minor-version.cjs
+git add helium-dsl-vscode/package.json
+exit 0

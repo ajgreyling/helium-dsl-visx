@@ -111,6 +111,12 @@ else
   echo "  ✗ Error: MCP server output directory is empty or missing"
   exit 1
 fi
+# MCP vxml parser (out/src/vxml/parser.js) imports ../../generated/vxml/ = server/mcp/out/generated/vxml/
+if [ -d "$GENERATED/vxml" ]; then
+  mkdir -p "$WORK_DIR/extension/server/mcp/out/generated/vxml"
+  cp -r "$GENERATED/vxml"/* "$WORK_DIR/extension/server/mcp/out/generated/vxml/" 2>/dev/null || true
+  echo "  ✓ MCP generated vxml copied"
+fi
 
 # Copy generated files
 if [ -d "$GENERATED" ] && [ -n "$(ls -A "$GENERATED" 2>/dev/null)" ]; then

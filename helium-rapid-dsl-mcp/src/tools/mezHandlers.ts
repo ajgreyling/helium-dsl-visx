@@ -37,6 +37,25 @@ function asArray(v: unknown): unknown[] | null {
   return Array.isArray(v) ? v : null;
 }
 
+function summarizeDiagnostics(diagnostics: { severity?: number }[]) {
+  const summary = {
+    total: diagnostics.length,
+    errors: 0,
+    warnings: 0,
+    information: 0,
+    hints: 0,
+    unknownSeverity: 0,
+  };
+  for (const diagnostic of diagnostics) {
+    if (diagnostic.severity === 1) summary.errors += 1;
+    else if (diagnostic.severity === 2) summary.warnings += 1;
+    else if (diagnostic.severity === 3) summary.information += 1;
+    else if (diagnostic.severity === 4) summary.hints += 1;
+    else summary.unknownSeverity += 1;
+  }
+  return summary;
+}
+
 function findRapidProjectRootForFile(filePath: string): string {
   // Preferred: find nearest ancestor containing the explicit Rapid DSL project file.
   let cur = path.resolve(path.dirname(filePath));
@@ -91,6 +110,16 @@ export function createMezToolHandlers(): Record<string, ToolHandler> {
       svc.updateFile(filePath, text ?? fs.readFileSync(filePath, "utf8"));
       const diagnostics = await svc.validate(filePath, text);
       return jsonResult({ filePath, diagnostics });
+    },
+
+    helium_mez_lint: async (args) => {
+      const filePath = asString(args.filePath);
+      if (!filePath) return errorResult("filePath is required");
+      const text = asString(args.text) ?? undefined;
+      const svc = getSvcForFile(filePath);
+      svc.updateFile(filePath, text ?? fs.readFileSync(filePath, "utf8"));
+      const diagnostics = await svc.validate(filePath, text);
+      return jsonResult({ filePath, diagnostics, summary: summarizeDiagnostics(diagnostics) });
     },
 
     helium_mez_ast: async (args) => {

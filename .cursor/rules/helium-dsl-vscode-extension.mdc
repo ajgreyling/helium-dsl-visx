@@ -1,0 +1,28 @@
+---
+description: VSCode extension client and icon/theme guidance
+globs: helium-dsl-vscode/**
+alwaysApply: false
+---
+
+# Extension client rules
+
+## Cursor-first behavior
+
+- Maintain Cursor as primary target while keeping VS Code compatibility.
+- Use Cursor install commands (`cursor --install-extension ...`) in docs and workflows.
+
+## Syntax highlighting
+
+- Prefer standard TextMate scopes only (no custom `.helium` suffix scopes).
+- Keep semantic tokens from overriding syntax-only highlighting that TextMate already handles.
+
+## Icon theme (`helium-icons.json`)
+
+- `fileExtensions` keys must not include dot prefixes.
+- Use SVG definitions for Helium-specific icons and consistent Seti mappings for common types.
+- Test icon changes by rebuilding, repackaging, reinstalling, and reloading Cursor.
+
+## Logging
+
+- Respect `heliumDsl.trace.server` levels (`off`, `messages`, `verbose`).
+- Keep verbose logs gated so normal output remains clean.

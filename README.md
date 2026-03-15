@@ -197,6 +197,20 @@ npm test
 npm run version-check
 ```
 
+### Version bump on commit
+
+An optional pre-commit hook bumps the **minor** version (middle digit) in `helium-dsl-vscode/package.json` and stages it so each commit includes the new version (e.g. `1.6.x` → `1.7.x`).
+
+**One-time setup:** from the repo root run:
+
+```bash
+./scripts/install-git-hooks.sh
+```
+
+This copies `scripts/git-hooks/pre-commit` into `.git/hooks/pre-commit`. After that, every `git commit` will run the bump and add the updated `helium-dsl-vscode/package.json` to the commit.
+
+To bump the version manually without committing: `node scripts/bump-minor-version.cjs`
+
 ## Configuration
 
 The validation script automatically configures the following paths:
@@ -854,6 +868,15 @@ When the Helium Rapid DSL (ANTLR4) is updated:
 5. **Ensure metadata generation scripts are updated** if upstream sources change
 
 ## Script Reference
+
+### Git hooks (version bump)
+
+**`./scripts/install-git-hooks.sh`**
+- Installs the pre-commit hook into `.git/hooks/`. Run once after clone.
+- The pre-commit hook runs `scripts/bump-minor-version.cjs` and stages `helium-dsl-vscode/package.json`.
+
+**`node scripts/bump-minor-version.cjs`**
+- Bumps the minor version in `helium-dsl-vscode/package.json` (e.g. `1.6.1773575857` → `1.7.1773575857`). Can be run standalone.
 
 ### Packaging Scripts
 

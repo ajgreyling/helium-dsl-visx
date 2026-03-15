@@ -1,0 +1,26 @@
+---
+description: MCP server-specific rules for Helium Rapid DSL integration
+globs: helium-rapid-dsl-mcp/**
+alwaysApply: false
+---
+
+# Helium Rapid DSL MCP server
+
+## Entry point
+
+- Compiled entry point is `helium-rapid-dsl-mcp/out/src/index.js` (not `out/index.js`).
+
+## Cursor MCP registration guidance
+
+- Cursor does not support `lm.registerMcpServerDefinitionProvider`.
+- Register bundled MCP using `vscode.cursor.mcp.registerServer(...)`.
+- Prefer HTTP+SSE MCP transport (`server.url`) from a spawned local process.
+
+## Dependency coupling
+
+- Prefer stable imports from `helium-dsl-language-server/api`.
+- Avoid deep imports from language server compiled internals unless unavoidable.
+
+## Runtime compatibility
+
+- Keep ESM imports compatible with strict Node runtime expectations used by Cursor.

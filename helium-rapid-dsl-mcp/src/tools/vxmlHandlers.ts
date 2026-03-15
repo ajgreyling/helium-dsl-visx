@@ -26,6 +26,25 @@ function asNumber(v: unknown): number | null {
   return typeof v === "number" && Number.isFinite(v) ? v : null;
 }
 
+function summarizeDiagnostics(diagnostics: { severity?: number }[]) {
+  const summary = {
+    total: diagnostics.length,
+    errors: 0,
+    warnings: 0,
+    information: 0,
+    hints: 0,
+    unknownSeverity: 0,
+  };
+  for (const diagnostic of diagnostics) {
+    if (diagnostic.severity === 1) summary.errors += 1;
+    else if (diagnostic.severity === 2) summary.warnings += 1;
+    else if (diagnostic.severity === 3) summary.information += 1;
+    else if (diagnostic.severity === 4) summary.hints += 1;
+    else summary.unknownSeverity += 1;
+  }
+  return summary;
+}
+
 function findRapidProjectRootForFile(filePath: string): string {
   let cur = path.resolve(path.dirname(filePath));
   for (let i = 0; i < 25; i++) {
@@ -76,6 +95,15 @@ export function createVxmlToolHandlers(): Record<string, ToolHandler> {
       const svc = getSvcForFile(filePath);
       const diagnostics = svc.validate(filePath, text);
       return jsonResult({ filePath, diagnostics });
+    },
+
+    helium_vxml_lint: async (args) => {
+      const filePath = asString(args.filePath);
+      if (!filePath) return errorResult("filePath is required");
+      const text = asString(args.text) ?? undefined;
+      const svc = getSvcForFile(filePath);
+      const diagnostics = svc.validate(filePath, text);
+      return jsonResult({ filePath, diagnostics, summary: summarizeDiagnostics(diagnostics) });
     },
 
     helium_vxml_complete: async (args) => {

@@ -10,7 +10,9 @@
   "main": "./out/index.js",
   "types": "./out/index.d.ts",
   "scripts": {
+    "prebuild": "node -e \"const fs=require('fs');const path=require('path');const cwd=process.cwd();const src=path.join(cwd,'../helium-vscode-tooling/generated/vxml');const dst=path.join(cwd,'generated/vxml');if(fs.existsSync(src)){fs.mkdirSync(dst,{recursive:true});try{fs.copyFileSync(path.join(src,'function-value-nodes.json'),path.join(dst,'function-value-nodes.json'));}catch(e){}}\"",
     "build": "tsc -b",
+    "postbuild": "node -e \"const fs=require('fs');const path=require('path');const cwd=process.cwd();const src=path.join(cwd,'generated/vxml');const dst=path.join(cwd,'out/generated/vxml');if(fs.existsSync(src)){fs.mkdirSync(dst,{recursive:true});try{fs.copyFileSync(path.join(src,'function-value-nodes.json'),path.join(dst,'function-value-nodes.json'));}catch(e){}}\"",
     "clean": "rimraf out",
     "watch": "tsc -b -w"
   },

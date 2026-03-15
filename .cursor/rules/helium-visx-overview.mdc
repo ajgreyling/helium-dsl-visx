@@ -1,0 +1,21 @@
+---
+description: Helium Rapid DSL extension project overview and global guardrails
+alwaysApply: true
+---
+
+# Helium Rapid DSL (ANTLR4) Extension
+
+This workspace builds the Helium Rapid DSL tooling used in Cursor:
+- `helium-dsl-language-server/` - language server
+- `helium-rapid-dsl-mcp/` - MCP server
+- `helium-vscode-tooling/` - build, packaging, validation pipeline
+- `helium-dsl-vscode/` - extension client
+
+## Primary target
+
+- Primary IDE target is Cursor.
+- Use `cursor --install-extension ...`, not `code --install-extension ...`.
+
+## Debug workflow expectation
+
+When debugging extension/LSP/MCP/VSIX issues, run needed build/package/install steps directly instead of asking the user to do them, unless blocked by missing credentials/secrets.

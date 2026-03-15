@@ -1,0 +1,31 @@
+---
+description: Language server implementation and parser/linter safety rules
+globs: helium-dsl-language-server/**
+alwaysApply: false
+---
+
+# Language server rules
+
+## ESM import compatibility (Cursor runtime)
+
+Cursor may run strict Node ESM runtimes. Prefer explicit `.js` import suffixes where required:
+- `vscode-languageserver/node.js`
+- `antlr4ts/tree/ParseTreeWalker.js`
+- `antlr4ts/ParserRuleContext.js`
+- `antlr4ts/Token.js`
+
+## ParseTreeWalker wrapping safety
+
+- Bind original walker methods before replacing/wrapping them.
+- Skip terminal nodes that do not have `ruleContext`.
+- Guard parser/token/walker code paths against stack overflow and degrade gracefully where possible.
+
+## VXML usage + unused symbol indexing
+
+- Functions/units referenced from VXML should be counted as usages during usage index rebuilds.
+- Function-like `function` attributes in VXML should be considered for references when values look qualified.
+
+## Lint rule expectations
+
+- Keep `no-var-in-else` detection robust across formatting styles.
+- Keep `forbidden-operators` performant on large files and multiline string blocks.

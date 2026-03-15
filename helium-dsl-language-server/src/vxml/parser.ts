@@ -238,7 +238,7 @@ function appendTextSegment(
 }
 
 function extractViewInfo(nodes: VxmlNode[]): VxmlAst["view"] {
-  const viewNode = findFirst(nodes, (n) => n.name === "view");
+  const viewNode = findFirst(nodes, (n) => n.name === "view" || n.name === "globalview");
   if (!viewNode) return undefined;
   const unitAttr = viewNode.attributes.find((a) => a.name === "unit");
   const initAttr = viewNode.attributes.find((a) => a.name === "init");
@@ -290,7 +290,16 @@ function collectReferences(nodes: VxmlNode[]): VxmlReference[] {
           range: attr.valueRange ?? attr.nameRange,
         });
       }
-      if (attr.name === "init" && node.name === "view") {
+      if (attr.name === "init" && (node.name === "view" || node.name === "globalview")) {
+        refs.push({
+          kind: "function",
+          name: attr.value,
+          range: attr.valueRange ?? attr.nameRange,
+          attrName: attr.name,
+          nodeName: node.name,
+        });
+      }
+      if (attr.name === "destroy" && (node.name === "view" || node.name === "globalview")) {
         refs.push({
           kind: "function",
           name: attr.value,

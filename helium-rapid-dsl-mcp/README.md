@@ -80,6 +80,6 @@ Cursor’s bundled Node may be strict about ESM specifiers (e.g. Node 25). In th
 
 ### Tools (initial)
 
-- `.mez`: `helium_mez_validate`, `helium_mez_ast`, `helium_mez_symbols`, `helium_mez_definition`, `helium_mez_references`, `helium_mez_rename_preview`, `helium_mez_format`
-- `.vxml`: `helium_vxml_ast`, `helium_vxml_validate`, `helium_vxml_complete`, `helium_vxml_extract_unit_stubs`
+- `.mez`: `helium_mez_validate`, `helium_mez_lint`, `helium_mez_ast`, `helium_mez_symbols`, `helium_mez_definition`, `helium_mez_references`, `helium_mez_rename_preview`, `helium_mez_format`
+- `.vxml`: `helium_vxml_ast`, `helium_vxml_validate`, `helium_vxml_lint`, `helium_vxml_complete`, `helium_vxml_extract_unit_stubs`
 

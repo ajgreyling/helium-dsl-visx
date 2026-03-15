@@ -1,0 +1,23 @@
+---
+description: Generated artifact safety rules across the workspace
+alwaysApply: true
+---
+
+# Generated files safety
+
+Never manually edit generated or compiled artifacts. Update sources/generators and regenerate.
+
+## Generated/compiled paths
+
+- `helium-vscode-tooling/generated/**`
+- `helium-dsl-language-server/out/**`
+- `helium-dsl-language-server/generated/**`
+- `helium-vscode-tooling/helium-dsl-vscode/out/**`
+- `helium-vscode-tooling/dist/**`
+- `helium-vscode-tooling/helium-dsl-vscode/server/out/**`
+
+## Required workflow
+
+- Change scripts/source (`src/**`, `scripts/**`) first.
+- Regenerate with build/package scripts.
+- Do not plan direct manual edits for generated outputs.

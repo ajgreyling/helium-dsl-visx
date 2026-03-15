@@ -137,8 +137,22 @@ async function setIconThemeIfNotConfigured(): Promise<void> {
 }
 
 export function activate(context: vscode.ExtensionContext) {
+  // #region agent log
+  fetch("http://127.0.0.1:7711/ingest/1f690afb-e955-46a0-a326-a6e0ebcc0c83", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "9aa470" },
+    body: JSON.stringify({
+      sessionId: "9aa470",
+      hypothesisId: "A",
+      location: "extension.ts:activate",
+      message: "Extension activate called",
+      data: { extensionPath: context.extensionPath },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
   console.log("[HeliumDSL] Activating extension...");
-  
+
   // Set icon theme automatically if not already configured
   setIconThemeIfNotConfigured();
 
@@ -181,6 +195,20 @@ export function activate(context: vscode.ExtensionContext) {
     });
   }
 
+  // #region agent log
+  fetch("http://127.0.0.1:7711/ingest/1f690afb-e955-46a0-a326-a6e0ebcc0c83", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "9aa470" },
+    body: JSON.stringify({
+      sessionId: "9aa470",
+      hypothesisId: "A",
+      location: "extension.ts:before registerMcpServerProvider",
+      message: "About to call registerMcpServerProvider",
+      data: {},
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
   // Register MCP server definition provider (independent of language server startup)
   registerMcpServerProvider(context);
 }
@@ -358,14 +386,43 @@ function registerMcpServerProvider(context: vscode.ExtensionContext): void {
     const mcpEntrypoint = context.asAbsolutePath(
       path.join("server", "mcp", "out", "src", "index.js")
     );
+    const entrypointExists = fs.existsSync(mcpEntrypoint);
+    // #region agent log
+    fetch("http://127.0.0.1:7711/ingest/1f690afb-e955-46a0-a326-a6e0ebcc0c83", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "9aa470" },
+      body: JSON.stringify({
+        sessionId: "9aa470",
+        hypothesisId: "B",
+        location: "extension.ts:registerMcpServerProvider",
+        message: "MCP entrypoint check",
+        data: { mcpEntrypoint, entrypointExists },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    fetch("http://127.0.0.1:7711/ingest/1f690afb-e955-46a0-a326-a6e0ebcc0c83", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "9aa470" },
+      body: JSON.stringify({
+        sessionId: "9aa470",
+        hypothesisId: "C",
+        location: "extension.ts:registerMcpServerProvider",
+        message: "Cursor MCP API check",
+        data: { hasCursorMcp: !!cursorMcp, hasRegisterServer: !!(cursorMcp?.registerServer) },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
 
     // Verify MCP server file exists
-    if (!fs.existsSync(mcpEntrypoint)) {
+    if (!entrypointExists) {
       console.warn(`[HeliumDSL] MCP server not found at ${mcpEntrypoint} - skipping registration`);
       return;
     }
 
     const mcpCwd = context.asAbsolutePath(path.join("server", "mcp"));
+    // Run with cwd = server/ so Node resolves server/node_modules (packaged extension has deps there, not under server/mcp).
+    const serverDir = context.asAbsolutePath(path.join("server"));
 
     // Cursor MCP Extension API (preferred in Cursor; legacy provider is not supported there)
     if (cursorMcp?.registerServer) {
@@ -397,10 +454,24 @@ function registerMcpServerProvider(context: vscode.ExtensionContext): void {
       ];
 
       mcpChild = childProcess.spawn(nodeExec, childArgs, {
-        cwd: mcpCwd,
+        cwd: serverDir,
         env: { ...process.env, ...baseEnv },
         stdio: "pipe",
       });
+      // #region agent log
+      fetch("http://127.0.0.1:7711/ingest/1f690afb-e955-46a0-a326-a6e0ebcc0c83", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "9aa470" },
+        body: JSON.stringify({
+          sessionId: "9aa470",
+          hypothesisId: "D",
+          location: "extension.ts:after spawn",
+          message: "MCP process spawned",
+          data: { pid: mcpChild?.pid, cwd: serverDir },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {});
+      // #endregion
 
       context.subscriptions.push({
         dispose: () => {
@@ -424,17 +495,60 @@ function registerMcpServerProvider(context: vscode.ExtensionContext): void {
           const msg = JSON.parse(trimmed);
           if (msg?.type !== "mcp-sse-ready" || typeof msg?.url !== "string") return;
           registered = true;
+          const sseUrl = msg.url as string;
+          // #region agent log
+          fetch("http://127.0.0.1:7711/ingest/1f690afb-e955-46a0-a326-a6e0ebcc0c83", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "9aa470" },
+            body: JSON.stringify({
+              sessionId: "9aa470",
+              hypothesisId: "E",
+              location: "extension.ts:mcp-sse-ready",
+              message: "Received mcp-sse-ready, calling registerServer",
+              data: { url: sseUrl },
+              timestamp: Date.now(),
+            }),
+          }).catch(() => {});
+          // #endregion
 
           Promise.resolve(
             cursorMcp.registerServer({
               name: "heliumRapidDsl",
-              server: { url: msg.url, headers: {} },
+              server: { url: sseUrl, headers: {} },
             })
           ).then(
             () => {
-              console.log(`[HeliumDSL] Registered MCP SSE server via cursor API: ${msg.url}`);
+              // #region agent log
+              fetch("http://127.0.0.1:7711/ingest/1f690afb-e955-46a0-a326-a6e0ebcc0c83", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "9aa470" },
+                body: JSON.stringify({
+                  sessionId: "9aa470",
+                  hypothesisId: "E",
+                  location: "extension.ts:registerServer resolved",
+                  message: "registerServer resolved successfully",
+                  data: {},
+                  timestamp: Date.now(),
+                }),
+              }).catch(() => {});
+              // #endregion
+              console.log(`[HeliumDSL] Registered MCP SSE server via cursor API: ${sseUrl}`);
             },
             (err: unknown) => {
+              // #region agent log
+              fetch("http://127.0.0.1:7711/ingest/1f690afb-e955-46a0-a326-a6e0ebcc0c83", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "9aa470" },
+                body: JSON.stringify({
+                  sessionId: "9aa470",
+                  hypothesisId: "E",
+                  location: "extension.ts:registerServer rejected",
+                  message: "registerServer rejected",
+                  data: { err: String(err) },
+                  timestamp: Date.now(),
+                }),
+              }).catch(() => {});
+              // #endregion
               console.warn(`[HeliumDSL] Failed to register MCP SSE server via cursor API: ${err}`);
             }
           );
@@ -454,8 +568,10 @@ function registerMcpServerProvider(context: vscode.ExtensionContext): void {
         }
       });
 
+      let stderrBuf = "";
       mcpChild.stderr.on("data", (d: Buffer) => {
         const text = d.toString("utf8");
+        stderrBuf += text;
         console.warn(`[HeliumDSL] MCP stderr: ${text}`);
       });
 
@@ -463,6 +579,20 @@ function registerMcpServerProvider(context: vscode.ExtensionContext): void {
       });
 
       mcpChild.on("exit", (code, signal) => {
+        // #region agent log
+        fetch("http://127.0.0.1:7711/ingest/1f690afb-e955-46a0-a326-a6e0ebcc0c83", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "9aa470" },
+          body: JSON.stringify({
+            sessionId: "9aa470",
+            hypothesisId: "D",
+            location: "extension.ts:MCP process exit",
+            message: "MCP child process exited",
+            data: { code, signal, registered, stderrSnippet: stderrBuf.slice(0, 2000) },
+            timestamp: Date.now(),
+          }),
+        }).catch(() => {});
+        // #endregion
         if (!registered) {
           console.warn(`[HeliumDSL] MCP SSE process exited before registration (code=${code}, signal=${signal})`);
         }
@@ -472,6 +602,20 @@ function registerMcpServerProvider(context: vscode.ExtensionContext): void {
     }
 
     // Legacy API (VS Code). Cursor logs warn this is unsupported.
+    // #region agent log
+    fetch("http://127.0.0.1:7711/ingest/1f690afb-e955-46a0-a326-a6e0ebcc0c83", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "9aa470" },
+      body: JSON.stringify({
+        sessionId: "9aa470",
+        hypothesisId: "C",
+        location: "extension.ts:no registerServer path",
+        message: "cursor.mcp.registerServer not used; trying legacy or giving up",
+        data: { hasLm: !!vscodeAny.lm, hasProvider: !!(vscodeAny.lm?.registerMcpServerDefinitionProvider) },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
     if (!vscodeAny.lm || !vscodeAny.lm.registerMcpServerDefinitionProvider) {
       console.log("[HeliumDSL] MCP API not available - skipping MCP server registration");
       return;

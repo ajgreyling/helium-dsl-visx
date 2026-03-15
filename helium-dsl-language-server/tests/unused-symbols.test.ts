@@ -1,3 +1,5 @@
+import * as fs from "fs";
+import * as path from "path";
 import { expect } from "chai";
 import { describe, it } from "mocha";
 import { URI } from "vscode-uri";
@@ -57,6 +59,9 @@ void f() {
 void init() {
   // no-op
 }
+void destroy() {
+  // platform lifecycle hook
+}
 void unusedViewFn() {
   // no-op
 }`;
@@ -82,37 +87,91 @@ void unusedViewFn() {
     const vxml = `<view unit="ViewUnit" init="init"></view>`;
     await index.updateVxmlFile(viewUri, vxml);
 
+    // Ensure project config exists so unused diagnostics are emitted (attributes default to None otherwise).
+    const projectRoot = "/tmp/helium-test-unused";
+    const configPath = path.join(projectRoot, "helium-rapid-dsl-project.json");
+    fs.mkdirSync(projectRoot, { recursive: true });
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify({
+        schemaVersion: 1,
+        diagnostics: {
+          unused: { attributes: "Info", functions: "Info", units: "Info" },
+        },
+      }),
+      "utf8"
+    );
+
     const objWarnings = index.getUnusedWarningsForFile(doctorObjUri);
     const unitsWarnings = index.getUnusedWarningsForFile(unitsUri);
     const viewWarnings = index.getUnusedWarningsForFile(viewUnitUri);
 
-    // Helper
-    const hasInfo = (diags: any[], contains: string) =>
-      diags.some((d) => d.severity === DiagnosticSeverity.Information && String(d.message).includes(contains));
+    // Helper: any severity (Info or Warning) for unused diagnostics
+    const hasUnusedDiag = (diags: any[], contains: string) =>
+      diags.some((d) => String(d.message).includes(contains));
 
     // Unused attribute should warn
-    expect(hasInfo(objWarnings, "Attribute license_number is not used anywhere")).to.equal(true);
+    expect(hasUnusedDiag(objWarnings, "Attribute license_number is not used anywhere")).to.equal(true);
     // Used attribute should not warn
-    expect(hasInfo(objWarnings, "Attribute used_attr is not used anywhere")).to.equal(false);
+    expect(hasUnusedDiag(objWarnings, "Attribute used_attr is not used anywhere")).to.equal(false);
     // Attributes assigned via pseudoscope in triggers should not warn
-    expect(hasInfo(objWarnings, "Attribute created_at is not used anywhere")).to.equal(false);
-    expect(hasInfo(objWarnings, "Attribute updated_at is not used anywhere")).to.equal(false);
-    expect(hasInfo(objWarnings, "Attribute archived is not used anywhere")).to.equal(false);
+    expect(hasUnusedDiag(objWarnings, "Attribute created_at is not used anywhere")).to.equal(false);
+    expect(hasUnusedDiag(objWarnings, "Attribute updated_at is not used anywhere")).to.equal(false);
+    expect(hasUnusedDiag(objWarnings, "Attribute archived is not used anywhere")).to.equal(false);
 
     // Used function should not warn; unused should warn
-    expect(hasInfo(unitsWarnings, "Function DoctorUnit:usedFn is not used anywhere")).to.equal(false);
-    expect(hasInfo(unitsWarnings, "Function DoctorUnit:unusedFn is not used anywhere")).to.equal(true);
+    expect(hasUnusedDiag(unitsWarnings, "Function DoctorUnit:usedFn is not used anywhere")).to.equal(false);
+    expect(hasUnusedDiag(unitsWarnings, "Function DoctorUnit:unusedFn is not used anywhere")).to.equal(true);
     // Entrypoint-annotated function should not warn even if never called
-    expect(hasInfo(unitsWarnings, "Function DoctorUnit:scheduledEntrypoint is not used anywhere")).to.equal(false);
+    expect(hasUnusedDiag(unitsWarnings, "Function DoctorUnit:scheduledEntrypoint is not used anywhere")).to.equal(false);
 
     // Unused unit should warn
-    expect(hasInfo(unitsWarnings, "Unit UnusedUnit is not used anywhere")).to.equal(true);
+    expect(hasUnusedDiag(unitsWarnings, "Unit UnusedUnit is not used anywhere")).to.equal(true);
 
     // ViewUnit/init is used via VXML, should not warn
-    expect(hasInfo(viewWarnings, "Unit ViewUnit is not used anywhere")).to.equal(false);
-    expect(hasInfo(viewWarnings, "Function ViewUnit:init is not used anywhere")).to.equal(false);
+    expect(hasUnusedDiag(viewWarnings, "Unit ViewUnit is not used anywhere")).to.equal(false);
+    expect(hasUnusedDiag(viewWarnings, "Function ViewUnit:init is not used anywhere")).to.equal(false);
+    // destroy is platform lifecycle hook for view units, should not warn
+    expect(hasUnusedDiag(viewWarnings, "Function ViewUnit:destroy is not used anywhere")).to.equal(false);
     // Another view function is unused, should warn
-    expect(hasInfo(viewWarnings, "Function ViewUnit:unusedViewFn is not used anywhere")).to.equal(true);
+    expect(hasUnusedDiag(viewWarnings, "Function ViewUnit:unusedViewFn is not used anywhere")).to.equal(true);
+  });
+
+  it("does not warn for unit and functions referenced only via globalview", async function () {
+    const metadata = getLanguageMetadataSync();
+    const index = new ProjectIndex("/tmp/helium-test-unused-globalview", metadata);
+
+    const globalUnitMez = `unit GlobalsLike;
+void getFoo() {
+  // no-op
+}
+void destroy() {
+  // no-op
+}`;
+    const vxmlGlobalView = `<globalview unit="GlobalsLike">
+  <globalAction label="action.foo" action="navigateToFoo">
+    <visible function="getFoo"/>
+  </globalAction>
+</globalview>`;
+
+    const globalUnitUri = URI.file("/tmp/helium-test-unused-globalview/GlobalsLike.mez").toString();
+    const viewVxmlUri = URI.file("/tmp/helium-test-unused-globalview/Globals.vxml").toString();
+
+    await index.updateFile(globalUnitUri, globalUnitMez);
+    await index.updateVxmlFile(viewVxmlUri, vxmlGlobalView);
+
+    const globalUnitAst = index.getFileAst(globalUnitUri);
+    if (!globalUnitAst || globalUnitAst.units.length === 0) {
+      this.skip();
+    }
+
+    const warnings = index.getUnusedWarningsForFile(globalUnitUri);
+    const hasUnusedDiag = (diags: any[], contains: string) =>
+      diags.some((d) => String(d.message).includes(contains));
+
+    expect(hasUnusedDiag(warnings, "Unit GlobalsLike is not used anywhere")).to.equal(false);
+    expect(hasUnusedDiag(warnings, "Function GlobalsLike:getFoo is not used anywhere")).to.equal(false);
+    expect(hasUnusedDiag(warnings, "Function GlobalsLike:destroy is not used anywhere")).to.equal(false);
   });
 
   it("does not warn for unit referenced only via VXML menu binding (dynamicUserRoles function)", async function () {

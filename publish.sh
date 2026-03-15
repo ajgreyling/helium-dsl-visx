@@ -1,0 +1,1 @@
+./helium-vscode-tooling/publish.sh -d /Users/ajgreyling/code/appexec-dsl-commons

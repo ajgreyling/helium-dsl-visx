@@ -675,6 +675,14 @@ export class ProjectIndex {
         this.incUsage(this.unitUsage, resolved.unitName);
       }
     }
+
+    // 2b) View lifecycle: platform calls destroy() when view is torn down; treat as used for view units.
+    for (const entry of this.vxml.values()) {
+      const viewUnitName = entry.viewUnitName;
+      if (viewUnitName && this.units.has(viewUnitName)) {
+        this.incNestedUsage(this.functionUsage, viewUnitName, "destroy", 1);
+      }
+    }
   }
 
   private getProjectConfig(): RapidProjectConfigV1 | null {

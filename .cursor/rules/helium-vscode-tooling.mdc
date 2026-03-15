@@ -1,0 +1,28 @@
+---
+description: Build and packaging rules for helium-vscode-tooling
+globs: helium-vscode-tooling/**
+alwaysApply: false
+---
+
+# Packaging and build rules
+
+Use local packaging in a temporary directory for isolation and reproducibility.
+
+## Critical constraints
+
+- Never use `vsce package --no-dependencies`.
+- Never use workspace-disabling hacks (renaming `package.json`, symlink cleanup, etc.).
+- Ensure all dependencies are bundled in the final VSIX.
+- Validate production dependency tree (`npm list --production`) before packaging.
+- Ensure language server dependencies are available under packaged `server/node_modules/`.
+
+## Validation and fail-fast
+
+- Abort pipeline if parser diagnostics exist.
+- Treat parser diagnostics as hard failures, not warnings.
+- Keep strict parser validation enabled (`HELIUM_STRICT_PARSER=1`) in validation flows.
+
+## Grammar and generated outputs
+
+- Do not edit files in `helium-vscode-tooling/generated/**` directly.
+- Change generator scripts (for example `scripts/convert-grammar.ts`, `scripts/generate-textmate.ts`, `scripts/generate-vxml-metadata.ts`) and regenerate outputs.
