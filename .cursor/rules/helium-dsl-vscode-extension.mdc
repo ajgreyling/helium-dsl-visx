@@ -26,3 +26,7 @@ alwaysApply: false
 
 - Respect `heliumDsl.trace.server` levels (`off`, `messages`, `verbose`).
 - Keep verbose logs gated so normal output remains clean.
+
+## `.lang` editor behaviour
+
+- `.lang` files use language id `helium-lang`. Validation skips the DSL parser; Problems may list **unused translation keys** (`helium-dsl-unused`, severity from `diagnostics.unused.languageEntries`, default Info). Users reduce noise via `languageEntries: "None"` in `helium-rapid-dsl-project.json`.

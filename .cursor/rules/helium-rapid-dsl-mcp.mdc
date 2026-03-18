@@ -24,3 +24,8 @@ alwaysApply: false
 ## Runtime compatibility
 
 - Keep ESM imports compatible with strict Node runtime expectations used by Cursor.
+
+## Validation tools
+
+- `helium_mez_validate` / `helium_mez_lint` surface unused-function/unit diagnostics per `helium-rapid-dsl-project.json`.
+- Unused **language file** keys are reported when validating or opening `.lang` in the IDE (same config: `diagnostics.unused.languageEntries`, default Info). MCP clients validating only `.mez` will not see `.lang` unused-key output unless they validate the lang file path.

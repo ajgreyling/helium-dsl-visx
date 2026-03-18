@@ -169,6 +169,7 @@ If you have an existing `helium-rapid-dsl-project.json` file without the `diagno
 3. Entry point annotations (e.g., `@Scheduled`, `@HttpGet`) are automatically marked as used
 4. Unused symbols are reported according to your configured severity levels
 5. Diagnostics appear in the Problems panel and as underlines in the editor
+6. **`.lang` files**: unused-key diagnostics (default Info) appear on the key name after project indexing; not parsed as Helium DSL
 
 **Note**: The unused code detection is project-wide, meaning it considers usage across all files in your project, not just the current file. This ensures accurate detection even when code is used in other files.
 

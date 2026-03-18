@@ -19,3 +19,7 @@ This workspace builds the Helium Rapid DSL tooling used in Cursor:
 ## Debug workflow expectation
 
 When debugging extension/LSP/MCP/VSIX issues, run needed build/package/install steps directly instead of asking the user to do them, unless blocked by missing credentials/secrets.
+
+## Project diagnostics config
+
+Helium Rapid projects use `helium-rapid-dsl-project.json` at the DSL root. Besides debug settings, `diagnostics.unused` includes **`languageEntries`** (default **Info**): unused keys in `.lang` files vs references in `.mez` / `.vxml`. Set to `"None"` for noisy legacy `en.lang` files.

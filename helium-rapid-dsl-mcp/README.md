@@ -43,6 +43,32 @@ npm install
 npm run build
 ```
 
+### npm publishing (self-contained package)
+
+This package is configured for npm as `@agreyling/helium-rapid-dsl-mcp` and bundles `helium-dsl-language-server` inside the published tarball.
+
+Before publishing:
+
+```bash
+cd helium-rapid-dsl-mcp
+npm run prepare:publish
+npm run pack:dry-run
+```
+
+Publish:
+
+```bash
+npm publish
+```
+
+`prepack` runs automatically on publish, which:
+- builds this MCP package
+- builds and packs `../helium-dsl-language-server`
+- installs that tarball locally
+- bundles it via `bundleDependencies`
+
+The result is a self-contained npm package that includes the language server runtime.
+
 ### Run (SSE / HTTP)
 
 The MCP server supports an **HTTP+SSE transport** (recommended for Cursor). It exposes:

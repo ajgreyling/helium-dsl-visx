@@ -1,24 +1,40 @@
 {
-  "name": "helium-rapid-dsl-mcp",
+  "name": "@agreyling/helium-rapid-dsl-mcp",
   "version": "0.1.0",
-  "private": true,
+  "private": false,
   "type": "module",
   "description": "MCP server for Helium Rapid DSL (.mez, .vxml) powered by Helium language server AST/index.",
-  "bin": {
-    "helium-rapid-dsl-mcp": "./out/index.js"
+  "publishConfig": {
+    "access": "public"
   },
-  "main": "./out/index.js",
-  "types": "./out/index.d.ts",
+  "files": [
+    "out/**",
+    "generated/**",
+    "README.md",
+    "package.json"
+  ],
+  "bin": {
+    "helium-rapid-dsl-mcp": "./out/src/index.js"
+  },
+  "main": "./out/src/index.js",
+  "types": "./out/src/index.d.ts",
   "scripts": {
     "prebuild": "node -e \"const fs=require('fs');const path=require('path');const cwd=process.cwd();const src=path.join(cwd,'../helium-vscode-tooling/generated/vxml');const dst=path.join(cwd,'generated/vxml');if(fs.existsSync(src)){fs.mkdirSync(dst,{recursive:true});try{fs.copyFileSync(path.join(src,'function-value-nodes.json'),path.join(dst,'function-value-nodes.json'));}catch(e){}}\"",
     "build": "tsc -b",
     "postbuild": "node -e \"const fs=require('fs');const path=require('path');const cwd=process.cwd();const src=path.join(cwd,'generated/vxml');const dst=path.join(cwd,'out/generated/vxml');if(fs.existsSync(src)){fs.mkdirSync(dst,{recursive:true});try{fs.copyFileSync(path.join(src,'function-value-nodes.json'),path.join(dst,'function-value-nodes.json'));}catch(e){}}\"",
     "clean": "rimraf out",
-    "watch": "tsc -b -w"
+    "watch": "tsc -b -w",
+    "bundle:language-server": "node ./scripts/bundle-language-server.mjs",
+    "prepare:publish": "npm run clean && npm run build && npm run bundle:language-server",
+    "prepack": "npm run prepare:publish",
+    "pack:dry-run": "npm pack --dry-run"
   },
+  "bundleDependencies": [
+    "helium-dsl-language-server"
+  ],
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
-    "helium-dsl-language-server": "file:../helium-dsl-language-server",
+    "helium-dsl-language-server": "0.1.0",
     "saxes": "^6.0.0",
     "vscode-languageserver-textdocument": "^1.0.12",
     "vscode-uri": "^3.0.8",

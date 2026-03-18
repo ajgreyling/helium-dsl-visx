@@ -4,7 +4,7 @@ import { createDebugToolHandlers } from "./debugHandlers.js";
 export const tools = [
     {
         name: "helium_mez_validate",
-        description: "Legacy validation for a .mez file. Runs parser, lint, and semantic checks and returns diagnostics. Prefer helium_mez_lint for lint-focused workflows.",
+        description: "Validate a .mez file (parser, lint, semantic). Includes unused-function/units when configured; unused .lang keys are reported when validating .lang (diagnostics.unused.languageEntries, default Info). View actions from .vxml are merged from disk when the MCP workspace root is the Helium project folder (e.g. dsl/). Prefer helium_mez_lint for lint-focused workflows.",
         inputSchema: {
             type: "object",
             properties: {
@@ -16,7 +16,7 @@ export const tools = [
     },
     {
         name: "helium_mez_lint",
-        description: "Preferred .mez linting tool. Runs parser + lint + semantic analysis, then returns diagnostics plus a severity summary (errors/warnings/info/hints).",
+        description: "Preferred .mez linting: parser + lint + semantic + severity summary. Unused diagnostics account for view-bound methods referenced from .vxml when workspace root contains those files (use dsl/ as MCP cwd/root for Rapid projects).",
         inputSchema: {
             type: "object",
             properties: {

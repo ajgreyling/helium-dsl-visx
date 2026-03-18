@@ -297,10 +297,18 @@ To show all unused code as errors:
     "unused": {
       "attributes": "Error",
       "functions": "Error",
-      "units": "Error"
+      "units": "Error",
+      "languageEntries": "Error"
     }
   }
 }
+```
+
+**Validate unused `.lang` keys locally** (after indexing the project):
+
+```bash
+cd helium-dsl-language-server
+node --import=tsx ./scripts/validate-lang-unused.ts /path/to/dsl
 ```
 
 ### Extension Settings
@@ -927,7 +935,7 @@ When the Helium Rapid DSL (ANTLR4) is updated:
 - Requires `DSL_COMMONS_PATH` or `--dsl-commons`
 - Output: `generated/vxml/function-value-nodes.json` (copied to language server during build)
 
-**VXML validation (language server)**: Index-dependent VXML diagnostics (e.g. "Unknown unit" for `<view unit="...">`) are deferred until project indexing completes to avoid false positives. Dot-notation and other structural checks run immediately. When indexing completes, all open `.mez` and `.vxml` documents are revalidated so diagnostics update correctly.
+**VXML / `.lang` validation (language server)**: Index-dependent VXML diagnostics (e.g. "Unknown unit" for `<view unit="...">`) are deferred until project indexing completes. Open `.lang` files show **unused translation key** hints (`diagnostics.unused.languageEntries`, default `Info`) once indexing is done—keys are treated as used when referenced via `String:translate("…")` in `.mez` or label-like attributes in `.vxml`. Keys used only outside those surfaces (e.g. SQL, reports) may appear unused; set `languageEntries` to `"None"` to disable. Dot-notation and other structural checks on `.mez`/`.vxml` run immediately where applicable.
 
 **`npm run build:textmate`** → `scripts/generate-textmate.ts`
 - Generates TextMate grammar for syntax highlighting

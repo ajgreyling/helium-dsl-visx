@@ -23,7 +23,9 @@ Cursor may run strict Node ESM runtimes. Prefer explicit `.js` import suffixes w
 ## VXML usage + unused symbol indexing
 
 - Functions/units referenced from VXML are counted during `rebuildUsageIndexes()` (actions, `init`, `destroy`, `function` bindings, etc.).
-- Unused `.lang` entries: `diagnostics.unused.languageEntries` (default **Info**). References are `String:translate("…")` in `.mez` and label-like attrs (`label`, `title`, `heading`, `tooltip`, etc.) in `.vxml`.
+- **Unused `.lang` keys** (`helium-dsl-unused`): `diagnostics.unused.languageEntries` — default **Info**, `"None"` to disable. A key counts as referenced if it appears as the first argument of `String:translate("…")` / `String:translate('…')` in any indexed `.mez`, or as the value of label-like XML attributes (`label`, `title`, `heading`, `tooltip`, `subject`, `body`, `value`, etc.) in indexed `.vxml` (comments stripped). Keys used only in SQL, Jasper, JSON, or other non-indexed files may false-positive as unused.
+- Open `.lang` documents are validated without running the DSL parser; Problems show only these unused-entry diagnostics (after `isIndexingComplete`).
+- Dev check: `node --import=tsx helium-dsl-language-server/scripts/validate-lang-unused.ts <dsl-root>`.
 - When reporting unused functions on a unit, the index also **re-parses matching `.vxml` from disk** for that `unit="..."` so MCP/validate stays aligned with views even if the in-memory VXML map was stale or a file failed to index earlier.
 
 ## Lint rule expectations
