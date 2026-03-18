@@ -23,6 +23,7 @@ Cursor may run strict Node ESM runtimes. Prefer explicit `.js` import suffixes w
 ## VXML usage + unused symbol indexing
 
 - Functions/units referenced from VXML are counted during `rebuildUsageIndexes()` (actions, `init`, `destroy`, `function` bindings, etc.).
+- Unused `.lang` entries: `diagnostics.unused.languageEntries` (default **Info**). References are `String:translate("…")` in `.mez` and label-like attrs (`label`, `title`, `heading`, `tooltip`, etc.) in `.vxml`.
 - When reporting unused functions on a unit, the index also **re-parses matching `.vxml` from disk** for that `unit="..."` so MCP/validate stays aligned with views even if the in-memory VXML map was stale or a file failed to index earlier.
 
 ## Lint rule expectations

@@ -299,10 +299,10 @@ export class ProjectManager {
     return { changes };
   }
 
-  getUnusedWarningsForFile(uri: string, astOverride?: FileAst): Diagnostic[] {
+  getUnusedWarningsForFile(uri: string, astOverride?: FileAst, langFileText?: string): Diagnostic[] {
     const index = this.getIndexForUri(uri);
     if (!index) return [];
-    return index.getUnusedWarningsForFile(uri, astOverride);
+    return index.getUnusedWarningsForFile(uri, astOverride, langFileText);
   }
 
   async getCompletions(params: CompletionParams, doc: TextDocument): Promise<CompletionItem[]> {

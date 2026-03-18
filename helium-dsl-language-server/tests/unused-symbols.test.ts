@@ -137,6 +137,70 @@ void unusedViewFn() {
     expect(hasUnusedDiag(viewWarnings, "Function ViewUnit:unusedViewFn is not used anywhere")).to.equal(true);
   });
 
+  it("reports unused language entries (default Info) when referenced from mez or vxml", async function () {
+    const metadata = getLanguageMetadataSync();
+    const index = new ProjectIndex("/tmp/helium-test-lang-unused", metadata);
+    const projectRoot = "/tmp/helium-test-lang-unused";
+    fs.mkdirSync(projectRoot, { recursive: true });
+    const configPath = path.join(projectRoot, "helium-rapid-dsl-project.json");
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify({
+        schemaVersion: 1,
+        diagnostics: {
+          unused: {
+            attributes: "None",
+            functions: "None",
+            units: "None",
+            languageEntries: "Info",
+          },
+        },
+      }),
+      "utf8"
+    );
+
+    const mezUri = URI.file(path.join(projectRoot, "App.mez")).toString();
+    const vxmlUri = URI.file(path.join(projectRoot, "V.vxml")).toString();
+    const langUri = URI.file(path.join(projectRoot, "en.lang")).toString();
+
+    await index.updateFile(
+      mezUri,
+      `unit U;
+void f() {
+  string x = String:translate("used_from_mez");
+}
+`
+    );
+    await index.updateVxmlFile(vxmlUri, `<view label="used_from_vxml" unit="U"></view>`);
+
+    const langText = `used_from_mez=One
+used_from_vxml=Two
+orphan_unused=Three
+`;
+    await index.updateLangFile(langUri, langText);
+
+    const diags = index.getUnusedWarningsForFile(langUri, undefined, langText);
+    const orphan = diags.find((d) => String(d.message).includes("orphan_unused"));
+    expect(orphan).to.not.equal(undefined);
+    expect(orphan!.severity).to.equal(DiagnosticSeverity.Information);
+    expect(diags.some((d) => String(d.message).includes("used_from_mez"))).to.equal(false);
+    expect(diags.some((d) => String(d.message).includes("used_from_vxml"))).to.equal(false);
+
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify({
+        schemaVersion: 1,
+        diagnostics: {
+          unused: { languageEntries: "None" },
+        },
+      }),
+      "utf8"
+    );
+    (index as any).cachedConfig = null;
+    const noneDiags = index.getUnusedWarningsForFile(langUri, undefined, langText);
+    expect(noneDiags.length).to.equal(0);
+  });
+
   it("does not warn for unit and functions referenced only via globalview", async function () {
     const metadata = getLanguageMetadataSync();
     const index = new ProjectIndex("/tmp/helium-test-unused-globalview", metadata);

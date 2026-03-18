@@ -57,6 +57,12 @@ export class ProjectIndex {
   private readonly files = new Map<string, FileAst>();
   private readonly vxml = new Map<string, { viewUnitName?: string; references: VxmlReference[] }>();
   private readonly lang = new Map<string, { keys: Set<string> }>();
+  /** Latest .mez source per URI for translation-key extraction */
+  private readonly mezLangKeyRefs = new Map<string, Set<string>>();
+  /** Latest .vxml source per URI for label/title/etc. key extraction */
+  private readonly vxmlText = new Map<string, string>();
+  /** Project-wide keys referenced from .mez (String:translate) and .vxml (label-like attrs) */
+  private referencedLangKeys = new Set<string>();
   private objects = new Map<string, ObjectDecl>();
   private units = new Map<string, UnitDecl>();
   private enums = new Map<string, EnumDecl>();
@@ -229,6 +235,7 @@ export class ProjectIndex {
   async updateFile(uri: string, text: string, skipRebuild?: boolean) {
     const { ast } = await buildFileAst(text, uri);
     this.files.set(uri, ast);
+    this.mezLangKeyRefs.set(uri, extractTranslateKeysFromMez(text));
     // Don't rebuild if explicitly skipped, or if we're in the middle of initial indexing
     // (the final rebuild will happen after all files are indexed)
     
@@ -239,6 +246,7 @@ export class ProjectIndex {
 
   removeFile(uri: string) {
     this.files.delete(uri);
+    this.mezLangKeyRefs.delete(uri);
     // Don't rebuild if we're in the middle of initial indexing
     if (!this.isIndexing) {
       this.rebuildIndexes();
@@ -252,6 +260,7 @@ export class ProjectIndex {
       // (Existing consumers further filter by kind/attrName as needed.)
       const references = ast.references || [];
       this.vxml.set(uri, { viewUnitName: ast.view?.unitName, references });
+      this.vxmlText.set(uri, text);
       // Usage (unused warnings) depends on VXML bindings too.
       if (!this.isIndexing) {
         this.rebuildUsageIndexes();
@@ -265,6 +274,7 @@ export class ProjectIndex {
 
   removeVxmlFile(uri: string) {
     this.vxml.delete(uri);
+    this.vxmlText.delete(uri);
     if (!this.isIndexing) {
       this.rebuildUsageIndexes();
     }
@@ -337,6 +347,8 @@ export class ProjectIndex {
     try {
       this.files.clear();
       this.vxml.clear();
+      this.vxmlText.clear();
+      this.mezLangKeyRefs.clear();
       this.lang.clear();
       this.objects.clear();
       this.units.clear();
@@ -533,6 +545,20 @@ export class ProjectIndex {
     this.functionUsage.clear();
     this.memberUsage.clear();
 
+    this.referencedLangKeys.clear();
+    for (const keys of this.mezLangKeyRefs.values()) {
+      for (const k of keys) {
+        if (k) {
+          this.referencedLangKeys.add(k);
+        }
+      }
+    }
+    for (const xml of this.vxmlText.values()) {
+      for (const k of extractLangKeysFromVxml(xml)) {
+        this.referencedLangKeys.add(k);
+      }
+    }
+
     // Functions that can be invoked by the platform (entrypoints) should be treated as “used”
     // even when there is no static call site in the project.
     //
@@ -712,6 +738,7 @@ export class ProjectIndex {
     attributes: DiagnosticSeverity | null;
     functions: DiagnosticSeverity | null;
     units: DiagnosticSeverity | null;
+    languageEntries: DiagnosticSeverity | null;
   } {
     const config = this.getProjectConfig();
     const unusedConfig = config?.diagnostics?.unused;
@@ -720,11 +747,15 @@ export class ProjectIndex {
     const defaultAttributes: UnusedDiagnosticSeverity = "None";
     const defaultFunctions: UnusedDiagnosticSeverity = "Warning";
     const defaultUnits: UnusedDiagnosticSeverity = "Warning";
+    const defaultLanguageEntries: UnusedDiagnosticSeverity = "Info";
 
     return {
       attributes: this.severityStringToDiagnosticSeverity(unusedConfig?.attributes ?? defaultAttributes),
       functions: this.severityStringToDiagnosticSeverity(unusedConfig?.functions ?? defaultFunctions),
       units: this.severityStringToDiagnosticSeverity(unusedConfig?.units ?? defaultUnits),
+      languageEntries: this.severityStringToDiagnosticSeverity(
+        unusedConfig?.languageEntries ?? defaultLanguageEntries
+      ),
     };
   }
 
@@ -784,7 +815,52 @@ export class ProjectIndex {
     return result;
   }
 
-  getUnusedWarningsForFile(uri: string, astOverride?: FileAst): Diagnostic[] {
+  private getUnusedLangEntryDiagnostics(uri: string, langFileText?: string): Diagnostic[] {
+    const severity = this.getUnusedSeverityConfig().languageEntries;
+    if (severity === null) {
+      return [];
+    }
+
+    let text = "";
+    if (langFileText !== undefined && langFileText !== null) {
+      text = langFileText;
+    } else {
+      try {
+        text = fs.readFileSync(URI.parse(uri).fsPath, "utf8");
+      } catch {
+        text = "";
+      }
+    }
+    if (text === "") {
+      return [];
+    }
+
+    const warnings: Diagnostic[] = [];
+    for (const { key, range } of parseLangFileKeyEntries(text)) {
+      if (key === "" || this.referencedLangKeys.has(key)) {
+        continue;
+      }
+      warnings.push({
+        message: `Language entry "${key}" is not referenced in .mez (String:translate) or .vxml (label/title/heading/etc.)`,
+        range: toLspRange(range),
+        severity,
+        source: "helium-dsl-unused",
+      });
+    }
+    return warnings;
+  }
+
+  getUnusedWarningsForFile(uri: string, astOverride?: FileAst, langFileText?: string): Diagnostic[] {
+    let langPath = false;
+    try {
+      langPath = URI.parse(uri).fsPath.endsWith(".lang");
+    } catch {
+      langPath = uri.toLowerCase().includes(".lang");
+    }
+    if (langPath) {
+      return this.getUnusedLangEntryDiagnostics(uri, langFileText);
+    }
+
     const ast = astOverride ?? this.files.get(uri);
     if (!ast) return [];
 
@@ -1208,19 +1284,104 @@ function toLspRange(range: SourceRange): Range {
   return Range.create(range.start.line, range.start.character, range.end.line, range.end.character);
 }
 
+function unescapeMezStringChunk(s: string): string {
+  return s.replace(/\\(.)/g, (_: string, ch: string) => {
+    if (ch === "n") {
+      return "\n";
+    }
+    if (ch === "t") {
+      return "\t";
+    }
+    if (ch === "r") {
+      return "\r";
+    }
+    return ch;
+  });
+}
+
+function extractTranslateKeysFromMez(text: string): Set<string> {
+  const out = new Set<string>();
+  const reDouble = /String\s*:\s*translate\s*\(\s*"((?:[^"\\]|\\.)*)"/g;
+  const reSingle = /String\s*:\s*translate\s*\(\s*'((?:[^'\\]|\\.)*)'/g;
+  let m: RegExpExecArray | null;
+  while ((m = reDouble.exec(text)) !== null) {
+    const k = unescapeMezStringChunk(m[1]).trim();
+    if (k) {
+      out.add(k);
+    }
+  }
+  while ((m = reSingle.exec(text)) !== null) {
+    const k = unescapeMezStringChunk(m[1]).trim();
+    if (k) {
+      out.add(k);
+    }
+  }
+  return out;
+}
+
+/** Strip XML comments so commented-out labels do not count as references */
+function stripXmlCommentsForLangScan(xml: string): string {
+  return xml.replace(/<!--[\s\S]*?-->/g, "");
+}
+
+/**
+ * VXML attributes whose values are typically language file keys (see Helium view rules).
+ */
+function extractLangKeysFromVxml(xml: string): Set<string> {
+  const out = new Set<string>();
+  const cleaned = stripXmlCommentsForLangScan(xml);
+  const attrRe =
+    /\b(?:label|title|heading|tooltip|subject|body|value|placeholder|emptyMessage|cancelText|submitText|pageTitle|breadcrumb|message|header|footer|text|description|hint|warnMessage|infoMessage|dialogTitle|confirmTitle|emptyLabel|tabTitle)="([^"]+)"/gi;
+  let m: RegExpExecArray | null;
+  while ((m = attrRe.exec(cleaned)) !== null) {
+    const v = (m[1] ?? "").trim();
+    if (v && !v.includes("{") && !v.includes("}") && !v.includes("$")) {
+      out.add(v);
+    }
+  }
+  return out;
+}
+
+function parseLangFileKeyEntries(text: string): Array<{ key: string; range: SourceRange }> {
+  const entries: Array<{ key: string; range: SourceRange }> = [];
+  const lines = text.split(/\r?\n/);
+  for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+    const raw = lines[lineIdx];
+    const trimmed = raw.trim();
+    if (trimmed === "") {
+      continue;
+    }
+    if (trimmed.startsWith("#") || trimmed.startsWith(";")) {
+      continue;
+    }
+    if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+      continue;
+    }
+    const eq = trimmed.indexOf("=");
+    if (eq === -1) {
+      continue;
+    }
+    const key = trimmed.slice(0, eq).trim();
+    if (key === "") {
+      continue;
+    }
+    const keyStartInTrimmed = trimmed.slice(0, eq).search(/\S/);
+    const wsLeading = raw.length - raw.trimStart().length;
+    const charStart = wsLeading + (keyStartInTrimmed >= 0 ? keyStartInTrimmed : 0);
+    entries.push({
+      key,
+      range: {
+        start: { line: lineIdx, character: charStart },
+        end: { line: lineIdx, character: charStart + key.length },
+      },
+    });
+  }
+  return entries;
+}
+
 function parseLangKeys(text: string): Set<string> {
   const keys = new Set<string>();
-  const lines = text.split(/\r?\n/);
-  for (const raw of lines) {
-    const line = raw.trim();
-    if (!line) continue;
-    if (line.startsWith("#") || line.startsWith(";")) continue;
-    // INI-style sections are ignored for key collection
-    if (line.startsWith("[") && line.endsWith("]")) continue;
-    const eq = line.indexOf("=");
-    if (eq === -1) continue;
-    const key = line.slice(0, eq).trim();
-    if (!key) continue;
+  for (const { key } of parseLangFileKeyEntries(text)) {
     keys.add(key);
   }
   return keys;

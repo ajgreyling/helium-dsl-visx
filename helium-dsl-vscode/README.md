@@ -72,7 +72,8 @@ Each Helium Rapid DSL project can include a `helium-rapid-dsl-project.json` conf
     "unused": {
       "attributes": "None",
       "functions": "Warning",
-      "units": "Warning"
+      "units": "Warning",
+      "languageEntries": "Info"
     }
   }
 }
@@ -100,6 +101,10 @@ The `diagnostics.unused` section controls the severity level for unused code war
   - Example: If a unit `UtilityUnit` is defined but never referenced (no `UtilityUnit:method()` calls, not used in VXML, no entry point annotations), it will be flagged according to this setting
   - Units and functions referenced only by VXML (e.g. `<binding function="UnitName:run"/>`) are counted as used and will not be reported as unused
 
+- **`languageEntries`** - Severity for `.lang` keys not referenced from `.mez` (`String:translate("…")`) or from `.vxml` (label/title/heading/tooltip and similar attributes)
+  - Options: `"None"`, `"Info"`, `"Warning"`, `"Error"`
+  - Default: `"Info"`
+
 **Severity Levels**:
 
 - **`"None"`** - No diagnostic is shown (unused code is ignored)
@@ -122,7 +127,8 @@ If you have an existing `helium-rapid-dsl-project.json` file without the `diagno
     "unused": {
       "attributes": "None",
       "functions": "None",
-      "units": "None"
+      "units": "None",
+      "languageEntries": "None"
     }
   }
 }
@@ -135,7 +141,8 @@ If you have an existing `helium-rapid-dsl-project.json` file without the `diagno
     "unused": {
       "attributes": "Error",
       "functions": "Error",
-      "units": "Error"
+      "units": "Error",
+      "languageEntries": "Error"
     }
   }
 }
@@ -148,7 +155,8 @@ If you have an existing `helium-rapid-dsl-project.json` file without the `diagno
     "unused": {
       "attributes": "None",
       "functions": "Warning",
-      "units": "Warning"
+      "units": "Warning",
+      "languageEntries": "Info"
     }
   }
 }
@@ -157,7 +165,7 @@ If you have an existing `helium-rapid-dsl-project.json` file without the `diagno
 **How It Works**:
 
 1. The language server scans your project to build an index of all defined symbols (attributes, functions, units)
-2. It tracks usage across all files (`.mez` files, `.vxml` files for view bindings)
+2. It tracks usage across all files (`.mez` files, `.vxml` files for view bindings; translation keys from `String:translate` and VXML label-like attributes)
 3. Entry point annotations (e.g., `@Scheduled`, `@HttpGet`) are automatically marked as used
 4. Unused symbols are reported according to your configured severity levels
 5. Diagnostics appear in the Problems panel and as underlines in the editor

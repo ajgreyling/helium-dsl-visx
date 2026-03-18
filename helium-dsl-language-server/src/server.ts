@@ -312,7 +312,7 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
 
 documents.onDidChangeContent((change) => {
   validateDocument(change.document);
-  if (isMezDocument(change.document) || isVxmlDocument(change.document)) {
+  if (isMezDocument(change.document) || isVxmlDocument(change.document) || isLangDocument(change.document)) {
     projectManager.updateDocument(change.document);
   }
 });
@@ -374,6 +374,15 @@ connection.onDidChangeWatchedFiles((params) => {
 
 async function validateDocument(document: TextDocument) {
   const text = document.getText();
+  if (isLangDocument(document)) {
+    const indexingComplete = (projectManager as any)?.isIndexingComplete?.() === true;
+    const langDiags =
+      indexingComplete === true
+        ? projectManager.getUnusedWarningsForFile(document.uri, undefined, text)
+        : [];
+    connection.sendDiagnostics({ uri: document.uri, diagnostics: langDiags });
+    return;
+  }
   if (isVxmlDocument(document)) {
     // VXML is XML, not Helium DSL: avoid ANTLR parser/lints and validate via VXML rules.
     const ast = buildVxmlAst(text, document.uri);

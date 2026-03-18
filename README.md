@@ -243,7 +243,8 @@ Each Helium Rapid DSL project can include a `helium-rapid-dsl-project.json` conf
     "unused": {
       "attributes": "None",
       "functions": "Warning",
-      "units": "Warning"
+      "units": "Warning",
+      "languageEntries": "Info"
     }
   }
 }
@@ -265,6 +266,10 @@ The `diagnostics.unused` section controls the severity level for unused code war
   - Options: `"None"`, `"Info"`, `"Warning"`, `"Error"`
   - Default: `"Warning"`
 
+- **`languageEntries`** - Severity for `.lang` keys never referenced from `.mez` (`String:translate("…")`) or from `.vxml` (e.g. `label`, `title`, `heading`, `tooltip`, and similar attributes)
+  - Options: `"None"`, `"Info"`, `"Warning"`, `"Error"`
+  - Default: `"Info"`
+
 **Auto-Configuration**:
 
 If the `diagnostics` section is missing from an existing `helium-rapid-dsl-project.json` file, it will be automatically added with default values when the file is read by the language server. This ensures backward compatibility while enabling the feature.
@@ -278,7 +283,8 @@ To disable all unused code warnings:
     "unused": {
       "attributes": "None",
       "functions": "None",
-      "units": "None"
+      "units": "None",
+      "languageEntries": "None"
     }
   }
 }

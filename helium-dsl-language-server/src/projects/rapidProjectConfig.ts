@@ -24,6 +24,8 @@ export type RapidProjectConfigV1 = {
       attributes?: UnusedDiagnosticSeverity;
       functions?: UnusedDiagnosticSeverity;
       units?: UnusedDiagnosticSeverity;
+      /** Unused keys in .lang files (not referenced via String:translate in .mez or label-like attrs in .vxml). Default: Info */
+      languageEntries?: UnusedDiagnosticSeverity;
     };
   };
 };
@@ -60,6 +62,7 @@ export function defaultRapidProjectConfig(
         attributes: "None",
         functions: "Warning",
         units: "Warning",
+        languageEntries: "Info",
       },
     },
   };
@@ -80,6 +83,7 @@ export function readRapidProjectConfig(projectRoot: string): RapidProjectConfigV
           attributes: "None",
           functions: "Warning",
           units: "Warning",
+          languageEntries: "Info",
         },
       };
       // Write the updated config back to the file
@@ -90,6 +94,7 @@ export function readRapidProjectConfig(projectRoot: string): RapidProjectConfigV
         attributes: "None",
         functions: "Warning",
         units: "Warning",
+        languageEntries: "Info",
       };
       // Write the updated config back to the file
       fs.writeFileSync(filePath, JSON.stringify(json, null, 2) + "\n", "utf8");
