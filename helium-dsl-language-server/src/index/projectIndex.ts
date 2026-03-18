@@ -728,6 +728,62 @@ export class ProjectIndex {
     };
   }
 
+  /**
+   * Functions bound from VXML (action=, init=, visible function=, etc.) should not warn as unused.
+   * Re-parse matching .vxml from disk so diagnostics stay correct when in-memory VXML index missed
+   * a file (parse failure, race) or tooling validates without a full index refresh.
+   */
+  private buildVxmlDiskUsageMapForUnits(unitNames: Set<string>): Map<string, Set<string>> {
+    const result = new Map<string, Set<string>>();
+    for (const u of unitNames) {
+      result.set(u, new Set());
+    }
+    if (unitNames.size === 0) {
+      return result;
+    }
+    const paths: string[] = [];
+    this.collectVxmlFiles(this.projectRoot, paths);
+    for (const filePath of paths) {
+      let text: string;
+      try {
+        text = fs.readFileSync(filePath, "utf8");
+      } catch {
+        continue;
+      }
+      for (const unitName of unitNames) {
+        if (
+          !text.includes(`unit="${unitName}"`) &&
+          !text.includes(`unit='${unitName}'`)
+        ) {
+          continue;
+        }
+        try {
+          const vxmlAst = buildVxmlAst(text, URI.file(filePath).toString());
+          const boundUnit = vxmlAst.view?.unitName;
+          if (boundUnit !== unitName) {
+            continue;
+          }
+          const set = result.get(unitName);
+          if (!set) {
+            continue;
+          }
+          for (const ref of vxmlAst.references || []) {
+            if (ref.kind !== "function") {
+              continue;
+            }
+            const r = resolveVxmlQualified(ref.name, unitName);
+            if (r?.unitName === unitName && r?.memberName) {
+              set.add(r.memberName);
+            }
+          }
+        } catch {
+          continue;
+        }
+      }
+    }
+    return result;
+  }
+
   getUnusedWarningsForFile(uri: string, astOverride?: FileAst): Diagnostic[] {
     const ast = astOverride ?? this.files.get(uri);
     if (!ast) return [];
@@ -772,8 +828,24 @@ export class ProjectIndex {
     }
 
     // Units + unit functions
+    const unitsNeedingVxmlDisk = new Set<string>();
     for (const unit of ast.units || []) {
-      const unitCount = this.unitUsage.get(unit.name) ?? 0;
+      for (const fn of unit.functions || []) {
+        if (this.getNestedUsage(this.functionUsage, unit.name, fn.name) <= 0) {
+          unitsNeedingVxmlDisk.add(unit.name);
+          break;
+        }
+      }
+    }
+    const vxmlDiskFnsByUnit =
+      unitsNeedingVxmlDisk.size > 0 ? this.buildVxmlDiskUsageMapForUnits(unitsNeedingVxmlDisk) : new Map<string, Set<string>>();
+
+    for (const unit of ast.units || []) {
+      const diskFns = vxmlDiskFnsByUnit.get(unit.name);
+      let unitCount = this.unitUsage.get(unit.name) ?? 0;
+      if (unitCount <= 0 && diskFns !== undefined && diskFns.size > 0) {
+        unitCount = 1;
+      }
       if (unitCount <= 0) {
         const diagnostic = toWarning(unit.nameRange, `Unit ${unit.name} is not used anywhere`, severityConfig.units);
         if (diagnostic) {
@@ -782,7 +854,10 @@ export class ProjectIndex {
       }
 
       for (const fn of unit.functions || []) {
-        const fnCount = this.getNestedUsage(this.functionUsage, unit.name, fn.name);
+        let fnCount = this.getNestedUsage(this.functionUsage, unit.name, fn.name);
+        if (fnCount <= 0 && diskFns !== undefined && diskFns.has(fn.name)) {
+          fnCount = 1;
+        }
         if (fnCount <= 0) {
           const diagnostic = toWarning(fn.nameRange, `Function ${unit.name}:${fn.name} is not used anywhere`, severityConfig.functions);
           if (diagnostic) {

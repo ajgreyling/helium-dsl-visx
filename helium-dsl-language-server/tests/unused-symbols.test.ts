@@ -251,5 +251,59 @@ void init() {
     );
     expect(hasUnusedUnit).to.equal(false);
   });
+
+  it("does not warn for view function only bound in VXML when in-memory VXML index was cleared (disk fallback)", async function () {
+    const projectRoot = "/tmp/helium-test-vxml-disk-fallback";
+    fs.mkdirSync(projectRoot, { recursive: true });
+    const metadata = getLanguageMetadataSync();
+    const viewUnitPath = path.join(projectRoot, "ViewDiskOnly.mez");
+    const viewVxmlPath = path.join(projectRoot, "ViewDiskOnly.vxml");
+    const configPath = path.join(projectRoot, "helium-rapid-dsl-project.json");
+
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify({
+        schemaVersion: 1,
+        diagnostics: {
+          unused: { attributes: "None", functions: "Warning", units: "Warning" },
+        },
+      }),
+      "utf8"
+    );
+    fs.writeFileSync(
+      viewUnitPath,
+      `unit ViewDiskOnly;
+void init() {
+}
+void onlyFromDisk() {
+}`,
+      "utf8"
+    );
+    fs.writeFileSync(
+      viewVxmlPath,
+      `<view unit="ViewDiskOnly" init="init">
+  <submit action="onlyFromDisk" label="l" />
+</view>`,
+      "utf8"
+    );
+
+    const index = new ProjectIndex(projectRoot, metadata);
+    await index.indexProjectFiles();
+
+    const viewUnitUri = URI.file(viewUnitPath).toString();
+    const viewAst = index.getFileAst(viewUnitUri);
+    if (!viewAst || viewAst.units.length === 0) {
+      this.skip();
+    }
+
+    (index as unknown as { vxml: Map<string, unknown> }).vxml.clear();
+    (index as unknown as { rebuildUsageIndexes: () => void }).rebuildUsageIndexes();
+
+    const warnings = index.getUnusedWarningsForFile(viewUnitUri);
+    const hasUnusedFn = warnings.some((d) =>
+      String(d.message).includes("Function ViewDiskOnly:onlyFromDisk is not used anywhere")
+    );
+    expect(hasUnusedFn).to.equal(false);
+  });
 });
 
