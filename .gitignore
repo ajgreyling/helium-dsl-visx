@@ -11,3 +11,8 @@ helium-dsl-vscode/out/**
 helium-rapid-dsl-mcp/node_modules/**
 .cursor/debug.log
 
+helium-dsl-language-server/node_modules/**/*
+helium-dsl-language-server/lib/**
+helium-dsl-language-server/generated/**
+helium-dsl-language-server/out/**
+
