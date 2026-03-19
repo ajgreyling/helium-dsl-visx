@@ -32,6 +32,10 @@ persistent object Doctor {
     before.updated_at = Mez:now();
     before.archived = false;
   }
+}
+
+persistent object UnusedModel {
+  string label;
 }`;
     const units = `unit DoctorUnit;
 void usedFn() {
@@ -96,7 +100,7 @@ void unusedViewFn() {
       JSON.stringify({
         schemaVersion: 1,
         diagnostics: {
-          unused: { attributes: "Info", functions: "Info", units: "Info" },
+          unused: { attributes: "Info", functions: "Info", units: "Info", models: "Info" },
         },
       }),
       "utf8"
@@ -109,6 +113,12 @@ void unusedViewFn() {
     // Helper: any severity (Info or Warning) for unused diagnostics
     const hasUnusedDiag = (diags: any[], contains: string) =>
       diags.some((d) => String(d.message).includes(contains));
+
+    // Unused persistent model should report (default / explicit Info severity)
+    const unusedModelDiag = objWarnings.find((d) => String(d.message).includes("Model UnusedModel is not referenced anywhere"));
+    expect(unusedModelDiag).to.not.equal(undefined);
+    expect(unusedModelDiag!.severity).to.equal(DiagnosticSeverity.Information);
+    expect(objWarnings.some((d) => String(d.message).includes("Model Doctor is not referenced anywhere"))).to.equal(false);
 
     // Unused attribute should warn
     expect(hasUnusedDiag(objWarnings, "Attribute license_number is not used anywhere")).to.equal(true);

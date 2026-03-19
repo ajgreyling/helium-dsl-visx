@@ -17,26 +17,33 @@ function run(command, args, cwd) {
   });
 }
 
+function runCapture(command, args, cwd) {
+  return execFileSync(command, args, {
+    cwd,
+    stdio: ["ignore", "pipe", "inherit"],
+    env: process.env,
+    encoding: "utf8",
+  }).trim();
+}
+
 if (!fs.existsSync(lsRoot)) {
   throw new Error(`Language server project not found at ${lsRoot}`);
 }
-
-fs.rmSync(bundleDir, { recursive: true, force: true });
-fs.mkdirSync(bundleDir, { recursive: true });
 
 const bundledModulePath = path.join(mcpRoot, "node_modules", "helium-dsl-language-server");
 fs.rmSync(bundledModulePath, { recursive: true, force: true });
 
 run("npm", ["run", "build"], lsRoot);
-run("npm", ["pack", "--pack-destination", bundleDir], lsRoot);
-
-const tgzFiles = fs.readdirSync(bundleDir).filter((name) => name.endsWith(".tgz"));
-if (tgzFiles.length !== 1) {
-  throw new Error(`Expected exactly one tarball in ${bundleDir}, found ${tgzFiles.length}`);
+const tarballName = runCapture("npm", ["pack", "--dry-run=false"], lsRoot).split(/\r?\n/).pop();
+if (!tarballName || !tarballName.endsWith(".tgz")) {
+  throw new Error(`npm pack did not return a tarball name. Output: ${tarballName}`);
 }
 
-const tarballPath = path.join(bundleDir, tgzFiles[0]);
-run("npm", ["install", "--no-save", "--install-links=false", tarballPath], mcpRoot);
+fs.rmSync(bundleDir, { recursive: true, force: true });
+fs.mkdirSync(bundleDir, { recursive: true });
+const tarballPath = path.join(bundleDir, tarballName);
+fs.renameSync(path.join(lsRoot, tarballName), tarballPath);
+run("npm", ["install", "--no-save", "--install-links=false", "--workspaces=false", "--dry-run=false", tarballPath], mcpRoot);
 
 const expectedApiPath = path.join(mcpRoot, "node_modules", "helium-dsl-language-server", "out", "src", "api.js");
 if (!fs.existsSync(expectedApiPath)) {

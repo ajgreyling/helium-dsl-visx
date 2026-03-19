@@ -73,7 +73,8 @@ Each Helium Rapid DSL project can include a `helium-rapid-dsl-project.json` conf
       "attributes": "None",
       "functions": "Warning",
       "units": "Warning",
-      "languageEntries": "Info"
+      "languageEntries": "Info",
+      "models": "Info"
     }
   }
 }
@@ -105,6 +106,11 @@ The `diagnostics.unused` section controls the severity level for unused code war
   - Options: `"None"`, `"Info"`, `"Warning"`, `"Error"`
   - Default: `"Info"`
 
+- **`models`** - Severity for **persistent** object types (models) that never appear as a type in indexed `.mez` (e.g. variables, parameters, return types, attribute/relationship targets, and other grammar paths that record type names). The declaration itself does not count as a reference.
+  - Options: `"None"`, `"Info"`, `"Warning"`, `"Error"`
+  - Default: `"Info"`
+  - Types referenced only from SQL, Jasper, JSON, or other non-indexed files may false-positive as unused.
+
 **Severity Levels**:
 
 - **`"None"`** - No diagnostic is shown (unused code is ignored)
@@ -128,7 +134,8 @@ If you have an existing `helium-rapid-dsl-project.json` file without the `diagno
       "attributes": "None",
       "functions": "None",
       "units": "None",
-      "languageEntries": "None"
+      "languageEntries": "None",
+      "models": "None"
     }
   }
 }
@@ -142,7 +149,8 @@ If you have an existing `helium-rapid-dsl-project.json` file without the `diagno
       "attributes": "Error",
       "functions": "Error",
       "units": "Error",
-      "languageEntries": "Error"
+      "languageEntries": "Error",
+      "models": "Error"
     }
   }
 }
@@ -156,7 +164,8 @@ If you have an existing `helium-rapid-dsl-project.json` file without the `diagno
       "attributes": "None",
       "functions": "Warning",
       "units": "Warning",
-      "languageEntries": "Info"
+      "languageEntries": "Info",
+      "models": "Info"
     }
   }
 }
@@ -325,7 +334,7 @@ The extension includes several linting rules:
 2. **dot-notation-limit** - Limits dot notation usage per statement (default: warning)
 3. **naming-conventions** - Enforces naming conventions (default: warning)
 4. **forbidden-operators** - Detects use of forbidden operators
-5. **unused-code** - Detects unused attributes, functions, and units (configurable via `helium-rapid-dsl-project.json`)
+5. **unused-code** - Detects unused attributes, functions, units, models, and `.lang` keys (configurable via `helium-rapid-dsl-project.json`)
    - Configure severity levels in your project's `helium-rapid-dsl-project.json` file
    - Project-wide detection considers usage across all files
    - Entry point annotations (e.g., `@Scheduled`) are automatically marked as used

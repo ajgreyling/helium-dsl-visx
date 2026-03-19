@@ -76,6 +76,8 @@ export class ProjectIndex {
   private functionUsage = new Map<string, Map<string, number>>();
   // objectName -> (memberName -> count) where memberName is an attribute or relationship name
   private memberUsage = new Map<string, Map<string, number>>();
+  /** Declared object (model) type name -> count of references from .mez type positions (see rebuildUsageIndexes). */
+  private objectModelUsage = new Map<string, number>();
   private isIndexing = false;
   private cachedConfig: RapidProjectConfigV1 | null = null;
 
@@ -540,10 +542,18 @@ export class ProjectIndex {
     return map.get(outer)?.get(inner) ?? 0;
   }
 
+  /** Count a reference to a declared object type (strip array suffix). Ignores primitives/enums/units. */
+  private recordObjectModelTypeReference(typeName: string) {
+    const base = typeName.replace(/\[\]$/, "").trim();
+    if (!base || !this.objects.has(base)) return;
+    this.incUsage(this.objectModelUsage, base);
+  }
+
   private rebuildUsageIndexes() {
     this.unitUsage.clear();
     this.functionUsage.clear();
     this.memberUsage.clear();
+    this.objectModelUsage.clear();
 
     this.referencedLangKeys.clear();
     for (const keys of this.mezLangKeyRefs.values()) {
@@ -612,6 +622,36 @@ export class ProjectIndex {
 
     // 1) Count usages from Helium DSL ASTs (.mez)
     for (const [uri, ast] of this.files.entries()) {
+      // Object/model type references: any type position that names another declared object (attributes,
+      // relationships, locals, params, return types, and grammar paths that populate typeReferences).
+      for (const ref of ast.typeReferences || []) {
+        this.recordObjectModelTypeReference(ref.name);
+      }
+      for (const o of ast.objects || []) {
+        for (const attr of o.attributes || []) {
+          this.recordObjectModelTypeReference(attr.typeName);
+        }
+        for (const rel of o.relationships || []) {
+          if (rel.targetType) {
+            this.recordObjectModelTypeReference(rel.targetType);
+          }
+        }
+      }
+      for (const u of ast.units || []) {
+        for (const v of u.variables || []) {
+          this.recordObjectModelTypeReference(v.typeName);
+        }
+        for (const fn of u.functions || []) {
+          this.recordObjectModelTypeReference(fn.returnType);
+          for (const p of fn.params || []) {
+            this.recordObjectModelTypeReference(p.typeName);
+          }
+          for (const local of fn.locals || []) {
+            this.recordObjectModelTypeReference(local.typeName);
+          }
+        }
+      }
+
       // Units referenced in `Unit:member(...)` constructs.
       for (const ref of ast.unitReferences || []) {
         if (this.units.has(ref.name)) {
@@ -702,7 +742,7 @@ export class ProjectIndex {
       }
     }
 
-    // 2b) View lifecycle: platform calls destroy() when view is torn down; treat as used for view units.
+    // 2b) View lifecycle: platform calls destroy() on teardown; treat as used for view units.
     for (const entry of this.vxml.values()) {
       const viewUnitName = entry.viewUnitName;
       if (viewUnitName && this.units.has(viewUnitName)) {
@@ -739,6 +779,7 @@ export class ProjectIndex {
     functions: DiagnosticSeverity | null;
     units: DiagnosticSeverity | null;
     languageEntries: DiagnosticSeverity | null;
+    models: DiagnosticSeverity | null;
   } {
     const config = this.getProjectConfig();
     const unusedConfig = config?.diagnostics?.unused;
@@ -748,6 +789,7 @@ export class ProjectIndex {
     const defaultFunctions: UnusedDiagnosticSeverity = "Warning";
     const defaultUnits: UnusedDiagnosticSeverity = "Warning";
     const defaultLanguageEntries: UnusedDiagnosticSeverity = "Info";
+    const defaultModels: UnusedDiagnosticSeverity = "Info";
 
     return {
       attributes: this.severityStringToDiagnosticSeverity(unusedConfig?.attributes ?? defaultAttributes),
@@ -756,6 +798,7 @@ export class ProjectIndex {
       languageEntries: this.severityStringToDiagnosticSeverity(
         unusedConfig?.languageEntries ?? defaultLanguageEntries
       ),
+      models: this.severityStringToDiagnosticSeverity(unusedConfig?.models ?? defaultModels),
     };
   }
 
@@ -807,6 +850,8 @@ export class ProjectIndex {
               set.add(r.memberName);
             }
           }
+          // Implicit lifecycle usage for view-bound units.
+          set.add("destroy");
         } catch {
           continue;
         }
@@ -879,6 +924,24 @@ export class ProjectIndex {
     };
 
     const warnings: Diagnostic[] = [];
+
+    // Persistent models (object types) referenced nowhere in indexed .mez type positions
+    for (const obj of ast.objects || []) {
+      if (!obj.isPersistent) {
+        continue;
+      }
+      const modelCount = this.objectModelUsage.get(obj.name) ?? 0;
+      if (modelCount <= 0) {
+        const diagnostic = toWarning(
+          obj.nameRange,
+          `Model ${obj.name} is not referenced anywhere`,
+          severityConfig.models
+        );
+        if (diagnostic) {
+          warnings.push(diagnostic);
+        }
+      }
+    }
 
     // Object attributes + relationships
     for (const obj of ast.objects || []) {
