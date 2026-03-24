@@ -386,7 +386,9 @@ async function validateDocument(document: TextDocument) {
   if (isVxmlDocument(document)) {
     // VXML is XML, not Helium DSL: avoid ANTLR parser/lints and validate via VXML rules.
     const ast = buildVxmlAst(text, document.uri);
-    const indexReady = (projectManager as any)?.isIndexingComplete?.() === true;
+    const isIndexingComplete = (projectManager as any)?.isIndexingComplete?.() === true;
+    const hasProjectForUri = (projectManager as any)?.hasProjectForUri?.(document.uri) === true;
+    const indexReady = isIndexingComplete && hasProjectForUri;
     const vxmlDiagnostics = validateVxml(ast, projectManager, { indexReady });
     connection.sendDiagnostics({
       uri: document.uri,

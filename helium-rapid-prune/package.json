@@ -1,0 +1,47 @@
+{
+  "name": "helium-rapid-prune",
+  "version": "0.1.1",
+  "private": false,
+  "type": "module",
+  "description": "CLI to iteratively prune unused Helium Rapid DSL functions, units, and lang entries using language-server diagnostics.",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "src/**",
+    "README.md",
+    "package.json"
+  ],
+  "bin": {
+    "helium-rapid-prune": "./src/cli.mjs"
+  },
+  "scripts": {
+    "bundle:language-server": "node ./scripts/bundle-language-server.mjs",
+    "prepare:publish": "npm run bundle:language-server",
+    "prepack": "npm run prepare:publish",
+    "pack:dry-run": "npm pack --dry-run"
+  },
+  "bundleDependencies": [
+    "helium-dsl-language-server"
+  ],
+  "dependencies": {
+    "helium-dsl-language-server": "0.1.0"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "helium",
+    "rapid",
+    "dsl",
+    "prune",
+    "unused"
+  ],
+  "author": "ajgreyling",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mezzanineware/helium-dsl-visx.git",
+    "directory": "helium-rapid-prune"
+  }
+}

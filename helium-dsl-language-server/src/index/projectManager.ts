@@ -86,6 +86,13 @@ export class ProjectManager {
     return this.projectRoots;
   }
 
+  hasProjectForUri(uri: string): boolean {
+    const filePath = URI.parse(uri).fsPath;
+    const root = findProjectRootForFile(filePath, this.projectRoots);
+    if (!root) return false;
+    return this.indexes.has(root);
+  }
+
   updateDocument(doc: TextDocument) {
     const index = this.getIndexForUri(doc.uri);
     if (!index) return;
