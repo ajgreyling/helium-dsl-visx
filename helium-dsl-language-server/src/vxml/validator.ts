@@ -1,6 +1,6 @@
 import { DiagnosticSeverity } from "vscode-languageserver/node.js";
 import type { ProjectManager } from "../index/projectManager.js";
-import type { VxmlAst, VxmlRange } from "./types.js";
+import type { VxmlAst, VxmlNode, VxmlRange } from "./types.js";
 
 export type VxmlDiagnostic = {
   message: string;
@@ -28,6 +28,33 @@ function resolveVxmlQualified(raw: string, fallbackUnitName: string | undefined)
  * Returns true if the string has more than one dot (e.g., "a.b.c" or "Unit:obj.attr.more").
  * For unit-qualified references, only the part after the colon is checked.
  */
+function findViewRootNode(nodes: VxmlNode[]): VxmlNode | undefined {
+  for (const node of nodes) {
+    if (node.name === "view" || node.name === "globalview") {
+      return node;
+    }
+    const found = findViewRootNode(node.children);
+    if (found) return found;
+  }
+  return undefined;
+}
+
+/**
+ * Static HTML dashboards often use only `<static source="..."/>`. They may omit a presenter unit
+ * or use a placeholder name; runtime does not require a matching `.mez` unit when there are no bindings.
+ */
+function viewHasOnlyStaticElementChildren(rootNodes: VxmlAst["rootNodes"]): boolean {
+  const viewNode = findViewRootNode(rootNodes);
+  if (!viewNode) return false;
+  if (viewNode.children.length === 0) return false;
+  for (const child of viewNode.children) {
+    if (child.name !== "static") {
+      return false;
+    }
+  }
+  return true;
+}
+
 function hasDotNotationViolation(refName: string): boolean {
   const trimmed = (refName ?? "").trim();
   if (!trimmed) return false;
@@ -66,8 +93,14 @@ export function validateVxml(
   const viewUnit = ast.view?.unitName;
   const viewInit = ast.view?.initFunction;
   const viewLabel = ast.view?.labelKey;
+  const staticOnlyView = viewHasOnlyStaticElementChildren(ast.rootNodes);
 
-  if (indexReady && viewUnit && !projectManager.isUnit(viewUnit)) {
+  if (
+    indexReady &&
+    viewUnit &&
+    !staticOnlyView &&
+    !projectManager.isUnit(viewUnit)
+  ) {
     diagnostics.push({
       message: `Unknown unit '${viewUnit}' referenced by <view unit="...">`,
       range: ast.view!.range,
@@ -96,7 +129,7 @@ export function validateVxml(
 
   for (const ref of ast.references ?? []) {
     if (ref.kind === "unit") {
-      if (indexReady && !projectManager.isUnit(ref.name)) {
+      if (indexReady && !staticOnlyView && !projectManager.isUnit(ref.name)) {
         diagnostics.push({
           message: `Unknown unit '${ref.name}'`,
           range: ref.range,
