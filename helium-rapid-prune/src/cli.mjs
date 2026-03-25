@@ -4,13 +4,12 @@
  *
  * Usage:
  *   helium-rapid-prune /path/to/repo
- *   helium-rapid-prune /path/to/repo --max-passes=25 --skip-build-check
- *   helium-rapid-prune   (prompts for project root and options)
+ *   helium-rapid-prune /path/to/repo --max-passes=25
+ *   helium-rapid-prune   (prompts for project root and max passes)
  */
 import fs from "fs";
 import path from "path";
 import { pathToFileURL } from "url";
-import { execFileSync } from "child_process";
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 
@@ -18,9 +17,7 @@ import { ProjectManager } from "helium-dsl-language-server/api";
 
 function parseArgs(argv) {
   let maxPasses = 20;
-  let skipBuildCheck = false;
   let maxPassesFromArgv = false;
-  let skipBuildFromArgv = false;
   const positionals = [];
 
   for (const a of argv) {
@@ -29,17 +26,11 @@ function parseArgs(argv) {
 
 Options:
   --max-passes=N     Maximum prune iterations (default: 20)
-  --skip-build-check Do not run ./build.sh after pruning
   -h, --help         Show this help
 
 Environment:
   PROJECT_ROOT       Default project root when not passed as argument`);
       process.exit(0);
-    }
-    if (a === "--skip-build-check") {
-      skipBuildCheck = true;
-      skipBuildFromArgv = true;
-      continue;
     }
     if (a.startsWith("--max-passes=")) {
       maxPasses = Number(a.split("=")[1]);
@@ -53,10 +44,10 @@ Environment:
     positionals.push(a);
   }
 
-  return { maxPasses, skipBuildCheck, maxPassesFromArgv, skipBuildFromArgv, positionals };
+  return { maxPasses, maxPassesFromArgv, positionals };
 }
 
-async function promptOptions({ maxPasses, skipBuildCheck, maxPassesFromArgv, skipBuildFromArgv }) {
+async function promptOptions({ maxPasses, maxPassesFromArgv }) {
   const rl = readline.createInterface({ input, output });
 
   const rootAnswer = (await rl.question("Project root path: ")).trim();
@@ -78,15 +69,8 @@ async function promptOptions({ maxPasses, skipBuildCheck, maxPassesFromArgv, ski
     }
   }
 
-  if (!skipBuildFromArgv) {
-    const p = (await rl.question("Run ./build.sh after prune to verify? [Y/n]: ")).trim().toLowerCase();
-    if (p === "n" || p === "no") {
-      skipBuildCheck = true;
-    }
-  }
-
   await rl.close();
-  return { projectRoot, maxPasses, skipBuildCheck };
+  return { projectRoot, maxPasses };
 }
 
 function walkFilesBySuffix(dir, suffix, out = []) {
@@ -207,57 +191,6 @@ function collectLiteralTranslationKeyReferences(projectRoot, langFiles) {
   return referencedKeys;
 }
 
-function collectMissingBuildLangKeys(buildOutput) {
-  const keys = new Set();
-  for (const line of buildOutput.split(/\r?\n/)) {
-    let m = line.match(/key\s+([^\s]+)\s+does not exist in the translation/);
-    if (m) {
-      keys.add(m[1]);
-      continue;
-    }
-    m = line.match(/references\s+([^\s]+)\s+for its (?:body|subject line)/);
-    if (m) {
-      keys.add(m[1]);
-      continue;
-    }
-    m = line.match(/content\s+([^\s]+)\s+has not been defined/);
-    if (m) keys.add(m[1]);
-  }
-  return keys;
-}
-
-function restoreLangKeysFromHead(langFilePath, requiredKeys, projectRoot) {
-  if (requiredKeys.size === 0 || !fs.existsSync(langFilePath)) return 0;
-
-  const current = fs.readFileSync(langFilePath, "utf8");
-  const currentLines = current.split(/\r?\n/);
-  const currentKeys = new Set();
-  for (const line of currentLines) {
-    const m = line.match(/^\s*([^#=\s][^=]*?)\s*=/);
-    if (m) currentKeys.add(m[1].trim());
-  }
-
-  const relPath = path.relative(projectRoot, langFilePath);
-  const headText = execFileSync("git", ["show", "HEAD:" + relPath], { cwd: projectRoot, encoding: "utf8" });
-  const headMap = new Map();
-  for (const line of headText.split(/\r?\n/)) {
-    const m = line.match(/^\s*([^#=\s][^=]*?)\s*=/);
-    if (m) headMap.set(m[1].trim(), line);
-  }
-
-  let restored = 0;
-  for (const key of requiredKeys) {
-    if (!currentKeys.has(key) && headMap.has(key)) {
-      currentLines.push(headMap.get(key));
-      currentKeys.add(key);
-      restored += 1;
-    }
-  }
-
-  if (restored > 0) fs.writeFileSync(langFilePath, currentLines.join("\n"), "utf8");
-  return restored;
-}
-
 async function buildProjectManager(dslRoot) {
   const pm = new ProjectManager();
   await pm.initialize([{ uri: toUri(dslRoot), name: "dsl" }]);
@@ -266,7 +199,7 @@ async function buildProjectManager(dslRoot) {
   return index;
 }
 
-async function pruneIteratively(projectRoot, maxPasses, runBuildCheck) {
+async function pruneIteratively(projectRoot, maxPasses) {
   const dslRoot = projectRoot;
   const langDir = path.join(dslRoot, "web-app", "lang");
   const langFiles = walkFilesBySuffix(langDir, ".lang");
@@ -275,7 +208,6 @@ async function pruneIteratively(projectRoot, maxPasses, runBuildCheck) {
     functionsRemoved: 0,
     unitFilesDeleted: 0,
     langEntriesRemoved: 0,
-    langEntriesRestoredForBuild: 0,
   };
 
   for (let pass = 1; pass <= maxPasses; pass++) {
@@ -398,38 +330,12 @@ async function pruneIteratively(projectRoot, maxPasses, runBuildCheck) {
     if (passFunctionsRemoved === 0 && passUnitsDeleted === 0 && passLangRemoved === 0) break;
   }
 
-  if (runBuildCheck && fs.existsSync(path.join(projectRoot, "build.sh"))) {
-    let buildOutput = "";
-    let buildOk = true;
-    try {
-      buildOutput = execFileSync("./build.sh", {
-        cwd: projectRoot,
-        encoding: "utf8",
-        stdio: ["ignore", "pipe", "pipe"],
-      });
-    } catch (error) {
-      buildOk = false;
-      const stdout = typeof error.stdout === "string" ? error.stdout : "";
-      const stderr = typeof error.stderr === "string" ? error.stderr : "";
-      buildOutput = `${stdout}\n${stderr}`;
-    }
-
-    if (buildOk === false) {
-      const requiredKeys = collectMissingBuildLangKeys(buildOutput);
-      for (const langFile of langFiles) {
-        summary.langEntriesRestoredForBuild += restoreLangKeysFromHead(langFile, requiredKeys, projectRoot);
-      }
-      execFileSync("./build.sh", { cwd: projectRoot, stdio: "inherit" });
-    }
-  }
-
   return summary;
 }
 
 const parsed = parseArgs(process.argv.slice(2));
 let projectRoot;
 let maxPasses = parsed.maxPasses;
-let skipBuildCheck = parsed.skipBuildCheck;
 
 if (parsed.positionals[0]) {
   projectRoot = path.resolve(parsed.positionals[0]);
@@ -439,7 +345,6 @@ if (parsed.positionals[0]) {
   const prompted = await promptOptions(parsed);
   projectRoot = prompted.projectRoot;
   maxPasses = prompted.maxPasses;
-  skipBuildCheck = prompted.skipBuildCheck;
 }
 
 if (!fs.existsSync(projectRoot)) {
@@ -447,7 +352,5 @@ if (!fs.existsSync(projectRoot)) {
   process.exit(1);
 }
 
-const runBuildCheck = !skipBuildCheck;
-
-const result = await pruneIteratively(projectRoot, maxPasses, runBuildCheck);
+const result = await pruneIteratively(projectRoot, maxPasses);
 console.log(JSON.stringify(result, null, 2));

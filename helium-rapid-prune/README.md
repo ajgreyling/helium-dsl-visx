@@ -16,10 +16,10 @@ npm install -g helium-rapid-prune
 
 ```bash
 helium-rapid-prune /path/to/repo
-helium-rapid-prune /path/to/repo --max-passes=25 --skip-build-check
+helium-rapid-prune /path/to/repo --max-passes=25
 ```
 
-**Without arguments** (prompts for project root, max passes, and whether to run `./build.sh`):
+**Without arguments** (prompts for project root and max passes):
 
 ```bash
 helium-rapid-prune
@@ -32,7 +32,6 @@ helium-rapid-prune
 ## Behaviour
 
 - Uses the path you pass (or enter at the prompt) **as the Helium Rapid DSL project root** — it does **not** append `dsl` or any other segment.
-- After pruning, runs `./build.sh` in the project root when it exists and you did not pass `--skip-build-check` (and did not decline in interactive mode). On failure, attempts to restore missing translation keys from `git show HEAD:...` like the original script.
 
 ## Publishing (maintainers)
 
