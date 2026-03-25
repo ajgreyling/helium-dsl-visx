@@ -1,13 +1,24 @@
 # Helium Rapid DSL Toolchain (Cursor-First)
 
-This monorepo builds and packages the Helium Rapid DSL tooling stack used by Cursor: language server, MCP server, and extension packaging pipeline.
+This monorepo builds and packages the Helium Rapid DSL tooling stack used by Cursor: language server, MCP server, extension client, packaging pipeline, and optional CLI utilities.
 
-## Monorepo Layout
+## Package documentation
 
-- `helium-dsl-language-server/` - parser/index/diagnostics language server.
-- `helium-rapid-dsl-mcp/` - MCP server for agent-grade DSL analysis tools.
-- `helium-dsl-vscode/` - extension client.
-- `helium-vscode-tooling/` - generation/build/package scripts.
+| Package | Role | README |
+|---------|------|--------|
+| `helium-dsl-language-server` | LSP: parse, index, diagnostics, completions | [helium-dsl-language-server/README.md](helium-dsl-language-server/README.md) |
+| `helium-dsl-vscode` | Cursor/VS Code extension (client + bundled assets) | [helium-dsl-vscode/README.md](helium-dsl-vscode/README.md) |
+| `helium-vscode-tooling` | Grammar → parser → metadata → VSIX build | [helium-vscode-tooling/README.md](helium-vscode-tooling/README.md) |
+| `helium-rapid-dsl-mcp` | MCP server for agent tools (`.mez` / `.vxml`) | [helium-rapid-dsl-mcp/README.md](helium-rapid-dsl-mcp/README.md) |
+| `helium-rapid-prune` | CLI to prune unused functions, units, `.lang` keys | [helium-rapid-prune/README.md](helium-rapid-prune/README.md) |
+
+## Monorepo layout (short)
+
+- `helium-dsl-language-server/` — LSP implementation ([readme](helium-dsl-language-server/README.md)).
+- `helium-dsl-vscode/` — Extension ([readme](helium-dsl-vscode/README.md)).
+- `helium-vscode-tooling/` — Generation and packaging ([readme](helium-vscode-tooling/README.md)).
+- `helium-rapid-dsl-mcp/` — MCP server ([readme](helium-rapid-dsl-mcp/README.md)).
+- `helium-rapid-prune/` — Publishable prune CLI ([readme](helium-rapid-prune/README.md)); optional workspace install, not always listed in root `workspaces`.
 
 ## Critical Rules
 
@@ -67,9 +78,13 @@ stateDiagram-v2
 4. Rebuild and rerun affected tests after changes.
 5. Validate local VSIX install in Cursor when extension behavior changes.
 
-## Deep References
+## Deep references
 
-- `helium-rapid-dsl-mcp/README.md`
+- [helium-dsl-language-server/README.md](helium-dsl-language-server/README.md)
+- [helium-dsl-vscode/README.md](helium-dsl-vscode/README.md)
+- [helium-vscode-tooling/README.md](helium-vscode-tooling/README.md)
+- [helium-rapid-dsl-mcp/README.md](helium-rapid-dsl-mcp/README.md)
+- [helium-rapid-prune/README.md](helium-rapid-prune/README.md)
 - `run.md`
 - `.cursor/rules/` for project-specific constraints
 

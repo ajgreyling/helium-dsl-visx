@@ -16,7 +16,7 @@ import { stdin as input, stdout as output } from "node:process";
 import { ProjectManager } from "helium-dsl-language-server/api";
 
 function parseArgs(argv) {
-  let maxPasses = 20;
+  let maxPasses = 5;
   let maxPassesFromArgv = false;
   const positionals = [];
 
@@ -25,7 +25,7 @@ function parseArgs(argv) {
       console.log(`Usage: helium-rapid-prune [project-root] [options]
 
 Options:
-  --max-passes=N     Maximum prune iterations (default: 20)
+  --max-passes=N     Maximum prune iterations (default: 5)
   -h, --help         Show this help
 
 Environment:
@@ -58,7 +58,7 @@ async function promptOptions({ maxPasses, maxPassesFromArgv }) {
   const projectRoot = path.resolve(rootAnswer);
 
   if (!maxPassesFromArgv) {
-    const p = (await rl.question("Max passes [20]: ")).trim();
+    const p = (await rl.question("Max passes [5]: ")).trim();
     if (p) {
       const n = Number(p);
       if (!Number.isFinite(n) || n < 1) {

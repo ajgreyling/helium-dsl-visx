@@ -1,6 +1,6 @@
 {
   "name": "helium-rapid-prune",
-  "version": "0.1.1",
+  "version": "0.1.1774451323",
   "private": false,
   "type": "module",
   "description": "CLI to iteratively prune unused Helium Rapid DSL functions, units, and lang entries using language-server diagnostics.",

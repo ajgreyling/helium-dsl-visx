@@ -12,6 +12,13 @@ npm install -g helium-rapid-prune
 
 ## Usage
 
+**With `npx` (no global install):**
+
+```bash
+npx helium-rapid-prune /path/to/repo
+npx helium-rapid-prune /path/to/repo --max-passes=25
+```
+
 **With a project root (non-interactive):**
 
 ```bash
@@ -24,6 +31,8 @@ helium-rapid-prune /path/to/repo --max-passes=25
 ```bash
 helium-rapid-prune
 ```
+
+Default max passes is `5` when `--max-passes` is not provided.
 
 **Environment:**
 
@@ -45,6 +54,14 @@ chmod +x publish.sh
 This builds [`helium-dsl-language-server`](../helium-dsl-language-server), bundles it via `bundleDependencies`, bumps the version with an epoch build number, publishes to npm, then restores `package.json` version.
 
 `npm publish` also runs `prepack`, which re-bundles the language server before pack.
+
+## Related tooling
+
+- [Language server](../helium-dsl-language-server/README.md) (bundled by this CLI)
+- [MCP server](../helium-rapid-dsl-mcp/README.md)
+- [Extension](../helium-dsl-vscode/README.md)
+- [Build pipeline](../helium-vscode-tooling/README.md)
+- [Repository overview](../README.md)
 
 ## License
 

@@ -2,6 +2,16 @@
 
 Language support for the Helium Rapid DSL (ANTLR4) in Cursor IDE and VS Code.
 
+## Monorepo
+
+This extension is built from the **helium-dsl-visx** repo alongside the language server, MCP server, and toolchain:
+
+- [Language server (`helium-dsl-language-server`)](../helium-dsl-language-server/README.md)
+- [Build & VSIX packaging (`helium-vscode-tooling`)](../helium-vscode-tooling/README.md)
+- [MCP server (`helium-rapid-dsl-mcp`)](../helium-rapid-dsl-mcp/README.md)
+- [Prune CLI (`helium-rapid-prune`)](../helium-rapid-prune/README.md)
+- [Repository overview](../README.md)
+
 ## Features
 
 - 🎨 **Syntax Highlighting** - Rich syntax highlighting for `.mez` and `.vxml` files
@@ -612,7 +622,7 @@ npm run build:textmate     # Generate TextMate grammar
 
 # Build components
 cd ../helium-dsl-language-server && npm run build
-cd ../helium-vscode-tooling/helium-dsl-vscode && npm run build
+cd ../helium-dsl-vscode && npm run build
 
 # Package VSIX
 cd ../helium-vscode-tooling
