@@ -1362,8 +1362,113 @@ function unescapeMezStringChunk(s: string): string {
   });
 }
 
-function extractTranslateKeysFromMez(text: string): Set<string> {
+/**
+ * Skip one comma-separated argument in Mez-like call text, respecting strings and nested ().
+ * `start` is the first character of the argument (after `(` or `,`).
+ */
+function skipMezArgument(text: string, start: number): { end: number; endedWithComma: boolean } | null {
+  let i = start;
+  while (i < text.length && /\s/.test(text[i])) {
+    i++;
+  }
+  if (i >= text.length) {
+    return null;
+  }
+
+  let parenDepth = 0;
+  let inString: '"' | "'" | null = null;
+  for (; i < text.length; i++) {
+    const ch = text[i];
+    if (inString) {
+      if (ch === "\\" && i + 1 < text.length) {
+        i++;
+        continue;
+      }
+      if (ch === inString) {
+        inString = null;
+      }
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      inString = ch as '"' | "'";
+      continue;
+    }
+    if (ch === "(") {
+      parenDepth++;
+      continue;
+    }
+    if (ch === ")") {
+      if (parenDepth === 0) {
+        return { end: i, endedWithComma: false };
+      }
+      parenDepth--;
+      continue;
+    }
+    if (ch === "," && parenDepth === 0) {
+      return { end: i, endedWithComma: true };
+    }
+  }
+  return null;
+}
+
+function readMezStringLiteral(text: string, start: number): { value: string; end: number } | null {
+  let i = start;
+  while (i < text.length && /\s/.test(text[i])) {
+    i++;
+  }
+  const q = text[i];
+  if (q !== '"' && q !== "'") {
+    return null;
+  }
+  i++;
+  let raw = "";
+  while (i < text.length) {
+    const ch = text[i];
+    if (ch === "\\" && i + 1 < text.length) {
+      raw = raw + ch + text[i + 1];
+      i = i + 2;
+      continue;
+    }
+    if (ch === q) {
+      return { value: unescapeMezStringChunk(raw), end: i + 1 };
+    }
+    raw = raw + ch;
+    i++;
+  }
+  return null;
+}
+
+/** Third argument to Mez:sms(recipient, channel, "langKey") is a translation key. */
+function extractMezSmsTranslationKeysFromMez(text: string): Set<string> {
   const out = new Set<string>();
+  const re = /Mez\s*:\s*sms\s*\(/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    let pos = m.index + m[0].length;
+    const first = skipMezArgument(text, pos);
+    if (!first || first.endedWithComma === false) {
+      continue;
+    }
+    pos = first.end + 1;
+    const second = skipMezArgument(text, pos);
+    if (!second || second.endedWithComma === false) {
+      continue;
+    }
+    pos = second.end + 1;
+    const third = readMezStringLiteral(text, pos);
+    if (!third) {
+      continue;
+    }
+    const k = third.value.trim();
+    if (k) {
+      out.add(k);
+    }
+  }
+  return out;
+}
+
+function extractTranslateKeysFromMez(text: string): Set<string> {
+  const out = extractMezSmsTranslationKeysFromMez(text);
   const reDouble = /String\s*:\s*translate\s*\(\s*"((?:[^"\\]|\\.)*)"/g;
   const reSingle = /String\s*:\s*translate\s*\(\s*'((?:[^'\\]|\\.)*)'/g;
   let m: RegExpExecArray | null;
@@ -1394,7 +1499,7 @@ function extractLangKeysFromVxml(xml: string): Set<string> {
   const out = new Set<string>();
   const cleaned = stripXmlCommentsForLangScan(xml);
   const attrRe =
-    /\b(?:label|title|heading|tooltip|subject|body|value|placeholder|emptyMessage|cancelText|submitText|pageTitle|breadcrumb|message|header|footer|text|description|hint|warnMessage|infoMessage|dialogTitle|confirmTitle|emptyLabel|tabTitle)="([^"]+)"/gi;
+    /\b(?:label|title|heading|tooltip|subject|body|value|placeholder|emptyMessage|cancelText|submitText|pageTitle|breadcrumb|message|header|footer|text|description|hint|warnMessage|infoMessage|dialogTitle|confirmTitle|emptyLabel|tabTitle|pill)="([^"]+)"/gi;
   let m: RegExpExecArray | null;
   while ((m = attrRe.exec(cleaned)) !== null) {
     const v = (m[1] ?? "").trim();

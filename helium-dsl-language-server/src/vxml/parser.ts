@@ -373,7 +373,7 @@ function collectReferences(nodes: VxmlNode[]): VxmlReference[] {
 }
 
 function isLangKeyAttr(name: string): boolean {
-  return ["label", "title", "heading", "tooltip", "value", "subject", "body"].includes(name);
+  return ["label", "title", "heading", "tooltip", "value", "subject", "body", "pill"].includes(name);
 }
 
 function isFunctionValueNode(nodeName: string): boolean {

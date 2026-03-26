@@ -178,13 +178,21 @@ void unusedViewFn() {
       `unit U;
 void f() {
   string x = String:translate("used_from_mez");
+  Mez:sms(x, "mobile_number", "used_from_sms");
 }
 `
     );
-    await index.updateVxmlFile(vxmlUri, `<view label="used_from_vxml" unit="U"></view>`);
+    await index.updateVxmlFile(
+      vxmlUri,
+      `<view label="used_from_vxml" unit="U">
+  <globalAction label="action.x" action="f" pill="used_from_pill"/>
+</view>`
+    );
 
     const langText = `used_from_mez=One
 used_from_vxml=Two
+used_from_sms=Sms
+used_from_pill=Pill
 orphan_unused=Three
 `;
     await index.updateLangFile(langUri, langText);
@@ -195,6 +203,8 @@ orphan_unused=Three
     expect(orphan!.severity).to.equal(DiagnosticSeverity.Information);
     expect(diags.some((d) => String(d.message).includes("used_from_mez"))).to.equal(false);
     expect(diags.some((d) => String(d.message).includes("used_from_vxml"))).to.equal(false);
+    expect(diags.some((d) => String(d.message).includes("used_from_sms"))).to.equal(false);
+    expect(diags.some((d) => String(d.message).includes("used_from_pill"))).to.equal(false);
 
     fs.writeFileSync(
       configPath,

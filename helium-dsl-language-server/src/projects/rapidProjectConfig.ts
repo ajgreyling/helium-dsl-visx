@@ -24,7 +24,7 @@ export type RapidProjectConfigV1 = {
       attributes?: UnusedDiagnosticSeverity;
       functions?: UnusedDiagnosticSeverity;
       units?: UnusedDiagnosticSeverity;
-      /** Unused keys in .lang files (not referenced via String:translate in .mez or label-like attrs in .vxml). Default: Info */
+      /** Unused keys in .lang files (not referenced via String:translate / Mez:sms lang arg in .mez or label-like attrs in .vxml incl. pill). Default: Info */
       languageEntries?: UnusedDiagnosticSeverity;
       /** Persistent object (model) types with no references from other .mez type positions. Default: Info */
       models?: UnusedDiagnosticSeverity;
