@@ -1,7 +1,7 @@
 {
   "name": "helium-dsl-vscode",
   "displayName": "Helium Rapid DSL (ANTLR4)",
-  "version": "1.21.1774363296",
+  "version": "1.22.1774363296",
   "publisher": "mezzanineware",
   "readme": "./README.md",
   "repository": {
@@ -73,7 +73,8 @@
         ],
         "extensions": [
           ".vxml"
-        ]
+        ],
+        "configuration": "./vxml-language-configuration.json"
       }
     ],
     "grammars": [

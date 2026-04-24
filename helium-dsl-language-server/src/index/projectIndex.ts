@@ -182,7 +182,8 @@ export class ProjectIndex {
 
     // Trigger pseudo-scope variables inside model triggers:
     // - `before` is available in beforeCreate/beforeUpdate/beforeDelete code blocks
-    // - `after` is available in afterCreate/afterUpdate/afterDelete code blocks
+    // - `after` is available in afterCreate/afterUpdate/afterDelete code blocks,
+    //   and also in beforeUpdate (alongside `before`)
     if (name === "before" || name === "after") {
       const scopes = (ast as any).triggerScopes as any[] | undefined;
       if (scopes && scopes.length > 0) {

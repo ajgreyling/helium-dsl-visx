@@ -912,7 +912,10 @@ class AstListener {
     this.recordTriggerScope("before", ctx);
   }
   enterBeforeUpdate(ctx: any) {
+    // Both pseudo-scopes are valid in beforeUpdate (e.g. `before` reads prior state,
+    // `after` assigns fields on the row being written).
     this.recordTriggerScope("before", ctx);
+    this.recordTriggerScope("after", ctx);
   }
   enterBeforeDelete(ctx: any) {
     this.recordTriggerScope("before", ctx);
