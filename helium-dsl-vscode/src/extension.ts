@@ -9,6 +9,7 @@ import {
   TransportKind,
   Trace,
 } from "vscode-languageclient/node.js";
+import { registerVxmlFoldingRangeProvider } from "./vxmlFoldingRangeProvider";
 
 let client: LanguageClient | undefined;
 let userDefinedTypes: string[] = [];
@@ -152,6 +153,8 @@ export function activate(context: vscode.ExtensionContext) {
   }).catch(() => {});
   // #endregion
   console.log("[HeliumDSL] Activating extension...");
+
+  registerVxmlFoldingRangeProvider(context);
 
   // Set icon theme automatically if not already configured
   setIconThemeIfNotConfigured();

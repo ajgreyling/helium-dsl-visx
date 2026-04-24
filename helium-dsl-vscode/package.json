@@ -1,7 +1,7 @@
 {
   "name": "helium-dsl-vscode",
   "displayName": "Helium Rapid DSL (ANTLR4)",
-  "version": "1.22.1774363296",
+  "version": "1.23.1774363296",
   "publisher": "mezzanineware",
   "readme": "./README.md",
   "repository": {
@@ -16,6 +16,7 @@
     "Programming Languages"
   ],
   "activationEvents": [
+    "onLanguage:helium-vxml",
     "workspaceContains:**/model/**/*.mez",
     "workspaceContains:**/web-app/presenters/**/*.mez"
   ],
