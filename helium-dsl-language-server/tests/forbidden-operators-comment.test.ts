@@ -52,6 +52,32 @@ describe("forbidden-operators and comment masking", () => {
     expect(ternary.length).to.be.greaterThan(0);
   });
 
+  it("flags boolean-returning function calls in if without explicit comparison", () => {
+    const sample =
+      "void f() {\n\tif (fetchAndPersistFriendlyAppNameForInstance(currentInstance)) {\n\t\treturn;\n\t}\n}\n";
+    const ctx = makeCtx(sample);
+    applyForbiddenOperators(ctx);
+    const boolIf = ctx.diagnostics.filter(
+      (d) =>
+        d.code === "forbidden-operators" &&
+        d.message.includes("Boolean variables in if conditions must use explicit comparison")
+    );
+    expect(boolIf.length).to.equal(1);
+  });
+
+  it("does not flag boolean-returning function calls when compared explicitly", () => {
+    const sample =
+      "void f() {\n\tif (fetchAndPersistFriendlyAppNameForInstance(currentInstance) == true) {\n\t\treturn;\n\t}\n}\n";
+    const ctx = makeCtx(sample);
+    applyForbiddenOperators(ctx);
+    const boolIf = ctx.diagnostics.filter(
+      (d) =>
+        d.code === "forbidden-operators" &&
+        d.message.includes("Boolean variables in if conditions must use explicit comparison")
+    );
+    expect(boolIf.length).to.equal(0);
+  });
+
   it("masks line comments", () => {
     const sample = 'void f() {\n\tint x = 1; // a ? b : c\n}\n';
     const masked = maskCommentsPreserveLength(sample);

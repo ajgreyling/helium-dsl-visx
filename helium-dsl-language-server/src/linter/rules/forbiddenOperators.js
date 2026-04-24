@@ -76,25 +76,20 @@ export function applyForbiddenOperators(ctx) {
         const inStringLiteral = (pos) => {
             return stringLiteralPositions.has(pos);
         };
-        const ifBooleanPattern = /\bif\s*\(\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\)/g;
-        let ifMatch;
-        let ifMatchCount = 0;
-        while ((ifMatch = ifBooleanPattern.exec(line)) !== null) {
-            ifMatchCount++;
-            if (ifMatchCount > 100) {
+        const ifConditions = extractInlineIfConditions(line);
+        let ifConditionCount = 0;
+        for (const ifCondition of ifConditions) {
+            ifConditionCount++;
+            if (ifConditionCount > 100) {
                 break;
             }
-            if (inStringLiteral(ifMatch.index)) {
+            if (inStringLiteral(ifCondition.start)) {
                 continue;
             }
-            const conditionContent = ifMatch[0].substring(ifMatch[0].indexOf("(") + 1, ifMatch[0].lastIndexOf(")"));
-            if (/==|!=/.test(conditionContent.trim())) {
+            if (!isBareBooleanConditionWithoutExplicitComparison(ifCondition.condition)) {
                 continue;
             }
-            pushDiagnostic(ctx, "forbidden-operators", idx, ifMatch.index, ifMatch[0].length, "Boolean variables in if conditions must use explicit comparison. Use '== true' or '== false'.");
-            if (ifMatch[0].length === 0) {
-                ifBooleanPattern.lastIndex++;
-            }
+            pushDiagnostic(ctx, "forbidden-operators", idx, ifCondition.start, ifCondition.length, "Boolean variables in if conditions must use explicit comparison. Use '== true' or '== false'.");
         }
         const ops = [
             {
@@ -134,4 +129,65 @@ export function applyForbiddenOperators(ctx) {
             }
         });
     });
+}
+function extractInlineIfConditions(line) {
+    const results = [];
+    let cursor = 0;
+    while (cursor < line.length) {
+        const ifIndex = line.indexOf("if", cursor);
+        if (ifIndex === -1)
+            break;
+        const before = ifIndex > 0 ? line[ifIndex - 1] : "";
+        const after = ifIndex + 2 < line.length ? line[ifIndex + 2] : "";
+        if (isIdentifierChar(before) || isIdentifierChar(after)) {
+            cursor = ifIndex + 2;
+            continue;
+        }
+        let openParen = ifIndex + 2;
+        while (openParen < line.length && /\s/.test(line[openParen]))
+            openParen++;
+        if (openParen >= line.length || line[openParen] !== "(") {
+            cursor = ifIndex + 2;
+            continue;
+        }
+        let depth = 0;
+        let closeParen = -1;
+        for (let i = openParen; i < line.length; i++) {
+            const c = line[i];
+            if (c === "(")
+                depth++;
+            if (c === ")")
+                depth--;
+            if (depth === 0) {
+                closeParen = i;
+                break;
+            }
+        }
+        if (closeParen === -1)
+            break;
+        results.push({
+            start: ifIndex,
+            length: closeParen - ifIndex + 1,
+            condition: line.slice(openParen + 1, closeParen),
+        });
+        cursor = closeParen + 1;
+    }
+    return results;
+}
+function isBareBooleanConditionWithoutExplicitComparison(condition) {
+    const trimmed = condition.trim();
+    if (trimmed.length === 0)
+        return false;
+    if (/==|!=/.test(trimmed))
+        return false;
+    if (/[<>]=?|&&|\|\|/.test(trimmed))
+        return false;
+    if (/[+\-*/%]/.test(trimmed))
+        return false;
+    if (/^\s*!/.test(trimmed))
+        return false;
+    return /^[A-Za-z_][A-Za-z0-9_]*(?::[A-Za-z_][A-Za-z0-9_]*)?(?:\.[A-Za-z_][A-Za-z0-9_]*)*(?:\s*\([^()]*\))?$/.test(trimmed);
+}
+function isIdentifierChar(char) {
+    return /[A-Za-z0-9_]/.test(char);
 }
