@@ -88,6 +88,7 @@ import {
 } from "./callHierarchy/callHierarchy.js";
 import { buildSignatureHelpFromLabel, findCallAtPosition } from "./utils/signatureHelp.js";
 import { buildVxmlAst } from "./vxml/parser.js";
+import type { VxmlReference } from "./vxml/types.js";
 import { validateVxml, type VxmlDiagnostic } from "./vxml/validator.js";
 
 // Log immediately when server module loads
@@ -106,10 +107,35 @@ const IGNORED_DIRS = new Set(["node_modules", ".git", ".idea", ".vscode"]);
 const validateDebounceTimers = new Map<string, NodeJS.Timeout>();
 const vxmlRevalidateProjectTimers = new Map<string, NodeJS.Timeout>();
 
+/** Indices must match `semanticLegend.tokenTypes` (append-only after .mez types). */
+const SEM_VXML_UNIT = 4;
+const SEM_VXML_INIT = 5;
+const SEM_VXML_FN = 6;
+const SEM_VXML_VAR = 7;
+
 const semanticLegend: SemanticTokensLegend = {
-  tokenTypes: ["type", "function", "variable", "namespace"],
+  tokenTypes: [
+    "type",
+    "function",
+    "variable",
+    "namespace",
+    "helVxmlUnit",
+    "helVxmlInit",
+    "helVxmlFn",
+    "helVxmlVar",
+  ],
   tokenModifiers: [],
 };
+
+function vxmlReferenceSemanticTokenType(ref: VxmlReference): number | undefined {
+  if (ref.kind === "unit") return SEM_VXML_UNIT;
+  if (ref.kind === "variable") return SEM_VXML_VAR;
+  if (ref.kind === "function") {
+    if (ref.attrName === "init") return SEM_VXML_INIT;
+    return SEM_VXML_FN;
+  }
+  return undefined;
+}
 
 type BifMetadata = {
   namespaces?: Record<
@@ -478,10 +504,26 @@ async function validateFromDisk(uri: string): Promise<void> {
 
   const isVxml = fsPath.endsWith(".vxml");
   const isMez = fsPath.endsWith(".mez");
-  if (!isVxml && !isMez) return;
+  const isLang = fsPath.endsWith(".lang");
+  if (!isVxml && !isMez && !isLang) return;
 
   try {
     const text = await fs.promises.readFile(fsPath, "utf8");
+    if (isLang) {
+      const doc = TextDocument.create(uri, "helium-lang", 1, text);
+      projectManager.updateDocument(doc);
+      await validateDocument(doc);
+      for (const d of documents.all()) {
+        if (isVxmlDocument(d)) {
+          validateDocument(d).catch(() => {});
+        }
+      }
+      const projectRoot = findOwningProjectRoot(fsPath);
+      if (projectRoot) {
+        scheduleRevalidateVxmlInProject(projectRoot);
+      }
+      return;
+    }
     const languageId = isVxml ? "helium-vxml" : "helium-dsl";
     const doc = TextDocument.create(uri, languageId, 1, text);
 
@@ -552,13 +594,13 @@ async function revalidateAllVxmlInProject(projectRoot: string): Promise<void> {
   await Promise.all(workers);
 }
 
-async function startStartupDiagnosticsScan(): Promise<void> {
+async function sweepUnopenedDiagnosticsUnderProjectRoots(exts: Set<string>): Promise<void> {
   const roots = projectManager.getProjectRoots();
   if (!roots || roots.length === 0) return;
 
   const filePaths: string[] = [];
   for (const root of roots) {
-    collectFilesByExt(root, new Set([".mez", ".vxml"]), filePaths);
+    collectFilesByExt(root, exts, filePaths);
   }
 
   const concurrency = 6;
@@ -574,6 +616,50 @@ async function startStartupDiagnosticsScan(): Promise<void> {
   });
   await Promise.all(workers);
 }
+
+async function startStartupDiagnosticsScan(): Promise<void> {
+  await sweepUnopenedDiagnosticsUnderProjectRoots(new Set([".mez", ".vxml", ".lang"]));
+}
+
+/** Revalidate one URI: open buffer if present, otherwise disk (mez / vxml / lang). */
+async function lintDocumentByUri(uri: string): Promise<void> {
+  const open = documents.get(uri);
+  if (open) {
+    await validateDocument(open);
+    return;
+  }
+  await validateFromDisk(uri);
+}
+
+/** Revalidate all open Helium-related documents, then all unopened project files. */
+async function lintWorkspace(): Promise<void> {
+  for (const d of documents.all()) {
+    if (isMezDocument(d) || isVxmlDocument(d) || isLangDocument(d)) {
+      await validateDocument(d);
+    }
+  }
+  await sweepUnopenedDiagnosticsUnderProjectRoots(new Set([".mez", ".vxml", ".lang"]));
+}
+
+connection.onRequest("helium/lintDocument", async (params: unknown) => {
+  const uri = params && typeof params === "object" && "uri" in params ? (params as { uri?: unknown }).uri : undefined;
+  if (typeof uri !== "string" || !uri.length) {
+    return;
+  }
+  try {
+    await lintDocumentByUri(uri);
+  } catch (err) {
+    console.error("[Server] helium/lintDocument failed:", err);
+  }
+});
+
+connection.onRequest("helium/lintWorkspace", async () => {
+  try {
+    await lintWorkspace();
+  } catch (err) {
+    console.error("[Server] helium/lintWorkspace failed:", err);
+  }
+});
 
 function collectFilesByExt(dir: string, exts: Set<string>, out: string[]) {
   if (!dir) return;
@@ -1760,12 +1846,36 @@ connection.languages.semanticTokens.on(async (params: SemanticTokensParams) => {
     return builder.build();
   }
 
-  // Important: semantic tokens are only supported for Helium DSL (.mez).
-  // VXML is XML and must not go through the ANTLR lexer/parser (it produces noisy lexer errors).
-  if (isVxmlDocument(doc) || !isMezDocument(doc)) {
+  if (isVxmlDocument(doc)) {
+    const pushVxmlRange = (
+      range: { start: { line: number; character: number }; end: { line: number; character: number } },
+      tokenTypeIndex: number
+    ) => {
+      if (range.start.line !== range.end.line) return;
+      const length = range.end.character - range.start.character;
+      if (length <= 0) return;
+      builder.push(range.start.line, range.start.character, length, tokenTypeIndex, 0);
+    };
+    try {
+      const ast = buildVxmlAst(doc.getText(), doc.uri);
+      for (const ref of ast.references) {
+        const t = vxmlReferenceSemanticTokenType(ref);
+        if (t !== undefined) pushVxmlRange(ref.range, t);
+      }
+    } catch (err) {
+      console.error(
+        `[SemanticTokens] ERROR: Failed to build VXML AST for ${params.textDocument.uri}: ${
+          err instanceof Error ? err.message : String(err)
+        }`
+      );
+    }
     return builder.build();
   }
-  
+
+  if (!isMezDocument(doc)) {
+    return builder.build();
+  }
+
   const text = doc.getText();
   const userTypes = new Set(projectManager.getUserTypes());
 
@@ -1875,9 +1985,41 @@ connection.languages.semanticTokens.onRange(async (params: SemanticTokensRangePa
   const builder = new SemanticTokensBuilder();
   if (!doc) return builder.build();
 
-  // Important: semantic tokens are only supported for Helium DSL (.mez).
-  // VXML is XML and must not go through the ANTLR lexer/parser.
-  if (isVxmlDocument(doc) || !isMezDocument(doc)) {
+  if (isVxmlDocument(doc)) {
+    const rangeIntersectsVxml = (
+      token: { start: Position; end: Position },
+      requested: Range
+    ): boolean => {
+      if (token.end.line < requested.start.line || token.start.line > requested.end.line) return false;
+      if (token.start.line === requested.start.line && token.end.character < requested.start.character)
+        return false;
+      if (token.end.line === requested.end.line && token.start.character > requested.end.character)
+        return false;
+      return true;
+    };
+    const pushVxmlRange = (
+      range: { start: Position; end: Position },
+      tokenTypeIndex: number
+    ) => {
+      if (!rangeIntersectsVxml(range, params.range)) return;
+      if (range.start.line !== range.end.line) return;
+      const length = range.end.character - range.start.character;
+      if (length <= 0) return;
+      builder.push(range.start.line, range.start.character, length, tokenTypeIndex, 0);
+    };
+    try {
+      const ast = buildVxmlAst(doc.getText(), doc.uri);
+      for (const ref of ast.references) {
+        const t = vxmlReferenceSemanticTokenType(ref);
+        if (t !== undefined) pushVxmlRange(ref.range, t);
+      }
+    } catch {
+      return builder.build();
+    }
+    return builder.build();
+  }
+
+  if (!isMezDocument(doc)) {
     return builder.build();
   }
 

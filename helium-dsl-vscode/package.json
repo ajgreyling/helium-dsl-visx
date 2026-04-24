@@ -1,7 +1,7 @@
 {
   "name": "helium-dsl-vscode",
   "displayName": "Helium Rapid DSL (ANTLR4)",
-  "version": "1.23.1774363296",
+  "version": "1.24.1774363296",
   "publisher": "mezzanineware",
   "readme": "./README.md",
   "repository": {
@@ -18,10 +18,24 @@
   "activationEvents": [
     "onLanguage:helium-vxml",
     "workspaceContains:**/model/**/*.mez",
-    "workspaceContains:**/web-app/presenters/**/*.mez"
+    "workspaceContains:**/web-app/presenters/**/*.mez",
+    "onCommand:heliumDsl.lintCurrentFile",
+    "onCommand:heliumDsl.lintWorkspace"
   ],
   "main": "./out/extension.js",
   "contributes": {
+    "commands": [
+      {
+        "command": "heliumDsl.lintCurrentFile",
+        "title": "Lint Current File",
+        "category": "Helium Rapid DSL"
+      },
+      {
+        "command": "heliumDsl.lintWorkspace",
+        "title": "Lint Current Project",
+        "category": "Helium Rapid DSL"
+      }
+    ],
     "configuration": {
       "title": "Helium Rapid DSL (ANTLR4)",
       "properties": {
@@ -94,8 +108,28 @@
         "path": "./generated/syntaxes/helium-vxml-inject.tmLanguage.json",
         "injectTo": [
           "text.xml",
-          "text.xml.derivative"
+          "text.xml.derivative",
+          "text.xml.helium-vxml"
         ]
+      }
+    ],
+    "semanticTokenScopes": [
+      {
+        "language": "helium-vxml",
+        "scopes": {
+          "helVxmlUnit": [
+            "entity.name.type.helium.vxml.unit"
+          ],
+          "helVxmlInit": [
+            "entity.name.function.helium.vxml.init"
+          ],
+          "helVxmlFn": [
+            "entity.name.function.helium.vxml.bindfn"
+          ],
+          "helVxmlVar": [
+            "variable.other.helium.vxml.bindvar"
+          ]
+        }
       }
     ],
     "iconThemes": [

@@ -283,7 +283,7 @@ function collectReferences(nodes: VxmlNode[]): VxmlReference[] {
           });
         }
       }
-      if (attr.name === "unit" && node.name === "view") {
+      if (attr.name === "unit" && (node.name === "view" || node.name === "globalview")) {
         refs.push({
           kind: "unit",
           name: attr.value,

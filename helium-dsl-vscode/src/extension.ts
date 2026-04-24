@@ -102,8 +102,83 @@ function workspaceHasHeliumProject(): boolean {
 }
 
 function workspaceHasOpenHeliumDocuments(): boolean {
-  return vscode.workspace.textDocuments.some(
-    (d) => d.languageId === "helium-dsl" || d.languageId === "helium-vxml"
+  return vscode.workspace.textDocuments.some((d) => {
+    if (d.languageId === "helium-dsl" || d.languageId === "helium-vxml") {
+      return true;
+    }
+    if (d.uri.scheme !== "file") {
+      return false;
+    }
+    const p = d.uri.fsPath;
+    return p.endsWith(".mez") || p.endsWith(".vxml") || p.endsWith(".lang");
+  });
+}
+
+function canRunHeliumLint(): boolean {
+  return workspaceHasHeliumProject() || workspaceHasOpenHeliumDocuments();
+}
+
+async function ensureLanguageClientForLint(
+  context: vscode.ExtensionContext
+): Promise<LanguageClient | undefined> {
+  if (!canRunHeliumLint()) {
+    vscode.window.showWarningMessage(
+      "Helium Rapid DSL: Open a workspace containing a Helium project, or open a .mez, .vxml, or .lang file."
+    );
+    return undefined;
+  }
+  startLanguageClient(context);
+  if (!client) {
+    vscode.window.showErrorMessage(
+      "Helium Rapid DSL: Language server is not available. Rebuild the extension if server files are missing."
+    );
+    return undefined;
+  }
+  try {
+    await client.start();
+  } catch (e) {
+    vscode.window.showErrorMessage(`Helium Rapid DSL: Language server did not start (${String(e)}).`);
+    return undefined;
+  }
+  return client;
+}
+
+function registerLintCommands(context: vscode.ExtensionContext): void {
+  context.subscriptions.push(
+    vscode.commands.registerCommand("heliumDsl.lintCurrentFile", async () => {
+      const editor = vscode.window.activeTextEditor;
+      if (!editor || editor.document.uri.scheme !== "file") {
+        vscode.window.showWarningMessage("Helium Rapid DSL: Open a file tab to lint.");
+        return;
+      }
+      const fsPath = editor.document.uri.fsPath;
+      if (!fsPath.endsWith(".mez") && !fsPath.endsWith(".vxml") && !fsPath.endsWith(".lang")) {
+        vscode.window.showWarningMessage(
+          "Helium Rapid DSL: The active file must be a .mez, .vxml, or .lang file."
+        );
+        return;
+      }
+      const lc = await ensureLanguageClientForLint(context);
+      if (!lc) {
+        return;
+      }
+      try {
+        await lc.sendRequest("helium/lintDocument", { uri: editor.document.uri.toString() });
+      } catch (e) {
+        vscode.window.showErrorMessage(`Helium Rapid DSL: Lint current file failed (${String(e)}).`);
+      }
+    }),
+    vscode.commands.registerCommand("heliumDsl.lintWorkspace", async () => {
+      const lc = await ensureLanguageClientForLint(context);
+      if (!lc) {
+        return;
+      }
+      try {
+        await lc.sendRequest("helium/lintWorkspace", {});
+      } catch (e) {
+        vscode.window.showErrorMessage(`Helium Rapid DSL: Lint project failed (${String(e)}).`);
+      }
+    })
   );
 }
 
@@ -155,6 +230,7 @@ export function activate(context: vscode.ExtensionContext) {
   console.log("[HeliumDSL] Activating extension...");
 
   registerVxmlFoldingRangeProvider(context);
+  registerLintCommands(context);
 
   // Set icon theme automatically if not already configured
   setIconThemeIfNotConfigured();

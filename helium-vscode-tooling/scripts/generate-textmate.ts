@@ -455,38 +455,87 @@ async function main() {
     repository: {
       "helium-vxml-wiring": {
         patterns: [
-          // Highlight unit name in unit="SomeUnit"
+          // unit="SomeUnit" / unit='SomeUnit' — presenter / unit file reference
           {
             name: "meta.helium.vxml.wired.unit",
             match: `\\b(unit)\\s*=\\s*\"([A-Z][A-Za-z0-9_]*)\"`,
             captures: {
               1: { name: "entity.other.attribute-name" },
-              2: { name: "support.class" },
+              2: { name: "entity.name.type.helium.vxml.unit" },
             },
           },
-
-          // Highlight wired function values in: init/action/function="(Unit:)?name"
-          // Also handles: function="getSomething" (e.g. <visible function="..."/>).
           {
-            name: "meta.helium.vxml.wired.function",
-            match:
-              `\\b(init|action|function)\\s*=\\s*\"(?:([A-Z][A-Za-z0-9_]*)\\:)?([A-Za-z_][A-Za-z0-9_]*)\"`,
+            name: "meta.helium.vxml.wired.unit",
+            match: `\\b(unit)\\s*=\\s*'([A-Z][A-Za-z0-9_]*)'`,
             captures: {
               1: { name: "entity.other.attribute-name" },
-              2: { name: "support.class" },
-              3: { name: "support.function" },
+              2: { name: "entity.name.type.helium.vxml.unit" },
             },
           },
 
-          // Highlight wired variable values in: variable="(Unit:)?name"
+          // init="(Unit:)?name" — view entrypoint (distinct from other wired functions)
+          {
+            name: "meta.helium.vxml.wired.init",
+            match:
+              `\\b(init)\\s*=\\s*\"(?:([A-Z][A-Za-z0-9_]*)\\:)?([A-Za-z_][A-Za-z0-9_]*)\"`,
+            captures: {
+              1: { name: "entity.other.attribute-name" },
+              2: { name: "entity.name.type.helium.vxml.unit" },
+              3: { name: "entity.name.function.helium.vxml.init" },
+            },
+          },
+          {
+            name: "meta.helium.vxml.wired.init",
+            match:
+              `\\b(init)\\s*=\\s*'(?:([A-Z][A-Za-z0-9_]*)\\:)?([A-Za-z_][A-Za-z0-9_]*)'`,
+            captures: {
+              1: { name: "entity.other.attribute-name" },
+              2: { name: "entity.name.type.helium.vxml.unit" },
+              3: { name: "entity.name.function.helium.vxml.init" },
+            },
+          },
+
+          // action / destroy / function="(Unit:)?name" — callbacks, actions, visibility, etc.
+          {
+            name: "meta.helium.vxml.wired.bindfn",
+            match:
+              `\\b(action|destroy|function)\\s*=\\s*\"(?:([A-Z][A-Za-z0-9_]*)\\:)?([A-Za-z_][A-Za-z0-9_]*)\"`,
+            captures: {
+              1: { name: "entity.other.attribute-name" },
+              2: { name: "entity.name.type.helium.vxml.unit" },
+              3: { name: "entity.name.function.helium.vxml.bindfn" },
+            },
+          },
+          {
+            name: "meta.helium.vxml.wired.bindfn",
+            match:
+              `\\b(action|destroy|function)\\s*=\\s*'(?:([A-Z][A-Za-z0-9_]*)\\:)?([A-Za-z_][A-Za-z0-9_]*)'`,
+            captures: {
+              1: { name: "entity.other.attribute-name" },
+              2: { name: "entity.name.type.helium.vxml.unit" },
+              3: { name: "entity.name.function.helium.vxml.bindfn" },
+            },
+          },
+
+          // variable="(Unit:)?name"
           {
             name: "meta.helium.vxml.wired.variable",
             match:
               `\\b(variable)\\s*=\\s*\"(?:([A-Z][A-Za-z0-9_]*)\\:)?([A-Za-z_][A-Za-z0-9_]*)\"`,
             captures: {
               1: { name: "entity.other.attribute-name" },
-              2: { name: "support.class" },
-              3: { name: "variable.other" },
+              2: { name: "entity.name.type.helium.vxml.unit" },
+              3: { name: "variable.other.helium.vxml.bindvar" },
+            },
+          },
+          {
+            name: "meta.helium.vxml.wired.variable",
+            match:
+              `\\b(variable)\\s*=\\s*'(?:([A-Z][A-Za-z0-9_]*)\\:)?([A-Za-z_][A-Za-z0-9_]*)'`,
+            captures: {
+              1: { name: "entity.other.attribute-name" },
+              2: { name: "entity.name.type.helium.vxml.unit" },
+              3: { name: "variable.other.helium.vxml.bindvar" },
             },
           },
         ],
