@@ -179,10 +179,11 @@ export function createForbiddenOperatorFix(
       fix = `${varName} = ${varName} ${op}`;
     }
   } else if (message.includes("boolean") || message.includes("if")) {
-    // if (flag) -> if (flag == true)
-    const match = diagnosticText.match(/if\s*\(\s*(\w+)\s*\)/);
-    if (match) {
-      fix = `if (${match[1]} == true)`;
+    // if (flag) / if (isReady()) -> explicit boolean comparison
+    const focusedText = diagnosticText.substring(range.start.character, range.end.character);
+    const condition = extractIfCondition(focusedText) ?? extractIfCondition(diagnosticText);
+    if (condition && !/==|!=/.test(condition)) {
+      fix = `if (${condition.trim()} == true)`;
     }
   }
 
@@ -205,6 +206,27 @@ export function createForbiddenOperatorFix(
       },
     },
   };
+}
+
+function extractIfCondition(text: string): string | null {
+  const ifIndex = text.indexOf("if");
+  if (ifIndex === -1) return null;
+
+  let openParen = ifIndex + 2;
+  while (openParen < text.length && /\s/.test(text[openParen] ?? "")) openParen++;
+  if (openParen >= text.length || text[openParen] !== "(") return null;
+
+  let depth = 0;
+  for (let i = openParen; i < text.length; i++) {
+    const char = text[i] ?? "";
+    if (char === "(") depth++;
+    if (char === ")") depth--;
+    if (depth === 0) {
+      return text.slice(openParen + 1, i);
+    }
+  }
+
+  return null;
 }
 
 function toLspRange(range: { start: { line: number; character: number }; end: { line: number; character: number } }): Range {
