@@ -767,8 +767,32 @@ connection.onHover(async (params: HoverParams): Promise<Hover | null> => {
   if (!doc) {
     return null;
   }
-  // VXML is XML; disable Helium-DSL hover logic to avoid ANTLR lexer noise.
-  if (isVxmlDocument(doc) || !isMezDocument(doc)) {
+
+  if (isVxmlDocument(doc)) {
+    try {
+      const ast = buildVxmlAst(doc.getText(), doc.uri);
+      const refAtPos = ast.references.find((r) =>
+        rangeContains(r.range as any, params.position.line, params.position.character)
+      );
+      if (!refAtPos || refAtPos.kind !== "langKey") {
+        return null;
+      }
+      const translated = projectManager.getLangValue(refAtPos.name, doc.uri);
+      if (!translated) {
+        return null;
+      }
+      return {
+        contents: {
+          kind: MarkupKind.Markdown,
+          value: `**${refAtPos.name}**\n\n${translated}`,
+        },
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  if (!isMezDocument(doc)) {
     return null;
   }
 

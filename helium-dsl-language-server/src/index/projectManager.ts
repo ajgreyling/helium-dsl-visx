@@ -187,6 +187,20 @@ export class ProjectManager {
     return false;
   }
 
+  getLangValue(key: string, uri?: string): string | null {
+    if (!key) return null;
+    if (uri) {
+      const index = this.getIndexForUri(uri);
+      const value = index?.getLangValue(key);
+      if (value !== null && value !== undefined) return value;
+    }
+    for (const index of this.indexes.values()) {
+      const value = index.getLangValue(key);
+      if (value !== null && value !== undefined) return value;
+    }
+    return null;
+  }
+
   hasUnitFunction(unitName: string, functionName: string): boolean {
     for (const index of this.indexes.values()) {
       const functions = index.getUnitFunctions(unitName);

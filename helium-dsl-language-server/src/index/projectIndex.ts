@@ -56,7 +56,7 @@ export class ProjectIndex {
   private readonly metadata: LanguageMetadata;
   private readonly files = new Map<string, FileAst>();
   private readonly vxml = new Map<string, { viewUnitName?: string; references: VxmlReference[] }>();
-  private readonly lang = new Map<string, { keys: Set<string> }>();
+  private readonly lang = new Map<string, { keys: Set<string>; values: Map<string, string> }>();
   /** Latest .mez source per URI for translation-key extraction */
   private readonly mezLangKeyRefs = new Map<string, Set<string>>();
   /** Latest .vxml source per URI for label/title/etc. key extraction */
@@ -154,6 +154,15 @@ export class ProjectIndex {
       if (entry.keys.has(key)) return true;
     }
     return false;
+  }
+
+  getLangValue(key: string): string | null {
+    if (!key) return null;
+    for (const entry of this.lang.values()) {
+      const value = entry.values.get(key);
+      if (value !== undefined) return value;
+    }
+    return null;
   }
 
   getUnits(): UnitDecl[] {
@@ -285,8 +294,9 @@ export class ProjectIndex {
 
   async updateLangFile(uri: string, text: string) {
     try {
-      const keys = parseLangKeys(text);
-      this.lang.set(uri, { keys });
+      const values = parseLangEntries(text);
+      const keys = new Set(values.keys());
+      this.lang.set(uri, { keys, values });
     } catch (err) {
       if (err instanceof Error) {
         console.error(`[ProjectIndex] Error indexing LANG ${uri}: ${err.message}`);
@@ -1554,6 +1564,29 @@ function parseLangKeys(text: string): Set<string> {
     keys.add(key);
   }
   return keys;
+}
+
+function parseLangEntries(text: string): Map<string, string> {
+  const entries = new Map<string, string>();
+  const lines = text.split(/\r?\n/);
+  for (const rawLine of lines) {
+    const trimmed = rawLine.trim();
+    if (
+      trimmed === "" ||
+      trimmed.startsWith("#") ||
+      trimmed.startsWith(";") ||
+      (trimmed.startsWith("[") && trimmed.endsWith("]"))
+    ) {
+      continue;
+    }
+    const eq = trimmed.indexOf("=");
+    if (eq === -1) continue;
+    const key = trimmed.slice(0, eq).trim();
+    if (!key) continue;
+    const value = trimmed.slice(eq + 1).trim();
+    entries.set(key, value);
+  }
+  return entries;
 }
 
 function resolveVxmlQualified(
