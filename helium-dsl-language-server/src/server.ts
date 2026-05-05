@@ -112,6 +112,7 @@ const SEM_VXML_UNIT = 4;
 const SEM_VXML_INIT = 5;
 const SEM_VXML_FN = 6;
 const SEM_VXML_VAR = 7;
+const SEM_VXML_ATTR = 8;
 
 const semanticLegend: SemanticTokensLegend = {
   tokenTypes: [
@@ -123,6 +124,7 @@ const semanticLegend: SemanticTokensLegend = {
     "helVxmlInit",
     "helVxmlFn",
     "helVxmlVar",
+    "helVxmlAttr",
   ],
   tokenModifiers: [],
 };
@@ -130,6 +132,7 @@ const semanticLegend: SemanticTokensLegend = {
 function vxmlReferenceSemanticTokenType(ref: VxmlReference): number | undefined {
   if (ref.kind === "unit") return SEM_VXML_UNIT;
   if (ref.kind === "variable") return SEM_VXML_VAR;
+  if (ref.kind === "attribute") return SEM_VXML_ATTR;
   if (ref.kind === "function") {
     if (ref.attrName === "init") return SEM_VXML_INIT;
     return SEM_VXML_FN;

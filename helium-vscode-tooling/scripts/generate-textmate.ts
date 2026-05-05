@@ -4,13 +4,20 @@ import fs from "fs-extra";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
+const vscodeExtensionRoot = path.resolve(root, "..", "helium-dsl-vscode");
 const grammarPath = path.join(root, "generated/grammar/MezDSL.g4");
 const bifMetaPath = path.join(root, "generated/bifs/bif-metadata.json");
 const languageMetaPath = path.join(root, "generated/language/helium-language-metadata.json");
 const output = path.join(root, "generated/syntaxes/helium-dsl.tmLanguage.json");
+const vscodeOutput = path.join(vscodeExtensionRoot, "generated/syntaxes/helium-dsl.tmLanguage.json");
 const vxmlXsdPath = path.join(root, "assets", "vxml", "View.xsd");
 const vxmlOutput = path.join(root, "generated/syntaxes/helium-vxml.tmLanguage.json");
+const vscodeVxmlOutput = path.join(vscodeExtensionRoot, "generated/syntaxes/helium-vxml.tmLanguage.json");
 const vxmlInjectOutput = path.join(root, "generated/syntaxes/helium-vxml-inject.tmLanguage.json");
+const vscodeVxmlInjectOutput = path.join(
+  vscodeExtensionRoot,
+  "generated/syntaxes/helium-vxml-inject.tmLanguage.json"
+);
 
 type LanguageMetadata = {
   keywords?: string[];
@@ -355,6 +362,8 @@ async function main() {
 
   await fs.ensureDir(path.dirname(output));
   await fs.writeJson(output, tmLanguage, { spaces: 2 });
+  await fs.ensureDir(path.dirname(vscodeOutput));
+  await fs.writeJson(vscodeOutput, tmLanguage, { spaces: 2 });
   console.log(`Generated TextMate grammar at ${output}`);
 
   // -------------------------------------------------------------------------------------------
@@ -405,19 +414,6 @@ async function main() {
     repository: {
       "helium-vxml-vocabulary": {
         patterns: [
-          // Known VXML tags (widgets / elements) from XSD
-          ...(elementAlt
-            ? [
-                {
-                  name: "meta.helium.vxml.tag",
-                  match: `</?(${elementAlt})(?=[\\s>/])`,
-                  captures: {
-                    1: { name: "support.function" },
-                  },
-                },
-              ]
-            : []),
-
           // Known VXML attribute names from XSD (including hyphenated attrs)
           ...(attrAlt
             ? [
@@ -439,6 +435,8 @@ async function main() {
 
   await fs.ensureDir(path.dirname(vxmlOutput));
   await fs.writeJson(vxmlOutput, vxmlTmLanguage, { spaces: 2 });
+  await fs.ensureDir(path.dirname(vscodeVxmlOutput));
+  await fs.writeJson(vscodeVxmlOutput, vxmlTmLanguage, { spaces: 2 });
   console.log(`Generated TextMate grammar at ${vxmlOutput}`);
 
   // -------------------------------------------------------------------------------------------
@@ -546,6 +544,8 @@ async function main() {
 
   await fs.ensureDir(path.dirname(vxmlInjectOutput));
   await fs.writeJson(vxmlInjectOutput, vxmlInjectTmLanguage, { spaces: 2 });
+  await fs.ensureDir(path.dirname(vscodeVxmlInjectOutput));
+  await fs.writeJson(vscodeVxmlInjectOutput, vxmlInjectTmLanguage, { spaces: 2 });
   console.log(`Generated TextMate injection grammar at ${vxmlInjectOutput}`);
 }
 

@@ -1,7 +1,7 @@
 {
   "version": "0.1.0",
   "extractedFrom": "/Users/ajgreyling/code/appexec-dsl-commons/WebViewParser-lib/src/main/resources/com/mezzanine/dsl/web/View.xsd",
-  "extractedAt": "2026-03-15T11:57:34.666Z",
+  "extractedAt": "2026-04-24T15:00:48.128Z",
   "functionValueNodes": [
     "itemIcon",
     "itemLatitude",
