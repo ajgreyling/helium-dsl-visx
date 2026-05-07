@@ -1490,7 +1490,7 @@ function extractLangKeysFromVxml(xml: string): Set<string> {
   const out = new Set<string>();
   const cleaned = stripXmlCommentsForLangScan(xml);
   const attrRe =
-    /\b(?:label|title|heading|tooltip|subject|body|value|placeholder|emptyMessage|cancelText|submitText|pageTitle|breadcrumb|message|header|footer|text|description|hint|warnMessage|infoMessage|dialogTitle|confirmTitle|emptyLabel|tabTitle|pill)="([^"]+)"/gi;
+    /\b(?:label|title|heading|tooltip|subject|body|value|placeholder|emptyMessage|cancelText|submitText|pageTitle|breadcrumb|message|header|footer|text|description|hint|warnMessage|infoMessage|dialogTitle|confirmTitle|emptyLabel|tabTitle|pill|actionsLabel)="([^"]+)"/gi;
   let m: RegExpExecArray | null;
   while ((m = attrRe.exec(cleaned)) !== null) {
     const v = (m[1] ?? "").trim();

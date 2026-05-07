@@ -186,6 +186,9 @@ void f() {
       vxmlUri,
       `<view label="used_from_vxml" unit="U">
   <globalAction label="action.x" action="f" pill="used_from_pill"/>
+  <table title="table_heading.test" actionsLabel="used_from_actions_label">
+    <collectionSource function="f"/>
+  </table>
 </view>`
     );
 
@@ -193,6 +196,7 @@ void f() {
 used_from_vxml=Two
 used_from_sms=Sms
 used_from_pill=Pill
+used_from_actions_label=Actions
 orphan_unused=Three
 `;
     await index.updateLangFile(langUri, langText);
@@ -205,6 +209,7 @@ orphan_unused=Three
     expect(diags.some((d) => String(d.message).includes("used_from_vxml"))).to.equal(false);
     expect(diags.some((d) => String(d.message).includes("used_from_sms"))).to.equal(false);
     expect(diags.some((d) => String(d.message).includes("used_from_pill"))).to.equal(false);
+    expect(diags.some((d) => String(d.message).includes("used_from_actions_label"))).to.equal(false);
 
     fs.writeFileSync(
       configPath,
