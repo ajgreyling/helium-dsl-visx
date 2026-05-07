@@ -954,28 +954,8 @@ export class ProjectIndex {
       }
     }
 
-    // Object attributes + relationships
-    for (const obj of ast.objects || []) {
-      for (const attr of obj.attributes || []) {
-        const count = this.getNestedUsage(this.memberUsage, obj.name, attr.name);
-        if (count <= 0) {
-          const diagnostic = toWarning(attr.nameRange, `Attribute ${attr.name} is not used anywhere`, severityConfig.attributes);
-          if (diagnostic) {
-            warnings.push(diagnostic);
-          }
-        }
-      }
-      for (const rel of obj.relationships || []) {
-        const count = this.getNestedUsage(this.memberUsage, obj.name, rel.name);
-        if (count <= 0) {
-          // Relationships use the same severity as attributes
-          const diagnostic = toWarning(rel.nameRange, `Relationship ${rel.name} is not used anywhere`, severityConfig.attributes);
-          if (diagnostic) {
-            warnings.push(diagnostic);
-          }
-        }
-      }
-    }
+    // Object attributes + relationships are intentionally excluded from unused diagnostics.
+    // Keeping this suppressed avoids noisy "helium-dsl-unused" warnings for unreferenced properties.
 
     // Units + unit functions
     const unitsNeedingVxmlDisk = new Set<string>();

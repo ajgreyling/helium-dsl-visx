@@ -15,15 +15,15 @@ npm install -g helium-rapid-prune
 **With `npx` (no global install):**
 
 ```bash
-npx helium-rapid-prune /path/to/repo
-npx helium-rapid-prune /path/to/repo --max-passes=25
+npx helium-rapid-prune /path/to/dsl-root
+npx helium-rapid-prune /path/to/dsl-root --max-passes=25
 ```
 
 **With a project root (non-interactive):**
 
 ```bash
-helium-rapid-prune /path/to/repo
-helium-rapid-prune /path/to/repo --max-passes=25
+helium-rapid-prune /path/to/dsl-root
+helium-rapid-prune /path/to/dsl-root --max-passes=25
 ```
 
 **Without arguments** (prompts for project root and max passes):
@@ -36,11 +36,32 @@ Default max passes is `5` when `--max-passes` is not provided.
 
 **Environment:**
 
-- `PROJECT_ROOT` — used as the project root when no positional argument is given (still runs non-interactively for the other options unless you only set this and want prompts; if both env and no argv positionals, env wins before prompts).
+- `PROJECT_ROOT` — used as the DSL root when no positional argument is given (still runs non-interactively for the other options unless you only set this and want prompts; if both env and no argv positionals, env wins before prompts).
 
 ## Behaviour
 
-- Uses the path you pass (or enter at the prompt) **as the Helium Rapid DSL project root** — it does **not** append `dsl` or any other segment.
+- Uses the path you pass (or enter at the prompt) **as the Helium Rapid DSL root exactly as provided**.
+- It does **not** append `dsl`, `app`, or any other segment automatically.
+
+### Path examples by repository layout
+
+If the Helium DSL files are directly in your repository root:
+
+```bash
+npx helium-rapid-prune /path/to/repo
+```
+
+If the Helium DSL files are in an `app/` subfolder:
+
+```bash
+npx helium-rapid-prune /path/to/repo/app
+```
+
+If the Helium DSL files are in a `dsl/` subfolder:
+
+```bash
+npx helium-rapid-prune /path/to/repo/dsl
+```
 
 ## Publishing (maintainers)
 

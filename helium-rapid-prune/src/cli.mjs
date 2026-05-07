@@ -195,7 +195,18 @@ async function buildProjectManager(dslRoot) {
   const pm = new ProjectManager();
   await pm.initialize([{ uri: toUri(dslRoot), name: "dsl" }]);
   const index = pm.indexes.get(dslRoot);
-  if (!index) throw new Error(`No project index found for ${dslRoot}`);
+  if (!index) {
+    throw new Error(
+      [
+        `No project index found for ${dslRoot}`,
+        "The positional path is used as-is as the DSL root.",
+        "If your repo stores Helium DSL in a subfolder, rerun with that folder (commonly app/ or dsl/).",
+        `Examples:`,
+        `  helium-rapid-prune "${path.join(dslRoot, "app")}"`,
+        `  helium-rapid-prune "${path.join(dslRoot, "dsl")}"`,
+      ].join("\n")
+    );
+  }
   return index;
 }
 
